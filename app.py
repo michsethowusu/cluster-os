@@ -13,6 +13,11 @@ import io
 import mistune                     # MARKDOWN CHANGE
 from config import Config
 
+@app.route('/force-init')
+def force_init():
+    db.create_all()
+    return "Database Tables Created!"
+
 app = Flask(__name__)
 app.config.from_object(Config)
 

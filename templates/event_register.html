@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Register for {{ event.title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Register for Event</h4>
+                </div>
+                <div class="card-body p-4">
+                    <h5>{{ event.title }}</h5>
+                    <p class="text-muted">{{ event.description[:200] }}...</p>
+                    
+                    <form method="POST">
+                        {% if event.polls.count() > 0 %}
+                            <h6 class="mt-4 mb-3">Please answer the following polls to help us improve:</h6>
+                            {% for poll in event.polls %}
+                                <div class="mb-4">
+                                    <label class="form-label fw-bold">{{ poll.title }}</label>
+                                    {% if poll.description %}
+                                        <p class="small text-muted">{{ poll.description }}</p>
+                                    {% endif %}
+                                    <div class="ms-3">
+                                        {% for opt in poll.options %}
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="poll_{{ poll.id }}" value="{{ opt.text }}" id="poll_{{ poll.id }}_{{ loop.index }}" required>
+                                                <label class="form-check-label" for="poll_{{ poll.id }}_{{ loop.index }}">
+                                                    {{ opt.text }}
+                                                </label>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-muted">No polls available for this event.</p>
+                        {% endif %}
+                        
+                        <hr>
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('event_detail', id=event.id) }}" class="btn btn-outline-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary">Confirm Registration</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

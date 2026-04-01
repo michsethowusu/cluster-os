@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Events - AU ECED-FLN Cluster{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h3>Upcoming Events</h3>
+            <p class="text-muted">Join events organized by the cluster</p>
+        </div>
+    </div>
+
+    {% if upcoming %}
+        {% for event in upcoming %}
+        <div class="card mb-4">
+            <div class="card-body">
+                <h4 class="card-title">{{ event.title }}</h4>
+                <p class="card-text">{{ event.description }}</p>
+                <p class="text-muted">
+                    <i class="bi bi-calendar"></i> {{ event.start_date.strftime('%B %d, %Y at %H:%M') }}
+                    {% if event.end_date %} - {{ event.end_date.strftime('%B %d, %Y at %H:%M') }}{% endif %}
+                </p>
+                <a href="{{ url_for('event_detail', id=event.id) }}" class="btn btn-primary">View Details</a>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="alert alert-info">No upcoming events at the moment.</div>
+    {% endif %}
+
+    {% if past %}
+        <h4 class="mt-5">Past Events</h4>
+        <div class="list-group">
+            {% for event in past %}
+            <a href="{{ url_for('event_detail', id=event.id) }}" class="list-group-item list-group-item-action">
+                <div class="d-flex w-100 justify-content-between">
+                    <h5 class="mb-1">{{ event.title }}</h5>
+                    <small class="text-muted">{{ event.start_date.strftime('%b %d, %Y') }}</small>
+                </div>
+                <p class="mb-1">{{ event.description[:150] }}...</p>
+            </a>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

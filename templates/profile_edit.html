@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Profile - AU ECED-FLN Cluster{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Edit Your Projects</h4>
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST" action="{{ url_for('edit_profile') }}">
+                        <div class="mb-3">
+                            <label class="form-label">Projects you have participated in or are currently involved with *</label>
+                            <p class="text-muted small">Provide short descriptions (max 300 characters each). At least one is required.</p>
+                            <div id="projects-container">
+                                {% for proj in projects %}
+                                <div class="project-row mb-2">
+                                    <textarea name="project[]" class="form-control" rows="2" maxlength="300">{{ proj }}</textarea>
+                                </div>
+                                {% endfor %}
+                                {% if not projects %}
+                                <div class="project-row mb-2">
+                                    <textarea name="project[]" class="form-control" rows="2" maxlength="300" placeholder="e.g., Early Literacy Program in Northern Ghana: trained 200 teachers..."></textarea>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addProjectField()">+ Add another project</button>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Cancel</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function addProjectField() {
+    const container = document.getElementById('projects-container');
+    const div = document.createElement('div');
+    div.className = 'project-row mb-2';
+    div.innerHTML = '<textarea name="project[]" class="form-control" rows="2" maxlength="300" placeholder="Describe another project..."></textarea>';
+    container.appendChild(div);
+}
+</script>
+{% endblock %}

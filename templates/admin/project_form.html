@@ -1,0 +1,108 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}{% if project %}Edit{% else %}New{% endif %} Project{% endblock %}
+
+{% block admin_content %}
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label class="form-label">Project Title *</label>
+                        <input type="text" name="title" class="form-control" 
+                               value="{{ project.title if project else '' }}" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Description *</label>
+                        <textarea name="description" class="form-control" rows="4" required>{{ project.description if project else '' }}</textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Response Deadline *</label>
+                            <input type="datetime-local" name="deadline" class="form-control" 
+                                   value="{{ project.deadline.strftime('%Y-%m-%dT%H:%M') if project else '' }}" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Start Date (for upcoming projects)</label>
+                            <input type="date" name="start_date" class="form-control"
+                                   value="{{ project.start_date.strftime('%Y-%m-%d') if project and project.start_date else '' }}">
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    <h5>Activities</h5>
+                    <p class="text-muted small">Add specific activities members can opt into</p>
+                    
+                    <div id="activities-container">
+                        {% if project %}
+                            {% for activity in project.activities %}
+                                <div class="activity-row mb-3 p-3 border rounded">
+                                    <input type="hidden" name="activity_id[]" value="{{ activity.id }}">
+                                    <div class="mb-2">
+                                        <input type="text" name="activity_title[]" class="form-control" 
+                                               placeholder="Activity title" value="{{ activity.title }}" required>
+                                    </div>
+                                    <div class="mb-2">
+                                        <textarea name="activity_desc[]" class="form-control" rows="2" 
+                                                  placeholder="Description">{{ activity.description }}</textarea>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <input type="datetime-local" name="activity_deadline[]" class="form-control"
+                                                   value="{{ activity.deadline.strftime('%Y-%m-%dT%H:%M') if activity.deadline else '' }}"
+                                                   placeholder="Activity deadline (optional)">
+                                        </div>
+                                        <div class="col-md-6 text-end">
+                                            <button type="button" class="btn btn-sm btn-danger" onclick="this.closest('.activity-row').remove()">
+                                                Remove
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                    
+                    <button type="button" class="btn btn-outline-primary mb-3" onclick="addActivity()">
+                        <i class="bi bi-plus"></i> Add Activity
+                    </button>
+                    
+                    <hr>
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('admin_projects') }}" class="btn btn-outline-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Save Project</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function addActivity() {
+    const container = document.getElementById('activities-container');
+    const div = document.createElement('div');
+    div.className = 'activity-row mb-3 p-3 border rounded';
+    div.innerHTML = `
+        <div class="mb-2">
+            <input type="text" name="activity_title[]" class="form-control" placeholder="Activity title" required>
+        </div>
+        <div class="mb-2">
+            <textarea name="activity_desc[]" class="form-control" rows="2" placeholder="Description"></textarea>
+        </div>
+        <div class="row">
+            <div class="col-md-6">
+                <input type="datetime-local" name="activity_deadline[]" class="form-control" placeholder="Activity deadline (optional)">
+            </div>
+            <div class="col-md-6 text-end">
+                <button type="button" class="btn btn-sm btn-danger" onclick="this.closest('.activity-row').remove()">Remove</button>
+            </div>
+        </div>
+    `;
+    container.appendChild(div);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,148 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}Custom Registration Fields{% endblock %}
+
+{% block admin_actions %}
+<button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addFieldModal">
+    <i class="bi bi-plus"></i> Add Field
+</button>
+{% endblock %}
+
+{% block admin_content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <p class="text-muted">Manage custom fields that appear on the registration form. Drag to reorder (not yet implemented).</p>
+                
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Order</th>
+                                <th>Field Name</th>
+                                <th>Label</th>
+                                <th>Type</th>
+                                <th>Required</th>
+                                <th>Active</th>
+                                <th>Options</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for field in fields %}
+                            <tr>
+                                <td>{{ field.order }}</td>
+                                <td><code>{{ field.field_name }}</code></td>
+                                <td>{{ field.field_label }}</td>
+                                <td>{{ field.field_type }}</td>
+                                <td>
+                                    {% if field.is_required %}
+                                        <span class="badge bg-danger">Required</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Optional</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if field.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-dark">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if field.options %}
+                                        <small class="text-muted">{{ field.options[:50] }}{% if field.options|length > 50 %}...{% endif %}</small>
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="editField({{ field.id }})">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <form method="POST" action="{{ url_for('admin_delete_field', id=field.id) }}" style="display:inline;" onsubmit="return confirm('Delete this field?');">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted">No custom fields defined.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Field Modal -->
+<div class="modal fade" id="addFieldModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('admin_fields') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Custom Registration Field</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Field Name (slug)</label>
+                        <input type="text" name="field_name" class="form-control" required 
+                               placeholder="e.g., expertise, twitter_handle">
+                        <div class="form-text">Used internally (no spaces, lowercase).</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Display Label</label>
+                        <input type="text" name="field_label" class="form-control" required
+                               placeholder="e.g., Area of Expertise">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Field Type</label>
+                        <select name="field_type" class="form-select">
+                            <option value="text">Text (single line)</option>
+                            <option value="textarea">Textarea (multi-line)</option>
+                            <option value="select">Dropdown / Select</option>
+                            <option value="url">URL</option>
+                            <option value="email">Email</option>
+                        </select>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" name="is_required" class="form-check-input" id="isRequired" checked>
+                        <label class="form-check-label" for="isRequired">Required field</label>
+                    </div>
+                    <div class="mb-3" id="optionsGroup" style="display: none;">
+                        <label class="form-label">Options (for select type)</label>
+                        <textarea name="options" class="form-control" rows="3" 
+                                  placeholder='["Option 1", "Option 2", "Option 3"]'></textarea>
+                        <div class="form-text">JSON array, e.g., ["Government", "NGO", "Private Sector"]</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Field</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Show/hide options field based on field type
+    document.querySelector('select[name="field_type"]').addEventListener('change', function() {
+        const optionsDiv = document.getElementById('optionsGroup');
+        optionsDiv.style.display = this.value === 'select' ? 'block' : 'none';
+    });
+    
+    // Placeholder for edit functionality (you may add a separate edit modal)
+    function editField(id) {
+        alert('Edit functionality not yet implemented. Please delete and re-add if needed.');
+        // For full implementation, you'd fetch field data and populate an edit modal.
+    }
+</script>
+{% endblock %}

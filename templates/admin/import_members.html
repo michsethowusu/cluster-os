@@ -1,0 +1,76 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}Bulk Import Members{% endblock %}
+
+{% block admin_actions %}
+<a href="{{ url_for('admin_import_members_template') }}" class="btn btn-outline-primary btn-sm">
+    <i class="bi bi-download"></i> Download Template
+</a>
+{% endblock %}
+
+{% block admin_content %}
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Import Members from CSV</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <h6><i class="bi bi-info-circle"></i> How it works:</h6>
+                    <ul class="mb-0">
+                        <li>Upload a CSV file with member data</li>
+                        <li>Required columns: email, name, organization, stakeholder_type, country</li>
+                        <li>If a member already exists, it will be skipped</li>
+                        <li>Imported members will be auto-approved if the setting is enabled</li>
+                        <li>Imported members will be prompted to add projects on their first login</li>
+                    </ul>
+                </div>
+                
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label">CSV File *</label>
+                        <input type="file" name="file" class="form-control" accept=".csv" required>
+                        <div class="form-text">Max file size: 16MB</div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-upload"></i> Import Members
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">CSV Format Specification</h6>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead>
+                        <tr><th>Column</th><th>Required</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>email</td><td>Yes</td><td>Member email address</td></tr>
+                        <tr><td>name</td><td>Yes</td><td>Full name</td></tr>
+                        <tr><td>organization</td><td>Yes</td><td>Organization name</td></tr>
+                        <tr><td>stakeholder_type</td><td>Yes</td><td>One of: Government, NGO / Civil Society, Development Partner / Donor, Academic / Research, UN Agency, Private Sector</td></tr>
+                        <tr><td>country</td><td>Yes</td><td>Country name</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-body">
+                <h6>Sample Row</h6>
+                <pre class="small bg-light p-2 rounded">
+email,name,organization,stakeholder_type,country
+john@unicef.org,John Doe,UNICEF Ghana,UN Agency,Ghana</pre>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+    .admin-sidebar {
+        position: fixed;
+        top: 56px;
+        bottom: 0;
+        left: 0;
+        z-index: 100;
+        padding: 48px 0 0;
+        box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+        background: #f8f9fa;
+    }
+    
+    .admin-sidebar .nav-link {
+        font-weight: 500;
+        color: #333;
+        padding: 12px 20px;
+        border-radius: 0;
+    }
+    
+    .admin-sidebar .nav-link:hover {
+        background: #e9ecef;
+        color: #0066cc;
+    }
+    
+    .admin-sidebar .nav-link.active {
+        background: #0066cc;
+        color: white;
+    }
+    
+    .admin-sidebar .nav-link i {
+        margin-right: 8px;
+    }
+    
+    main.admin-main {
+        margin-left: 240px;
+        padding-top: 20px;
+    }
+    
+    @media (max-width: 767.98px) {
+        .admin-sidebar {
+            position: static;
+            padding-top: 0;
+        }
+        main.admin-main {
+            margin-left: 0;
+        }
+    }
+    
+    .stat-card-admin {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        border-left: 4px solid #0066cc;
+    }
+    
+    .approval-item {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        border: 1px solid #e9ecef;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <nav class="col-md-3 col-lg-2 d-md-block admin-sidebar collapse">
+            <div class="position-sticky">
+                <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted">
+                    <span>Administration</span>
+                </h6>
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_dashboard' %}active{% endif %}" 
+                           href="{{ url_for('admin_dashboard') }}">
+                            <i class="bi bi-speedometer2"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_approvals' %}active{% endif %}" 
+                           href="{{ url_for('admin_approvals') }}">
+                            <i class="bi bi-check2-square"></i> Approvals
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint.startswith('admin_project') %}active{% endif %}" 
+                           href="{{ url_for('admin_projects') }}">
+                            <i class="bi bi-kanban"></i> Projects
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint.startswith('admin_event') %}active{% endif %}" 
+                           href="{{ url_for('admin_events') }}">
+                            <i class="bi bi-calendar-event"></i> Events
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_fields' %}active{% endif %}" 
+                           href="{{ url_for('admin_fields') }}">
+                            <i class="bi bi-input-cursor-text"></i> Form Fields
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_settings' %}active{% endif %}" 
+                           href="{{ url_for('admin_settings') }}">
+                            <i class="bi bi-gear-wide-connected"></i> Settings
+                        </a>
+                    </li>
+                </ul>
+                
+                <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted">
+                    <span>Bulk Import</span>
+                </h6>
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_import_initiatives' %}active{% endif %}" 
+                           href="{{ url_for('admin_import_initiatives') }}">
+                            <i class="bi bi-file-earmark-arrow-up"></i> Import Initiatives
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_import_members' %}active{% endif %}" 
+                           href="{{ url_for('admin_import_members') }}">
+                            <i class="bi bi-people-fill"></i> Import Members
+                        </a>
+                    </li>
+                </ul>
+
+                <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted">
+                    <span>Quick Links</span>
+                </h6>
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('index') }}">
+                            <i class="bi bi-house"></i> View Site
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('dashboard') }}">
+                            <i class="bi bi-person"></i> My Dashboard
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+
+        <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 admin-main">
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                <h1 class="h2">{% block admin_title %}Dashboard{% endblock %}</h1>
+                <div class="btn-toolbar mb-2 mb-md-0">
+                    {% block admin_actions %}{% endblock %}
+                </div>
+            </div>
+            
+            {% block admin_content %}{% endblock %}
+        </main>
+    </div>
+</div>
+{% endblock %}

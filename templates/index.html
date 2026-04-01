@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- White Header Section with Image -->
+<div class="bg-white py-5 border-bottom">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-7">
+                <h1 class="display-5 mb-3 text-dark fw-bold">African Union ECED-FLN Cluster</h1>
+                <p class="lead mb-4 text-muted">Connecting experts and organizations to accelerate Early Childhood Education and Development 
+                & Foundational Learning across Africa.</p>
+                <div class="mb-2">
+                    <a href="{{ url_for('search') }}" class="text-decoration-none text-primary fw-semibold me-4">ECED Initiatives →</a>
+                    <a href="{{ url_for('projects') }}" class="text-decoration-none text-primary fw-semibold me-4">Projects →</a>
+                    <a href="{{ url_for('forum') }}" class="text-decoration-none text-primary fw-semibold">Q&A Forum →</a>
+                </div>
+            </div>
+            <div class="col-lg-5 text-center text-lg-end mt-4 mt-lg-0">
+                <img src="{{ url_for('static', filename='images/au-eced-logo.png') }}" 
+                     alt="AU ECED-FLN Cluster" 
+                     class="rounded-circle shadow"
+                     style="width: 280px; height: 280px; object-fit: cover;">
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container mt-5">
+    <!-- Stats Section -->
+    <div class="row mb-5">
+        <div class="col-md-3 mb-3">
+            <div class="stats-card text-center">
+                <div class="stats-number">{{ stats.total_members }}</div>
+                <div class="text-muted">Cluster Members</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="stats-card text-center">
+                <div class="stats-number">{{ stats.total_initiatives }}</div>
+                <div class="text-muted">ECED Initiatives</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="stats-card text-center">
+                <div class="stats-number">{{ stats.stakeholders|length }}</div>
+                <div class="text-muted">Stakeholder Types</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="stats-card text-center">
+                <div class="stats-number">{{ stats.stakeholders.values()|sum }}</div>
+                <div class="text-muted">Organizations</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stakeholder Breakdown -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <h3 class="mb-4">Stakeholder Ecosystem</h3>
+            <div class="row">
+                {% for type, count in stats.stakeholders.items() %}
+                    <div class="col-md-4 mb-3">
+                        <div class="stats-card d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-building text-primary"></i> {{ type }}</span>
+                            <span class="badge bg-primary rounded-pill">{{ count }}</span>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Initiatives -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h3>Recent Initiatives</h3>
+                <a href="{{ url_for('search') }}" class="btn btn-outline-primary">View All</a>
+            </div>
+            
+            <div class="row">
+                {% for initiative in initiatives %}
+                    <div class="col-md-4 mb-4">
+                        <div class="initiative-card h-100 d-flex flex-column">
+                            <div class="card-body d-flex flex-column p-3">
+                                <span class="badge bg-secondary mb-2 align-self-start">{{ initiative.stakeholder_type }}</span>
+                                <h5 class="card-title mb-2">{{ initiative.title }}</h5>
+                                <p class="card-text text-muted small flex-grow-1 mb-3" style="
+                                    overflow: hidden;
+                                    display: -webkit-box;
+                                    -webkit-line-clamp: 3;
+                                    -webkit-box-orient: vertical;
+                                    word-break: break-word;
+                                ">
+                                    {{ initiative.short_description or initiative.content[:150] }}
+                                </p>
+                                <div class="mb-3">
+                                    {% for tag in initiative.tags[:3] %}
+                                        <a href="{{ url_for('tag_view', tag_name=tag.name) }}" class="tag-badge">{{ tag.name }}</a>
+                                    {% endfor %}
+                                </div>
+                                <div class="mt-auto">
+                                    <a href="{{ url_for('view_initiative', slug=initiative.slug) }}" class="btn btn-primary btn-sm">
+                                        Read More
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="card-footer text-muted small">
+                                <i class="bi bi-building"></i> {{ initiative.author.organization }}
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- CTA Section -->
+    <div class="row mb-5">
+        <div class="col-12 text-center">
+            <div class="stats-card py-5">
+                <h3 class="mb-3">Join the Cluster</h3>
+                <p class="lead text-muted">Share your ECED/FLN initiatives and connect with experts across Africa</p>
+                <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg mt-3">
+                    Request Access
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

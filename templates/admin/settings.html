@@ -1,0 +1,171 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}System Settings{% endblock %}
+
+{% block admin_content %}
+<div class="row">
+    <div class="col-lg-8">
+        <!-- API Configuration -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-key"></i> API Configuration</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('admin_settings') }}">
+                    <div class="mb-3">
+                        <label class="form-label">NVIDIA NIM API Key</label>
+                        <input type="password" name="nvidia_api_key" class="form-control" 
+                               placeholder="Enter new API key to update">
+                        <div class="form-text">
+                            Used for AI title generation, description creation, and tag vetting. 
+                            Get your key from <a href="https://build.nvidia.com" target="_blank">build.nvidia.com</a>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Gmail App Password</label>
+                        <input type="password" name="mail_password" class="form-control"
+                               placeholder="Enter new password to update">
+                        <div class="form-text">
+                            App-specific password for Gmail SMTP. 
+                            <a href="https://support.google.com/accounts/answer/185833" target="_blank">How to generate</a>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Gmail Username</label>
+                        <input type="email" name="mail_username" class="form-control"
+                               placeholder="Enter email to update">
+                        <div class="form-text">The Gmail address used to send OTPs and notifications</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Admin Email</label>
+                        <input type="email" class="form-control" value="{{ config.ADMIN_EMAIL }}" disabled>
+                        <div class="form-text">Primary administrator email address (set in environment)</div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Save API Settings
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Model Configuration -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-cpu"></i> AI Model Settings</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Current Model</label>
+                    <input type="text" class="form-control" value="meta/llama-3.1-70b-instruct" disabled>
+                    <div class="form-text">Default model for content generation and tag vetting</div>
+                </div>
+                
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> 
+                    Model configuration is set in <code>config.py</code>. 
+                    Changing models may require updating API endpoints and parameters.
+                </div>
+            </div>
+        </div>
+
+        <!-- Database Maintenance -->
+        <div class="card mb-4 border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="bi bi-database-gear"></i> Database Maintenance</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6 mb-3">
+                        <form action="{{ url_for('trigger_nlp') }}" method="POST">
+                            <button type="submit" class="btn btn-outline-warning w-100">
+                                <i class="bi bi-arrow-clockwise"></i> Rebuild Noun Phrase DB
+                            </button>
+                        </form>
+                        <small class="text-muted">Scans all published initiatives and updates search index</small>
+                    </div>
+                </div>
+                
+                <div class="alert alert-secondary">
+                    <strong>Current Database Stats:</strong><br>
+                    <ul class="mb-0 mt-2 list-unstyled">
+                        <li class="d-flex justify-content-between align-items-center mb-1">
+                            <span>Registered Users</span>
+                            <span class="badge bg-primary rounded-pill">{{ stats.users }}</span>
+                        </li>
+                        <li class="d-flex justify-content-between align-items-center mb-1">
+                            <span>Published Initiatives</span>
+                            <span class="badge bg-success rounded-pill">{{ stats.initiatives }}</span>
+                        </li>
+                        <li class="d-flex justify-content-between align-items-center mb-1">
+                            <span>Pending Initiatives</span>
+                            <span class="badge bg-warning text-dark rounded-pill">{{ stats.pending_initiatives }}</span>
+                        </li>
+                        <li class="d-flex justify-content-between align-items-center mb-1">
+                            <span>Published Questions</span>
+                            <span class="badge bg-info rounded-pill">{{ stats.questions }}</span>
+                        </li>
+                        <li class="d-flex justify-content-between align-items-center mb-1">
+                            <span>Pending Questions</span>
+                            <span class="badge bg-warning text-dark rounded-pill">{{ stats.pending_questions }}</span>
+                        </li>
+                        <li class="d-flex justify-content-between align-items-center mb-1">
+                            <span>Extracted Noun Phrases</span>
+                            <span class="badge bg-secondary rounded-pill">{{ stats.phrases }}</span>
+                        </li>
+                        <li class="d-flex justify-content-between align-items-center">
+                            <span>Vetted Tags</span>
+                            <span class="badge bg-dark rounded-pill">{{ stats.tags }}</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <!-- System Status -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0">System Status</h6>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled mb-0">
+                    <li class="mb-2 d-flex justify-content-between">
+                        <span><i class="bi bi-check-circle-fill text-success"></i> Web Server</span>
+                        <span class="badge bg-success">Online</span>
+                    </li>
+                    <li class="mb-2 d-flex justify-content-between">
+                        <span><i class="bi bi-check-circle-fill text-success"></i> Database</span>
+                        <span class="badge bg-success">Connected</span>
+                    </li>
+                    <li class="mb-2 d-flex justify-content-between">
+                        <span><i class="bi bi-check-circle-fill text-success"></i> Email SMTP</span>
+                        <span class="badge bg-success">Configured</span>
+                    </li>
+                    <li class="mb-0 d-flex justify-content-between">
+                        <span><i class="bi bi-check-circle-fill text-success"></i> NVIDIA API</span>
+                        <span class="badge bg-success">Active</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Quick Info -->
+        <div class="card bg-light">
+            <div class="card-body">
+                <h6>Configuration Notes</h6>
+                <p class="small text-muted mb-2">
+                    <strong>Environment Variables:</strong> Critical settings like API keys and passwords are stored in environment variables, not the database.
+                </p>
+                <p class="small text-muted mb-0">
+                    <strong>File Storage:</strong> SQLite database is stored as <code>database.db</code> in the application root.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

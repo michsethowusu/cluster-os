@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Q&A Forum - AU ECED-FLN Cluster{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h3>Expert Q&A Forum</h3>
+                    <p class="text-muted mb-0">Problem statements seeking recommendations from cluster experts</p>
+                </div>
+                {% if current_user.is_authenticated %}
+                    <a href="{{ url_for('new_question') }}" class="btn btn-primary">
+                        <i class="bi bi-plus-lg"></i> Ask Question
+                    </a>
+                {% else %}
+                    <a href="{{ url_for('login') }}" class="btn btn-outline-primary">
+                        <i class="bi bi-box-arrow-in-right"></i> Login to Ask
+                    </a>
+                {% endif %}
+            </div>
+            
+            {% if questions %}
+                <div class="list-group">
+                    {% for question in questions %}
+                        <a href="{{ url_for('view_question', id=question.id) }}" class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h5 class="mb-1">{{ question.title }}</h5>
+                                <small class="text-muted">{{ question.created_at | format_date }}</small>
+                            </div>
+                            <p class="mb-1">{{ question.content[:200] }}...</p>
+                            <div class="d-flex justify-content-between align-items-center mt-2">
+                                <small>
+                                    <i class="bi bi-person"></i> {{ question.author.name }} ({{ question.author.organization }})
+                                </small>
+                                <small>
+                                    <i class="bi bi-chat-left-text"></i> 
+                                    {{ question.recommendations|length }} recommendation{% if question.recommendations|length != 1 %}s{% endif %}
+                                </small>
+                            </div>
+                        </a>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="alert alert-info text-center py-5">
+                    <i class="bi bi-question-circle display-4 text-muted mb-3 d-block"></i>
+                    <h5>No questions yet</h5>
+                    <p>Be the first to ask a question and get expert recommendations.</p>
+                    {% if current_user.is_authenticated %}
+                        <a href="{{ url_for('new_question') }}" class="btn btn-primary">Ask a Question</a>
+                    {% else %}
+                        <a href="{{ url_for('login') }}" class="btn btn-outline-primary">Login to Ask</a>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,57 @@
+# === Environments ===
+.env
+.venv
+venv/
+env/
+ENV/
+
+# === Byte-compiled / Optimized / DLL files ===
+__pycache__/
+*.py[cod]
+*$py.class
+
+# === C extensions ===
+*.so
+
+# === Distribution / Packaging ===
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+*.egg-info/
+*.egg
+
+# === Unit test / Coverage reports ===
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# === IDEs / Editors ===
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# === OS generated files ===
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# === Jupyter Notebook (if applicable) ===
+.ipynb_checkpoints

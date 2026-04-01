@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}{% if question %}Edit{% else %}New{% endif %} Question - AU ECED-FLN Cluster{% endblock %}
+
+{% block content %}
+<div class="container mt-5 mb-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">{% if question %}Edit Question{% else %}Ask a Question{% endif %}</h4>
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label class="form-label">Question Title *</label>
+                            <input type="text" name="title" class="form-control" 
+                                   value="{{ question.title if question else '' }}" 
+                                   placeholder="e.g., How to improve literacy in rural areas?" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Detailed Description *</label>
+                            <textarea name="content" class="form-control" rows="8" required
+                                      placeholder="Provide context, background, and specific details about your question...">{{ question.content if question else '' }}</textarea>
+                            <div class="form-text">Be specific to get better recommendations from experts.</div>
+                        </div>
+                        
+                        {% if not question %}
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i> Your question will be reviewed by an admin before being published.
+                            </div>
+                        {% endif %}
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('forum') }}" class="btn btn-outline-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary">
+                                {% if question %}Save Changes{% else %}Submit Question{% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

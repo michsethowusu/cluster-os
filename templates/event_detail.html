@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}{{ event.title }} - Event{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-lg-8">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('events') }}">Events</a></li>
+                    <li class="breadcrumb-item active">{{ event.title }}</li>
+                </ol>
+            </nav>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h3>{{ event.title }}</h3>
+                    <p class="lead">{{ event.description }}</p>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-calendar"></i> 
+                        <strong>Start:</strong> {{ event.start_date.strftime('%B %d, %Y at %H:%M') }}
+                        {% if event.end_date %}
+                        <br><i class="bi bi-calendar-check"></i> 
+                        <strong>End:</strong> {{ event.end_date.strftime('%B %d, %Y at %H:%M') }}
+                        {% endif %}
+                    </div>
+
+                    {% if meeting_link %}
+                    <div class="alert alert-success">
+                        <i class="bi bi-link"></i> 
+                        <strong>Meeting Link:</strong> <a href="{{ meeting_link }}" target="_blank">{{ meeting_link }}</a>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="mt-3">
+                        {% if current_user.is_authenticated %}
+                            {% if registered %}
+                                <div class="alert alert-secondary">
+                                    <i class="bi bi-check-circle-fill"></i> You are registered for this event.
+                                </div>
+                            {% elif event.start_date < now %}
+                                <div class="alert alert-warning">This event has already passed.</div>
+                            {% else %}
+                                <a href="{{ url_for('event_register', id=event.id) }}" class="btn btn-primary btn-lg">
+                                    Register for Event
+                                </a>
+                            {% endif %}
+                        {% else %}
+                            <a href="{{ url_for('login') }}" class="btn btn-primary">Login to Register</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            {% if event.polls.count() > 0 and registered %}
+                <div class="card mt-4">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Event Polls</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted">Your answers to these polls help us tailor future events.</p>
+                        {% for poll in event.polls %}
+                            <div class="mb-3">
+                                <h6>{{ poll.title }}</h6>
+                                <p class="small">{{ poll.description }}</p>
+                                <ul>
+                                    {% for opt in poll.options %}
+                                    <li>{{ opt.text }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h6>Event Details</h6>
+                    <ul class="list-unstyled">
+                        <li><i class="bi bi-people"></i> {{ event.registrations.count() }} registrations</li>
+                        <li><i class="bi bi-question-circle"></i> {{ event.polls.count() }} poll(s)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

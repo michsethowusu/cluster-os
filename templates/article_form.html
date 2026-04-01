@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}{% if initiative %}Edit{% else %}New{% endif %} Initiative - AU ECED-FLN Cluster{% endblock %}
+
+{% block content %}
+<div class="container mt-5 mb-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">{% if initiative %}Edit Initiative{% else %}Submit New Initiative{% endif %}</h4>
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST" action="{% if initiative %}{{ url_for('edit_initiative', id=initiative.id) }}{% else %}{{ url_for('new_initiative') }}{% endif %}">
+                        <div class="mb-3">
+                            <label class="form-label">Initiative Title *</label>
+                            <input type="text" name="title" class="form-control" value="{{ initiative.title if initiative else '' }}" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Short Description (max 300 characters) *</label>
+                            <textarea name="short_description" class="form-control" rows="2" maxlength="300" required placeholder="Brief summary of your initiative...">{{ initiative.short_description if initiative else '' }}</textarea>
+                            <div class="form-text">A concise summary that will appear in search results and cards.</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Full Description *</label>
+                            <textarea name="content" class="form-control content-editor" rows="12" required
+                                      placeholder="Describe your initiative in detail. Include objectives, target beneficiaries, implementation approach, and any results or lessons learned...">{{ initiative.content if initiative else '' }}</textarea>
+                            <!-- MARKDOWN CHANGE: updated hint -->
+                            <div class="form-text">You can use <a href="https://www.markdownguide.org/cheat-sheet/" target="_blank">Markdown</a> for formatting (headings, lists, links, etc.).</div>
+                        </div>
+                        
+                        {% if initiative %}
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" name="regenerate_tags" id="regenerate_tags">
+                            <label class="form-check-label" for="regenerate_tags">
+                                Regenerate tags from updated content
+                            </label>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{% if initiative %}{{ url_for('view_initiative', slug=initiative.slug) }}{% else %}{{ url_for('dashboard') }}{% endif %}" 
+                               class="btn btn-outline-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                {% if initiative %}Save Changes{% else %}Submit Initiative{% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

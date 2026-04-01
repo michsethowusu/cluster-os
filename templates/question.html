@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}{{ question.title }} - Q&A{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-lg-8">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('forum') }}">Q&A Forum</a></li>
+                    <li class="breadcrumb-item active">{{ question.title[:50] }}...</li>
+                </ol>
+            </nav>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <span class="badge bg-primary mb-2">Question</span>
+                    {% if question.author_id == current_user.id or current_user.is_admin %}
+                        <a href="{{ url_for('edit_question', id=question.id) }}" class="btn btn-sm btn-outline-primary float-end">
+                            <i class="bi bi-pencil"></i> Edit
+                        </a>
+                    {% endif %}
+                    <h3 class="card-title">{{ question.title }}</h3>
+                    <p class="text-muted small">
+                        Posted by <strong>{{ question.author.name }}</strong> ({{ question.author.organization }}) 
+                        on {{ question.created_at | format_date }}
+                    </p>
+                    <hr>
+                    <p class="card-text">{{ question.content | safe }}</p>
+                </div>
+            </div>
+
+            <h5 class="mb-3">
+                Expert Recommendations 
+                <span class="badge bg-secondary">{{ recommendations|length }}</span>
+            </h5>
+            
+            {% if recommendations %}
+                {% for rec in recommendations %}
+                    <div class="card mb-3 {% if loop.first %}border-success{% endif %}">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <strong>{{ rec.author.name }}</strong> 
+                                    <small class="text-muted">({{ rec.author.organization }})</small>
+                                    <div class="small text-muted">{{ rec.created_at | format_date }}</div>
+                                </div>
+                                {% if current_user.is_authenticated %}
+                                    <div class="text-center">
+                                        <button class="btn btn-sm btn-outline-success" onclick="vote({{ rec.id }}, 1)">
+                                            <i class="bi bi-arrow-up"></i>
+                                        </button>
+                                        <div class="fw-bold" id="score-{{ rec.id }}">{{ rec.score }}</div>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="vote({{ rec.id }}, -1)">
+                                            <i class="bi bi-arrow-down"></i>
+                                        </button>
+                                    </div>
+                                {% else %}
+                                    <div class="text-center text-muted small">
+                                        <div class="fw-bold">{{ rec.score }}</div>
+                                        <div>votes</div>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <p class="mt-2 mb-0">{{ rec.content }}</p>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="alert alert-light">No recommendations yet. Be the first to share your expertise!</div>
+            {% endif %}
+
+            <!-- Add Recommendation Form -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h6 class="mb-0">Add Your Recommendation</h6>
+                </div>
+                <div class="card-body">
+                    {% if current_user.is_authenticated %}
+                        <form method="POST" action="{{ url_for('add_recommendation', id=question.id) }}">
+                            <div class="mb-3">
+                                <textarea name="content" class="form-control" rows="4" required
+                                          placeholder="Share your expertise, resources, or suggestions..."></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-send"></i> Post Recommendation
+                            </button>
+                        </form>
+                    {% else %}
+                        <div class="text-center py-3">
+                            <p class="text-muted">Please log in to post a recommendation.</p>
+                            <a href="{{ url_for('login') }}" class="btn btn-outline-primary">Login</a>
+                            <a href="{{ url_for('register') }}" class="btn btn-link">Join Cluster</a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h6>About This Question</h6>
+                    <ul class="list-unstyled mb-0 small">
+                        <li class="mb-2"><i class="bi bi-person"></i> {{ question.author.name }}</li>
+                        <li class="mb-2"><i class="bi bi-building"></i> {{ question.author.organization }}</li>
+                        <li class="mb-2"><i class="bi bi-calendar"></i> {{ question.created_at | format_date }}</li>
+                        <li><i class="bi bi-chat"></i> {{ recommendations|length }} recommendation(s)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <h6>How It Works</h6>
+                    <p class="small text-muted mb-0">
+                        Any member can ask questions. Recommendations are voted on by the community, 
+                        and the best responses rise to the top.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function vote(recId, voteType) {
+    fetch(`/forum/recommendation/${recId}/vote`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `vote_type=${voteType}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if(data.success) {
+            document.getElementById(`score-${recId}`).textContent = data.score;
+        }
+    });
+}
+</script>
+{% endblock %}

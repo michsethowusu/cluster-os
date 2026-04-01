@@ -1,0 +1,46 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}Dashboard{% endblock %}
+
+{% block admin_content %}
+<div class="row">
+    <div class="col-md-4 mb-4">
+        <div class="card text-white bg-warning">
+            <div class="card-body">
+                <h5 class="card-title">Pending Registrations</h5>
+                <p class="card-text display-6">{{ pending_users }}</p>
+                <a href="{{ url_for('admin_approvals', type='users') }}" class="text-white">Review →</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <h5 class="card-title">Pending Initiatives</h5>
+                <p class="card-text display-6">{{ pending_initiatives }}</p>
+                <a href="{{ url_for('admin_approvals', type='initiatives') }}" class="text-white">Review →</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card text-white bg-secondary">
+            <div class="card-body">
+                <h5 class="card-title">Pending Questions</h5>
+                <p class="card-text display-6">{{ pending_questions }}</p>
+                <a href="{{ url_for('admin_approvals', type='questions') }}" class="text-white">Review →</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-body">
+        <h5>Maintenance Actions</h5>
+        <form action="{{ url_for('trigger_nlp') }}" method="POST" class="d-inline">
+            <button type="submit" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-clockwise"></i> Update Noun Phrase Database
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Search Members - AU ECED-FLN Cluster{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex align-items-center mb-2">
+                <a href="{{ url_for('members') }}" class="text-muted text-decoration-none small me-2">
+                    <i class="bi bi-arrow-left"></i> Back to Members
+                </a>
+            </div>
+            <h3>Search Members by Expertise</h3>
+            <p class="text-muted">Find members with knowledge in specific topics.</p>
+
+            <form action="{{ url_for('search_members') }}" method="GET" class="mb-4">
+                <div class="input-group">
+                    <input type="text" name="q" class="form-control form-control-lg"
+                           placeholder="e.g., early literacy, teacher training, community engagement"
+                           value="{{ query or '' }}">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search"></i> Search
+                    </button>
+                </div>
+            </form>
+
+            {% if query %}
+                <p class="text-muted">Showing results for: <strong>{{ query }}</strong></p>
+            {% endif %}
+
+            {% if results %}
+                <div class="row">
+                    {% for member in results %}
+                    <div class="col-md-6 col-lg-4 mb-4">
+                        <div class="card h-100 initiative-card">
+                            <div class="card-body">
+                                <h5 class="card-title">{{ member.name }}</h5>
+                                <p class="card-text text-muted">
+                                    <i class="bi bi-building"></i> {{ member.organization }}<br>
+                                    <i class="bi bi-geo-alt"></i> {{ member.country }}<br>
+                                    <i class="bi bi-tag"></i> {{ member.stakeholder_type }}
+                                </p>
+                                <div class="mt-2">
+                                    <strong class="small">Projects:</strong>
+                                    <ul class="list-unstyled small mt-1">
+                                        {% for proj in member.member_projects %}
+                                        <li class="mb-1">
+                                            <i class="bi bi-check-circle-fill text-success"></i>
+                                            {{ proj.description[:80] }}{% if proj.description|length > 80 %}...{% endif %}
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="card-footer bg-white">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="badge bg-secondary">{{ member.stakeholder_type }}</span>
+                                    {% if current_user.is_authenticated %}
+                                    <button class="btn btn-sm btn-outline-primary"
+                                            onclick="toggleEmail(this, '{{ member.email }}')">
+                                        <i class="bi bi-envelope"></i> Show Email
+                                    </button>
+                                    {% endif %}
+                                </div>
+                                <div class="member-email-container mt-2"></div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% elif query %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> No members found matching your query. Try different keywords.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleEmail(btn, email) {
+    const container = btn.closest('.card-footer').querySelector('.member-email-container');
+    if (container.innerHTML) {
+        container.innerHTML = '';
+        btn.innerHTML = '<i class="bi bi-envelope"></i> Show Email';
+    } else {
+        container.innerHTML = '<a href="mailto:' + email + '" class="small text-primary text-decoration-none">'
+            + '<i class="bi bi-envelope-fill me-1"></i>' + email + '</a>';
+        btn.innerHTML = '<i class="bi bi-eye-slash"></i> Hide';
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}Manage Events{% endblock %}
+
+{% block admin_actions %}
+<a href="{{ url_for('admin_event_new') }}" class="btn btn-primary btn-sm">
+    <i class="bi bi-plus"></i> New Event
+</a>
+{% endblock %}
+
+{% block admin_content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Title</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                            <th>Polls</th>
+                            <th>Registrations</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for event in events %}
+                        <tr>
+                            <td><strong>{{ event.title }}</strong></td>
+                            <td>{{ event.start_date.strftime('%b %d, %Y %H:%M') }}</td>
+                            <td>{{ event.end_date.strftime('%b %d, %Y %H:%M') if event.end_date else '-' }}</td>
+                            <td>{{ event.polls.count() }}</td>
+                            <td>{{ event.registrations.count() }}</td>
+                            <td>
+                                <a href="{{ url_for('admin_event_edit', id=event.id) }}" class="btn btn-sm btn-outline-primary">Edit</a>
+                                <form method="POST" action="{{ url_for('admin_event_delete', id=event.id) }}" class="d-inline" onsubmit="return confirm('Delete this event?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                </form>
+                                <a href="{{ url_for('event_detail', id=event.id) }}" class="btn btn-sm btn-outline-secondary" target="_blank">View</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% if not events %}
+                <p class="text-muted">No events created yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

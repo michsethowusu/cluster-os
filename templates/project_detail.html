@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.title }} - Project{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-lg-8">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('projects') }}">Projects</a></li>
+                    <li class="breadcrumb-item active">{{ project.title }}</li>
+                </ol>
+            </nav>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h3>{{ project.title }}</h3>
+                    <p class="lead">{{ project.description }}</p>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-clock"></i> 
+                        <strong>Response Deadline:</strong> {{ project.deadline.strftime('%B %d, %Y at %H:%M') }}
+                        {% if days_left > 0 %}
+                            <span class="badge bg-warning text-dark ms-2">{{ days_left }} day(s) left</span>
+                        {% elif days_left == 0 %}
+                            <span class="badge bg-danger ms-2">Last day!</span>
+                        {% else %}
+                            <span class="badge bg-secondary ms-2">Closed</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <h4 class="mb-3">Available Activities</h4>
+            <p class="text-muted">Select the activities you want to participate in:</p>
+
+            {% if already_participating %}
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle-fill"></i> 
+                    You are already participating in this project. 
+                    <a href="{{ url_for('dashboard') }}">View in dashboard</a>
+                </div>
+            {% elif project.deadline > now %}
+                <form method="POST" action="{{ url_for('participate_project', id=project.id) }}">
+                    {% for activity in project.activities %}
+                        <div class="card mb-3 {% if activity.deadline and activity.deadline < now %}border-secondary opacity-50{% endif %}">
+                            <div class="card-body">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="activities" 
+                                           value="{{ activity.id }}" id="activity{{ activity.id }}"
+                                           {% if activity.deadline and activity.deadline < now %}disabled{% endif %}>
+                                    <label class="form-check-label" for="activity{{ activity.id }}">
+                                        <strong>{{ activity.title }}</strong>
+                                        {% if activity.deadline %}
+                                            <br><small class="text-muted">Deadline: {{ activity.deadline.strftime('%b %d, %Y') }}</small>
+                                        {% endif %}
+                                    </label>
+                                </div>
+                                <p class="mb-0 mt-2 ms-4 text-muted">{{ activity.description }}</p>
+                            </div>
+                        </div>
+                    {% endfor %}
+                    
+                    <button type="submit" class="btn btn-primary btn-lg w-100">
+                        <i class="bi bi-check2-circle"></i> Confirm Participation
+                    </button>
+                </form>
+            {% else %}
+                <div class="alert alert-secondary">This project is no longer accepting participants.</div>
+            {% endif %}
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h6>Project Status</h6>
+                    <ul class="list-unstyled mb-0">
+                        <li><i class="bi bi-people"></i> {{ participant_count }} participant(s)</li>
+                        <li><i class="bi bi-list-check"></i> {{ project.activities|length }} activity(ies)</li>
+                        <li><i class="bi bi-calendar"></i> Started {{ project.created_at.strftime('%b %d, %Y') }}</li>
+                    </ul>
+                </div>
+            </div>
+
+            {% if current_user.is_authenticated and current_user.organization %}
+                <div class="card">
+                    <div class="card-body">
+                        <h6>Your Organization</h6>
+                        <p class="mb-0"><strong>{{ current_user.organization }}</strong></p>
+                        <small class="text-muted">{{ current_user.stakeholder_type }}</small>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Polls - AU ECED-FLN Cluster{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-12">
+            <h3>Event Polls</h3>
+            <p class="text-muted">View results from past event polls</p>
+
+            <!-- Tag Filter -->
+            <form action="{{ url_for('polls') }}" method="GET" class="mb-4">
+                <div class="row g-2">
+                    <div class="col-md-3">
+                        <label class="form-label">Filter by Tag</label>
+                        <select name="tag" class="form-select" onchange="this.form.submit()">
+                            <option value="">-- All Polls --</option>
+                            {% for tag in tags %}
+                            <option value="{{ tag }}" {% if selected_tag == tag %}selected{% endif %}>{{ tag }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </form>
+
+            {% if polls %}
+                <div class="row">
+                    {% for item in poll_stats %}
+                        {% set poll = item.poll %}
+                        <div class="col-md-6 mb-4">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <h5 class="card-title">{{ poll.title }}</h5>
+                                    <p class="card-text text-muted">{{ poll.description }}</p>
+                                    <div class="mt-2">
+                                        <small class="text-muted">Total responses: {{ item.total_responses }}</small>
+                                    </div>
+                                    <div class="mt-2">
+                                        <strong>Quick results:</strong>
+                                        <ul class="list-unstyled small">
+                                            {% for opt, count in item.option_counts.items() %}
+                                            <li>{{ opt }}: {{ count }} vote(s)</li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                    <a href="{{ url_for('poll_detail', id=poll.id) }}" class="btn btn-sm btn-outline-primary">View Detailed Breakdown</a>
+                                </div>
+                                <div class="card-footer text-muted small">
+                                    Event: <a href="{{ url_for('event_detail', id=poll.event.id) }}">{{ poll.event.title }}</a>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="alert alert-info">No polls found.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

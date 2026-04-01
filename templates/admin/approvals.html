@@ -1,0 +1,53 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}Pending Approvals{% endblock %}
+
+{% block admin_actions %}
+<div class="btn-group">
+    <a href="{{ url_for('admin_approvals', type='all') }}" class="btn btn-outline-primary btn-sm {% if type_filter == 'all' %}active{% endif %}">All</a>
+    <a href="{{ url_for('admin_approvals', type='users') }}" class="btn btn-outline-primary btn-sm {% if type_filter == 'users' %}active{% endif %}">Users</a>
+    <a href="{{ url_for('admin_approvals', type='initiatives') }}" class="btn btn-outline-primary btn-sm {% if type_filter == 'initiatives' %}active{% endif %}">Initiatives</a>
+    <a href="{{ url_for('admin_approvals', type='questions') }}" class="btn btn-outline-primary btn-sm {% if type_filter == 'questions' %}active{% endif %}">Questions</a>
+</div>
+{% endblock %}
+
+{% block admin_content %}
+{% if items %}
+    <div class="list-group">
+        {% for item in items %}
+            <div class="approval-item">
+                <div class="d-flex w-100 justify-content-between align-items-start">
+                    <div>
+                        {% if item.__class__.__name__ == 'User' %}
+                            <h5 class="mb-1"><i class="bi bi-person"></i> {{ item.name }}</h5>
+                            <p class="mb-1">{{ item.organization }} | {{ item.email }}</p>
+                            <small class="text-muted">Stakeholder: {{ item.stakeholder_type }} | {{ item.country }}</small>
+                        
+                        {% elif item.__class__.__name__ == 'Initiative' %}
+                            <h5 class="mb-1"><i class="bi bi-file-text"></i> {{ item.title }}</h5>
+                            <p class="mb-1">By {{ item.author.name }} ({{ item.author.organization }})</p>
+                            <small class="text-muted">{{ item.content[:150] }}...</small>
+                        
+                        {% elif item.__class__.__name__ == 'Question' %}
+                            <h5 class="mb-1"><i class="bi bi-question-circle"></i> {{ item.title }}</h5>
+                            <p class="mb-1">By {{ item.author.name }} ({{ item.author.organization }})</p>
+                            <small class="text-muted">{{ item.content[:150] }}...</small>
+                        {% endif %}
+                    </div>
+                    <div class="btn-group">
+                        <form method="POST" action="{{ url_for('approve_item', type=item.__class__.__name__.lower(), id=item.id) }}" class="d-inline">
+                            <button type="submit" class="btn btn-success btn-sm">Approve</button>
+                        </form>
+                        <form method="POST" action="{{ url_for('unpublish_item', type=item.__class__.__name__.lower(), id=item.id) }}" class="d-inline">
+                            <button type="submit" class="btn btn-danger btn-sm">Reject</button>
+                        </form>
+                    </div>
+                </div>
+                <small class="text-muted mt-2 d-block">Submitted {{ item.created_at | format_date }}</small>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="alert alert-success">No pending approvals!</div>
+{% endif %}
+{% endblock %}

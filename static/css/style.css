@@ -1,0 +1,34 @@
+/* Additional custom styles beyond the inline styles */
+
+.admin-sidebar {
+    min-height: calc(100vh - 56px);
+    background: #f8f9fa;
+    border-right: 1px solid #dee2e6;
+}
+
+.content-editor {
+    min-height: 300px;
+}
+
+.vote-btn {
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.vote-btn:hover {
+    transform: scale(1.1);
+}
+
+.org-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 16px;
+    background: #e9ecef;
+    border-radius: 20px;
+    margin: 5px;
+}
+
+.org-badge i {
+    margin-right: 8px;
+    color: #0066cc;
+}

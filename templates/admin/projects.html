@@ -1,0 +1,54 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}Manage Projects{% endblock %}
+
+{% block admin_actions %}
+<a href="{{ url_for('admin_new_project') }}" class="btn btn-primary btn-sm">
+    <i class="bi bi-plus"></i> New Project
+</a>
+{% endblock %}
+
+{% block admin_content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Project</th>
+                            <th>Deadline</th>
+                            <th>Status</th>
+                            <th>Participants</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for project in projects %}
+                            <tr>
+                                <td>
+                                    <strong>{{ project.title }}</strong>
+                                    <br><small class="text-muted">{{ project.activities|length }} activities</small>
+                                </td>
+                                <td>{{ project.deadline.strftime('%b %d, %Y') }}</td>
+                                <td>
+                                    {% if project.deadline > now %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Closed</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ project.participations|length }}</td>
+                                <td>
+                                    <a href="{{ url_for('admin_edit_project', id=project.id) }}" class="btn btn-sm btn-outline-primary">Edit</a>
+                                    <a href="{{ url_for('project_detail', id=project.id) }}" class="btn btn-sm btn-outline-secondary" target="_blank">View</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

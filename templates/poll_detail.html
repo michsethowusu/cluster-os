@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}{{ poll.title }} - Poll Results{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('polls') }}">Polls</a></li>
+                    <li class="breadcrumb-item active">{{ poll.title }}</li>
+                </ol>
+            </nav>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h3>{{ poll.title }}</h3>
+                    <p class="lead">{{ poll.description }}</p>
+                    <p><strong>Event:</strong> <a href="{{ url_for('event_detail', id=poll.event.id) }}">{{ poll.event.title }}</a></p>
+                    <p><strong>Total responses:</strong> {{ responses|length }}</p>
+                </div>
+            </div>
+
+            <h5>Results by Option and Country</h5>
+            <div class="table-responsive">
+                <table class="table table-bordered table-striped">
+                    <thead>
+                        <tr>
+                            <th>Option</th>
+                            {% for country in countries %}
+                            <th>{{ country }}</th>
+                            {% endfor %}
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in data %}
+                        <tr>
+                            <td><strong>{{ row.option }}</strong></td>
+                            {% for country in countries %}
+                            <td class="text-center">{{ row[country] }}</td>
+                            {% endfor %}
+                            <td class="text-center">{{ row|sum(attribute=country) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="card mt-4">
+                <div class="card-body">
+                    <h6>Individual Responses</h6>
+                    <ul class="list-group">
+                        {% for resp in responses %}
+                        <li class="list-group-item">
+                            <strong>{{ resp.user.name }}</strong> ({{ resp.user.organization }}, {{ resp.user.country }})<br>
+                            <span class="text-muted">Answered: {{ resp.answer }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

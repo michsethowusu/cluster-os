@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}Member Organizations - AU ECED-FLN Cluster{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row mb-4">
+        <div class="col-12 text-center">
+            <h3>Cluster Member Organizations</h3>
+            <p class="text-muted">Connect with experts across Africa's ECED-FLN ecosystem</p>
+        </div>
+    </div>
+
+    <!-- AI Member Search -->
+    <div class="row mb-5">
+        <div class="col-md-8 mx-auto">
+            <div class="stats-card">
+                <h5 class="mb-2"><i class="bi bi-search text-primary"></i> Find Experts by Topic</h5>
+                <p class="text-muted small mb-3">Describe a topic or area of work and we'll match you with members who have relevant project experience.</p>
+                <form action="{{ url_for('search_members') }}" method="GET">
+                    <div class="input-group">
+                        <input type="text" name="q" class="form-control form-control-lg"
+                               placeholder="e.g., early literacy, teacher training, community engagement"
+                               {% if request.args.get('q') %}value="{{ request.args.get('q') }}"{% endif %}>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Overview -->
+    <div class="row mb-5">
+        <div class="col-md-8 mx-auto">
+            <div class="stats-card">
+                <div class="row text-center">
+                    <div class="col-4">
+                        <div class="stats-number">{{ organizations|length }}</div>
+                        <div class="text-muted small">Organizations</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="stats-number">
+                            {{ organizations|map(attribute='stakeholder_type')|unique|list|length }}
+                        </div>
+                        <div class="text-muted small">Stakeholder Types</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="stats-number">
+                            {{ organizations|map(attribute='member_count')|sum }}
+                        </div>
+                        <div class="text-muted small">Total Experts</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Organization Directory -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Organization Directory</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Organization</th>
+                                    <th>Type</th>
+                                    <th>Experts</th>
+                                    <th>Initiatives</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for org in organizations %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ org.organization }}</strong><br>
+                                            <small class="text-muted">{{ org.country }}</small>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary">{{ org.stakeholder_type }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="fw-bold text-primary">{{ org.member_count }}</span>
+                                            <small class="text-muted">expert{% if org.member_count != 1 %}s{% endif %}</small>
+                                        </td>
+                                        <td>
+                                            <a href="{{ url_for('search') }}?q={{ org.organization }}" class="btn btn-sm btn-outline-primary">
+                                                View Initiatives
+                                            </a>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stakeholder Distribution -->
+    <div class="row mt-5">
+        <div class="col-12">
+            <h5 class="mb-4">Stakeholder Distribution</h5>
+            <div class="row">
+                {% for org in organizations|groupby('stakeholder_type') %}
+                    <div class="col-md-4 mb-3">
+                        <div class="stats-card">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="fw-bold">{{ org.grouper }}</span>
+                                <span class="badge bg-primary rounded-pill">{{ org.list|length }}</span>
+                            </div>
+                            <div class="mt-2">
+                                {% for item in org.list[:3] %}
+                                    <div class="small text-muted">{{ item.organization }}</div>
+                                {% endfor %}
+                                {% if org.list|length > 3 %}
+                                    <div class="small text-muted">+{{ org.list|length - 3 }} more</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Join CTA -->
+    <div class="row mt-5 mb-5">
+        <div class="col-12 text-center">
+            <div class="stats-card py-4" style="background: linear-gradient(135deg, #0066cc 0%, #004499 100%); color: white;">
+                <h4 class="mb-2">Is your organization part of the cluster?</h4>
+                <p>Join experts from across Africa working on Early Childhood Education and Foundational Learning.</p>
+                <a href="{{ url_for('register') }}" class="btn btn-light btn-lg mt-2">Request to Join</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

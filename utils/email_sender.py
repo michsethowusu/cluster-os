@@ -109,6 +109,14 @@ def send_import_welcome_email(user):
     """
     send_email(user.email, subject, html)
 
+def send_member_notification(subject, html):
+    """Send an email notification to all approved members."""
+    from app import User, app as flask_app
+    with flask_app.app_context():
+        users = User.query.filter_by(is_approved=True).all()
+        for user in users:
+            send_email(user.email, subject, html)
+
 def send_event_notification(event):
     """Send email notification about a new event to all approved members."""
     from app import User, app as flask_app

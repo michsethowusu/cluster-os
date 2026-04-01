@@ -15,7 +15,7 @@ def send_email(to_email, subject, html_content, text_content=None):
     msg.attach(MIMEText(html_content, 'html'))
     
     try:
-        server = smtplib.SMTP(os.environ.get('MAIL_SERVER'), int(os.environ.get('MAIL_PORT')))
+        server = smtplib.SMTP(os.environ.get('MAIL_SERVER'), int(os.environ.get('MAIL_PORT')), timeout=10)
         server.starttls()
         server.login(os.environ.get('MAIL_USERNAME'), os.environ.get('MAIL_PASSWORD'))
         server.sendmail(msg['From'], [to_email], msg.as_string())
@@ -108,14 +108,6 @@ def send_import_welcome_email(user):
     </html>
     """
     send_email(user.email, subject, html)
-
-def send_member_notification(subject, html):
-    """Send an email notification to all approved members."""
-    from app import User, app as flask_app
-    with flask_app.app_context():
-        users = User.query.filter_by(is_approved=True).all()
-        for user in users:
-            send_email(user.email, subject, html)
 
 def send_event_notification(event):
     """Send email notification about a new event to all approved members."""

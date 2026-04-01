@@ -1,25 +1,44 @@
-import smtplib
 import os
+import requests
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from flask import url_for, current_app
 
 def send_email(to_email, subject, html_content, text_content=None):
-    msg = MIMEMultipart('alternative')
-    msg['Subject'] = subject
-    msg['From'] = os.environ.get('MAIL_DEFAULT_SENDER')
-    msg['To'] = to_email
+    api_key = os.environ.get('BREVO_API_KEY')
+    sender_raw = os.environ.get('MAIL_DEFAULT_SENDER', 'AU ECED-FLN Platform <cluster@eced-au.org>')
     
+    # Parse "Name <email>" format
+    if '<' in sender_raw:
+        sender_name = sender_raw.split('<')[0].strip()
+        sender_email = sender_raw.split('<')[1].replace('>', '').strip()
+    else:
+        sender_name = 'AU ECED-FLN Platform'
+        sender_email = sender_raw
+
+    payload = {
+        "sender": {"name": sender_name, "email": sender_email},
+        "to": [{"email": to_email}],
+        "subject": subject,
+        "htmlContent": html_content
+    }
     if text_content:
-        msg.attach(MIMEText(text_content, 'plain'))
-    msg.attach(MIMEText(html_content, 'html'))
-    
+        payload["textContent"] = text_content
+
     try:
-        server = smtplib.SMTP(os.environ.get('MAIL_SERVER'), int(os.environ.get('MAIL_PORT')), timeout=10)
-        server.starttls()
-        server.login(os.environ.get('MAIL_USERNAME'), os.environ.get('MAIL_PASSWORD'))
-        server.sendmail(msg['From'], [to_email], msg.as_string())
-        server.quit()
+        response = requests.post(
+            "https://api.brevo.com/v3/smtp/email",
+            headers={
+                "accept": "application/json",
+                "api-key": api_key,
+                "content-type": "application/json"
+            },
+            json=payload,
+            timeout=10
+        )
+        if response.status_code not in (200, 201):
+            print(f"Email error: {response.status_code} {response.text}")
+            return False
         return True
     except Exception as e:
         print(f"Email error: {e}")

@@ -13,7 +13,7 @@ import io
 import mistune                     # MARKDOWN CHANGE
 from config import Config
 
-Initialise DB - only on first run
+#Initialise DB - only on first run
 #@app.route('/force-init')
 #def force_init():
 #    db.create_all()

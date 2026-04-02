@@ -3,12 +3,192 @@
 {% block admin_title %}Bulk Import Initiatives{% endblock %}
 
 {% block admin_actions %}
+{% if not preview %}
 <a href="{{ url_for('admin_import_template') }}" class="btn btn-outline-primary btn-sm">
     <i class="bi bi-download"></i> Download Template
 </a>
+{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+{{ super() }}
+<style>
+    .preview-table th { white-space: nowrap; }
+    .badge-known   { background: #198754; }
+    .badge-unknown { background: #fd7e14; }
+    .badge-invalid { background: #dc3545; }
+    .row-unknown   { background: #fff8f0; }
+    .row-known     { background: #f6fff8; }
+    .unknown-block { border: 2px solid #fd7e14; border-radius: 8px; }
+</style>
 {% endblock %}
 
 {% block admin_content %}
+
+{# ═══════════════════════════════════════════════════════════
+   PHASE 2 — Preview & Confirm
+   ═══════════════════════════════════════════════════════════ #}
+{% if preview %}
+
+    <div class="alert alert-info d-flex align-items-center gap-2 mb-4">
+        <i class="bi bi-eye fs-5"></i>
+        <div>
+            <strong>Review before importing.</strong>
+            The CSV has been parsed. No data has been saved yet.
+            Check the rows below, then confirm to proceed.
+        </div>
+    </div>
+
+    {# ── Unknown members warning ─────────────────────────────── #}
+    {% if unknown_emails %}
+    <div class="unknown-block p-3 mb-4">
+        <h6 class="text-warning mb-2">
+            <i class="bi bi-person-x"></i>
+            {{ unknown_emails|length }} email(s) are not yet registered members
+        </h6>
+        <ul class="mb-3 small">
+            {% for email in unknown_emails %}
+            <li>{{ email }}</li>
+            {% endfor %}
+        </ul>
+        <p class="mb-0 small text-muted">
+            Use the toggle below to decide whether to create these accounts automatically.
+            If you leave it off, their initiatives will be skipped.
+        </p>
+    </div>
+    {% endif %}
+
+    {# ── Valid rows table ────────────────────────────────────── #}
+    {% if rows_valid %}
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">
+                <i class="bi bi-check2-circle text-success"></i>
+                {{ rows_valid|length }} row(s) ready to process
+            </h6>
+            <div class="d-flex gap-2 align-items-center small">
+                <span class="badge badge-known">Known member</span>
+                <span class="badge badge-unknown text-dark" style="background:#fff3cd;color:#664d03!important;border:1px solid #ffecb5;">Unknown — will create</span>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0 preview-table">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Row</th>
+                            <th>Email</th>
+                            <th>Member?</th>
+                            <th>Initiative Title</th>
+                            <th>Tags</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows_valid %}
+                        <tr class="{% if row._is_known %}row-known{% else %}row-unknown{% endif %}">
+                            <td class="text-muted">{{ row._row_num }}</td>
+                            <td>{{ row.email }}</td>
+                            <td>
+                                {% if row._is_known %}
+                                    <span class="badge badge-known">Member</span>
+                                {% elif row._exists_unapproved %}
+                                    <span class="badge bg-secondary">Pending approval</span>
+                                {% else %}
+                                    <span class="badge badge-unknown" style="background:#fd7e14;">Unknown</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ row.initiative_title }}</td>
+                            <td><small class="text-muted">{{ row.get('tags', '—') }}</small></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {# ── Invalid rows ────────────────────────────────────────── #}
+    {% if rows_invalid %}
+    <div class="card border-danger mb-4">
+        <div class="card-header bg-danger text-white">
+            <i class="bi bi-x-circle"></i>
+            {{ rows_invalid|length }} row(s) will be skipped (missing required fields)
+        </div>
+        <ul class="list-group list-group-flush">
+            {% for bad in rows_invalid %}
+            <li class="list-group-item list-group-item-danger small">
+                Row {{ bad.row }}: {{ bad.reason }}
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {# ── Confirm form ────────────────────────────────────────── #}
+    {% if rows_valid %}
+    <div class="card">
+        <div class="card-body">
+            <h6 class="mb-3">Confirm Import Options</h6>
+            <form method="POST" action="{{ url_for('admin_import_initiatives') }}">
+                <input type="hidden" name="action" value="confirm">
+                <input type="hidden" name="rows_data" value="{{ rows_json | e }}">
+
+                {% if unknown_emails %}
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" name="create_new_members"
+                           id="create_new_members" checked>
+                    <label class="form-check-label" for="create_new_members">
+                        <strong>Create accounts</strong> for the {{ unknown_emails|length }} unknown email(s)
+                        and import their initiatives
+                        <span class="text-muted small">(unchecking will skip their rows)</span>
+                    </label>
+                </div>
+                {% endif %}
+
+                <div class="mb-4 form-check">
+                    <input type="checkbox" class="form-check-input" name="send_emails"
+                           id="send_emails" {% if send_emails %}checked{% endif %}>
+                    <label class="form-check-label" for="send_emails">
+                        Send email notifications to members
+                        <span class="text-muted small">
+                            (welcome email to new accounts + "initiative pending review" to all)
+                        </span>
+                    </label>
+                </div>
+
+                <div class="alert alert-warning small mb-3">
+                    <i class="bi bi-info-circle"></i>
+                    All initiatives will be placed in the <strong>approval queue</strong> (unpublished).
+                    You can review and publish them from the
+                    <a href="{{ url_for('admin_approvals', type='initiatives') }}">Approvals</a> page.
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check2-all"></i> Confirm &amp; Import
+                    </button>
+                    <a href="{{ url_for('admin_import_initiatives') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Cancel — Upload Different File
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-danger">
+        No valid rows found in the CSV. Please fix the errors above and re-upload.
+    </div>
+    <a href="{{ url_for('admin_import_initiatives') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Go Back
+    </a>
+    {% endif %}
+
+{# ═══════════════════════════════════════════════════════════
+   PHASE 1 — Upload Form
+   ═══════════════════════════════════════════════════════════ #}
+{% else %}
+
 <div class="row">
     <div class="col-lg-8">
         <div class="card mb-4">
@@ -19,42 +199,37 @@
                 <div class="alert alert-info">
                     <h6><i class="bi bi-info-circle"></i> How it works:</h6>
                     <ul class="mb-0">
-                        <li>Upload a CSV file with initiative data</li>
-                        <li>If member email doesn't exist, a new account is created automatically</li>
-                        <li>New accounts are auto-approved and will receive an email notification</li>
-                        <li>Duplicate initiatives (same title by same user) are skipped</li>
-                        <li>You can optionally auto-generate AI titles/descriptions</li>
+                        <li>Upload a CSV — you'll see a preview before anything is saved</li>
+                        <li>Emails must belong to <strong>existing approved members</strong></li>
+                        <li>If an email is unknown you can choose to create the member account first</li>
+                        <li>All initiatives go into the <strong>approval queue</strong> — nothing is published automatically</li>
+                        <li>Members receive an email when their initiative is submitted and again when it's published</li>
+                        <li>Duplicate initiatives (same title, same user) are skipped</li>
                     </ul>
                 </div>
-                
+
                 <form method="POST" enctype="multipart/form-data">
                     <div class="mb-3">
                         <label class="form-label">CSV File *</label>
                         <input type="file" name="file" class="form-control" accept=".csv" required>
                         <div class="form-text">Max file size: 16MB</div>
                     </div>
-                    
+
                     <div class="mb-3 form-check">
-                        <input type="checkbox" class="form-check-input" name="process_ai" id="process_ai" checked>
-                        <label class="form-check-label" for="process_ai">
-                            Auto-generate AI titles, descriptions, and tags for initiatives
-                        </label>
-                    </div>
-                    
-                    <div class="mb-3 form-check">
-                        <input type="checkbox" class="form-check-input" name="send_emails" id="send_emails" checked>
+                        <input type="checkbox" class="form-check-input" name="send_emails"
+                               id="send_emails" checked>
                         <label class="form-check-label" for="send_emails">
-                            Send welcome emails to newly created members
+                            Send email notifications to members
                         </label>
                     </div>
-                    
+
                     <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-upload"></i> Import Initiatives
+                        <i class="bi bi-search"></i> Preview Import
                     </button>
                 </form>
             </div>
         </div>
-        
+
         <div class="card">
             <div class="card-header">
                 <h6 class="mb-0">CSV Format Specification</h6>
@@ -62,35 +237,30 @@
             <div class="card-body">
                 <table class="table table-sm">
                     <thead>
-                        <tr>
-                            <th>Column</th>
-                            <th>Required</th>
-                            <th>Description</th>
-                        </tr>
+                        <tr><th>Column</th><th>Required</th><th>Description</th></tr>
                     </thead>
                     <tbody>
-                        <tr><td>email</td><td>Yes</td><td>Member email (used to identify or create account)</td></tr>
-                        <tr><td>name</td><td>Yes</td><td>Full name of member</td></tr>
-                        <tr><td>organization</td><td>Yes</td><td>Organization name</td></tr>
-                        <tr><td>stakeholder_type</td><td>Yes</td><td>One of: Government, NGO / Civil Society, Development Partner / Donor, Academic / Research, UN Agency, Private Sector</td></tr>
-                        <tr><td>country</td><td>Yes</td><td>Country name</td></tr>
+                        <tr><td>email</td><td>Yes</td><td>Must match an existing approved member (or be created)</td></tr>
+                        <tr><td>name</td><td>Yes *</td><td>Full name (used only when creating a new member)</td></tr>
+                        <tr><td>organization</td><td>Yes *</td><td>Organization (used only when creating a new member)</td></tr>
+                        <tr><td>stakeholder_type</td><td>Yes *</td><td>See valid types on the right (used only when creating)</td></tr>
+                        <tr><td>country</td><td>Yes *</td><td>Country (used only when creating a new member)</td></tr>
                         <tr><td>initiative_title</td><td>Yes</td><td>Title of the initiative</td></tr>
-                        <tr><td>initiative_content</td><td>Yes</td><td>Full description/content</td></tr>
-                        <tr><td>ai_title</td><td>No</td><td>Pre-generated catchy title (leave blank for auto)</td></tr>
-                        <tr><td>ai_description</td><td>No</td><td>Pre-generated short description (leave blank for auto)</td></tr>
+                        <tr><td>initiative_content</td><td>Yes</td><td>Full description / content (Markdown supported)</td></tr>
+                        <tr><td>short_description</td><td>No</td><td>Max 300 chars summary</td></tr>
                         <tr><td>tags</td><td>No</td><td>Comma-separated tags</td></tr>
-                        <tr><td>is_published</td><td>No</td><td>true/false (default: true)</td></tr>
                     </tbody>
                 </table>
+                <p class="small text-muted mb-0">* Required only when the email doesn't belong to an existing member.</p>
             </div>
         </div>
     </div>
-    
+
     <div class="col-lg-4">
-        <div class="card">
+        <div class="card mb-3">
             <div class="card-body">
                 <h6>Stakeholder Types</h6>
-                <ul class="list-unstyled small mb-3">
+                <ul class="list-unstyled small mb-0">
                     <li>• Government</li>
                     <li>• NGO / Civil Society</li>
                     <li>• Development Partner / Donor</li>
@@ -98,13 +268,17 @@
                     <li>• UN Agency</li>
                     <li>• Private Sector</li>
                 </ul>
-                
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-body">
                 <h6>Sample Row</h6>
-                <pre class="small bg-light p-2 rounded">
-email,name,organization,stakeholder_type,country,initiative_title,initiative_content,tags,is_published
-john@unicef.org,John Doe,UNICEF Ghana,UN Agency,Ghana,Literacy Program,Our program focuses on...,literacy,true</pre>
+                <pre class="small bg-light p-2 rounded" style="white-space:pre-wrap;">email,name,organization,stakeholder_type,country,initiative_title,initiative_content,tags
+john@unicef.org,John Doe,UNICEF Ghana,UN Agency,Ghana,Literacy Program,Our program focuses on...,literacy</pre>
             </div>
         </div>
     </div>
 </div>
+
+{% endif %}
 {% endblock %}

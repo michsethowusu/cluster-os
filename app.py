@@ -10,6 +10,7 @@ import string
 import bleach
 import csv
 import io
+import json
 import mistune                     # MARKDOWN CHANGE
 from config import Config
 
@@ -28,7 +29,15 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # Import utilities after app initialization
-from utils.email_sender import send_otp_email, send_approval_email, send_event_notification, send_member_notification, send_import_welcome_email
+from utils.email_sender import (
+    send_otp_email,
+    send_approval_email,
+    send_event_notification,
+    send_member_notification,
+    send_import_welcome_email,
+    send_initiative_approved_email,
+    send_initiative_pending_email,
+)
 from utils.ai_services import generate_title_description, vet_tags_nvidia, rank_members_by_query, clean_tags_for_polls
 from utils.nlp import extract_noun_phrases, update_noun_phrase_db
 from utils.translation import translate_text
@@ -380,7 +389,7 @@ def register():
             'otp': otp,
             'otp_expiry': (datetime.utcnow() + timedelta(minutes=10)).isoformat(),
             'custom_fields': {f.field_name: request.form.get(f.field_name) for f in custom_fields},
-            'projects': projects  # NEW: store projects
+            'projects': projects
         }
         
         send_otp_email(email, otp)
@@ -411,8 +420,8 @@ def verify_registration():
             return redirect(url_for('register'))
         
         if otp == pending['otp']:
-            # Determine approval status based on setting
-            auto_approve = get_setting('auto_approve_members', 'false').lower() == 'true'
+            # Always auto-approve on self-registration (default true)
+            auto_approve = get_setting('auto_approve_members', 'true').lower() == 'true'
             is_approved = auto_approve
             
             # Create user
@@ -647,7 +656,6 @@ def tag_view(tag_name):
     return render_template('search.html', initiatives=initiatives, tags=tags, selected_tag=tag_name)
 
 # ===================== FORUM ROUTES =====================
-# (unchanged from original)
 
 @app.route('/forum')
 def forum():
@@ -698,7 +706,6 @@ def view_question(id):
 def add_recommendation(id):
     question = Question.query.get_or_404(id)
     if not question.is_published:
-        flash('This question is not yet published.', 'error')
         return redirect(url_for('view_question', id=id))
     content = bleach.clean(request.form.get('content'))
     if not content:
@@ -837,20 +844,17 @@ def polls():
     if selected_tag:
         polls = Poll.query.join(PollTag).filter(PollTag.tag == selected_tag)
     
-    # For each poll, compute quick stats (e.g., total responses, counts per option)
+    # For each poll, compute quick stats
     poll_stats = []
     for poll in polls:
-        # Count registrations that answered this poll
         registrations = EventRegistration.query.filter(
-            EventRegistration.poll_answers.contains({str(poll.id): None})  # This is not accurate; we need to filter by key existence
+            EventRegistration.poll_answers.contains({str(poll.id): None})
         ).all()
-        # But JSON query is tricky; we'll do in Python for simplicity
         answers = []
         for reg in registrations:
             if reg.poll_answers and str(poll.id) in reg.poll_answers:
                 answers.append(reg.poll_answers[str(poll.id)])
         total = len(answers)
-        # Count per option
         option_counts = {}
         for opt in poll.options:
             opt_text = opt['text']
@@ -868,7 +872,6 @@ def polls():
 @app.route('/poll/<int:id>')
 def poll_detail(id):
     poll = Poll.query.get_or_404(id)
-    # Gather responses: all event registrations that answered this poll
     registrations = EventRegistration.query.all()
     responses = []
     for reg in registrations:
@@ -878,8 +881,6 @@ def poll_detail(id):
                 'answer': reg.poll_answers[str(poll.id)],
                 'country': reg.user.country
             })
-    # Group by answer and country
-    # For chart display, we'll compute counts by country for each option
     countries = list(set([r['country'] for r in responses]))
     options = [opt['text'] for opt in poll.options]
     data = []
@@ -930,30 +931,97 @@ def admin_approvals():
 def approve_item(type, id):
     if not current_user.is_admin:
         abort(403)
+
     if type == 'user':
         user = User.query.get_or_404(id)
         user.is_approved = True
         db.session.commit()
-        # Send approval email
+        # Notify the user their account is approved
         initiative = Initiative.query.filter_by(user_id=user.id).first()
-        send_approval_email(user.email, initiative.slug if initiative else None)
+        try:
+            send_approval_email(user.email, initiative.slug if initiative else None)
+        except Exception as e:
+            app.logger.error(f"Approval email error for {user.email}: {e}")
         flash(f'User {user.email} approved.', 'success')
+
     elif type == 'initiative':
         initiative = Initiative.query.get_or_404(id)
         initiative.is_published = True
         db.session.commit()
-        # Update noun phrases (tags already processed)
+
+        # 1. Notify the author their initiative is now live
+        author = User.query.get(initiative.user_id)
+        if author:
+            try:
+                send_initiative_approved_email(author, initiative.slug, initiative.title)
+            except Exception as e:
+                app.logger.error(f"Initiative approval email error for {author.email}: {e}")
+
+        # 2. Notify all members that a new initiative has been published
+        try:
+            initiative_url = url_for('view_initiative', slug=initiative.slug, _external=True)
+            send_member_notification(
+                subject=f"New Initiative: {initiative.title}",
+                html=f"""
+                <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#333;">
+                    <h2 style="color:#0066cc;">New Initiative Published</h2>
+                    <p>A new initiative has been published on the AU ECED-FLN Cluster Platform:</p>
+                    <h3 style="margin:16px 0 8px;">{initiative.title}</h3>
+                    <p style="color:#555;">{initiative.short_description or ''}</p>
+                    <p style="text-align:center;margin:30px 0;">
+                        <a href="{initiative_url}"
+                           style="display:inline-block;background:#0066cc;color:white;
+                                  padding:12px 30px;text-decoration:none;border-radius:5px;font-weight:bold;">
+                            Read Initiative
+                        </a>
+                    </p>
+                    <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
+                    <p style="color:#999;font-size:0.85em;">This email was sent by the AU ECED-FLN Cluster Platform.</p>
+                </div>"""
+            )
+        except Exception as e:
+            app.logger.error(f"Member notification error (initiative approved): {e}")
+
+        # 3. Update noun phrases
         try:
             phrases = extract_noun_phrases(initiative.content)
             update_noun_phrase_db(initiative.id, phrases)
         except Exception as e:
             app.logger.error(f"Noun phrase extraction error: {e}")
+
         flash(f'Initiative "{initiative.title}" published.', 'success')
+
     elif type == 'question':
         question = Question.query.get_or_404(id)
         question.is_published = True
         db.session.commit()
+
+        # Notify all members that a new forum discussion is open
+        try:
+            question_url = url_for('view_question', id=question.id, _external=True)
+            send_member_notification(
+                subject=f"New Discussion: {question.title}",
+                html=f"""
+                <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#333;">
+                    <h2 style="color:#0066cc;">New Forum Discussion</h2>
+                    <p>A new question has been posted on the AU ECED-FLN Cluster Platform:</p>
+                    <h3 style="margin:16px 0 8px;">{question.title}</h3>
+                    <p style="text-align:center;margin:30px 0;">
+                        <a href="{question_url}"
+                           style="display:inline-block;background:#0066cc;color:white;
+                                  padding:12px 30px;text-decoration:none;border-radius:5px;font-weight:bold;">
+                            Join the Discussion
+                        </a>
+                    </p>
+                    <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
+                    <p style="color:#999;font-size:0.85em;">This email was sent by the AU ECED-FLN Cluster Platform.</p>
+                </div>"""
+            )
+        except Exception as e:
+            app.logger.error(f"Member notification error (question approved): {e}")
+
         flash('Question published.', 'success')
+
     return redirect(url_for('admin_approvals'))
 
 @app.route('/admin/unpublish/<type>/<int:id>', methods=['POST'])
@@ -988,7 +1056,7 @@ def admin_settings():
             os.environ['MAIL_USERNAME'] = request.form.get('mail_username')
             app.config['MAIL_USERNAME'] = request.form.get('mail_username')
             app.config['MAIL_DEFAULT_SENDER'] = request.form.get('mail_username')
-        # NEW: auto-approve toggle
+        # auto-approve toggle
         auto_approve = 'true' if request.form.get('auto_approve_members') else 'false'
         set_setting('auto_approve_members', auto_approve)
         flash('Settings updated successfully.', 'success')
@@ -1005,7 +1073,7 @@ def admin_settings():
         'pending_questions': Question.query.filter_by(is_published=False).count()
     }
     # Get current auto_approve setting
-    auto_approve = get_setting('auto_approve_members', 'false').lower() == 'true'
+    auto_approve = get_setting('auto_approve_members', 'true').lower() == 'true'
     return render_template('admin/settings.html', stats=stats, config=Config, auto_approve=auto_approve)
 
 @app.route('/admin/fields', methods=['GET', 'POST'])
@@ -1075,7 +1143,6 @@ def admin_import_members():
                 csv_reader = csv.DictReader(stream)
                 imported = 0
                 errors = []
-                auto_approve = get_setting('auto_approve_members', 'false').lower() == 'true'
                 for row_num, row in enumerate(csv_reader, start=2):
                     required = ['email', 'name', 'organization', 'stakeholder_type', 'country']
                     missing = [f for f in required if not row.get(f) or not row.get(f).strip()]
@@ -1092,25 +1159,23 @@ def admin_import_members():
                     if row['stakeholder_type'].strip() not in valid_types:
                         errors.append(f"Row {row_num}: Invalid stakeholder_type")
                         continue
-                    # Create user
+                    # Create user — always approved when imported by admin
                     user = User(
                         email=row['email'].lower().strip(),
                         name=row['name'].strip(),
                         organization=row['organization'].strip(),
                         stakeholder_type=row['stakeholder_type'].strip(),
                         country=row['country'].strip(),
-                        is_approved=auto_approve,
+                        is_approved=True,
                         is_admin=False
                     )
                     db.session.add(user)
                     db.session.flush()
-                    # Send welcome email to imported member
-                    if auto_approve:
-                        try:
-                            send_import_welcome_email(user)
-                        except Exception as e:
-                            app.logger.error(f"Import welcome email error for {user.email}: {e}")
-                    # Note: projects are not imported; will be prompted on first login
+                    # Always send welcome email to imported members
+                    try:
+                        send_import_welcome_email(user)
+                    except Exception as e:
+                        app.logger.error(f"Import welcome email error for {user.email}: {e}")
                     imported += 1
                 db.session.commit()
                 flash(f'Imported {imported} members. Errors: {len(errors)}', 'info' if errors else 'success')
@@ -1140,94 +1205,177 @@ def admin_import_members_template():
     )
 
 # ===================== ADMIN IMPORT INITIATIVES =====================
-# (unchanged except for removing AI fields and adding short_description)
 
 @app.route('/admin/import-initiatives', methods=['GET', 'POST'])
 @login_required
 def admin_import_initiatives():
     if not current_user.is_admin:
         abort(403)
-    if request.method == 'POST':
-        if 'file' not in request.files:
-            flash('No file selected', 'error')
-            return redirect(request.url)
-        file = request.files['file']
-        if file.filename == '':
-            flash('No file selected', 'error')
-            return redirect(request.url)
-        if file and file.filename.endswith('.csv'):
-            try:
-                stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
-                csv_reader = csv.DictReader(stream)
-                imported_count = 0
-                created_users = 0
-                skipped_rows = []
-                for row_num, row in enumerate(csv_reader, start=2):
-                    required = ['email', 'name', 'organization', 'stakeholder_type', 'country', 'initiative_title', 'initiative_content']
-                    missing = [f for f in required if not row.get(f) or not row.get(f).strip()]
-                    if missing:
-                        skipped_rows.append(f"Row {row_num}: Missing fields {missing}")
-                        continue
-                    user = User.query.filter_by(email=row['email'].lower().strip()).first()
-                    if not user:
-                        user = User(
-                            email=row['email'].lower().strip(),
-                            name=row['name'].strip(),
-                            organization=row['organization'].strip(),
-                            stakeholder_type=row['stakeholder_type'].strip(),
-                            country=row['country'].strip(),
-                            is_approved=True,
-                            is_admin=False
-                        )
-                        db.session.add(user)
+
+    # ── PHASE 2: confirmed import ──────────────────────────────────────────────
+    if request.method == 'POST' and request.form.get('action') == 'confirm':
+        rows_json   = request.form.get('rows_data', '[]')
+        create_new  = request.form.get('create_new_members') == 'on'
+        send_emails = request.form.get('send_emails') == 'on'
+
+        try:
+            rows = json.loads(rows_json)
+        except Exception:
+            flash('Session data corrupted. Please re-upload the CSV.', 'error')
+            return redirect(url_for('admin_import_initiatives'))
+
+        imported_count = 0
+        created_users  = 0
+        skipped_rows   = []
+
+        for row in rows:
+            email = row['email'].lower().strip()
+            user  = User.query.filter_by(email=email).first()
+
+            if not user:
+                if not create_new:
+                    skipped_rows.append(f"Skipped {email}: not a member")
+                    continue
+                valid_types = ['Government', 'NGO / Civil Society', 'Development Partner / Donor',
+                               'Academic / Research', 'UN Agency', 'Private Sector']
+                if row.get('stakeholder_type', '').strip() not in valid_types:
+                    skipped_rows.append(f"Skipped {email}: invalid stakeholder_type")
+                    continue
+                user = User(
+                    email=email,
+                    name=row['name'].strip(),
+                    organization=row['organization'].strip(),
+                    stakeholder_type=row['stakeholder_type'].strip(),
+                    country=row['country'].strip(),
+                    is_approved=True,
+                    is_admin=False
+                )
+                db.session.add(user)
+                db.session.flush()
+                created_users += 1
+                if send_emails:
+                    try:
+                        send_import_welcome_email(user)
+                    except Exception as e:
+                        app.logger.error(f"Welcome email error for {email}: {e}")
+
+            # Check duplicate initiative
+            existing = Initiative.query.filter_by(
+                user_id=user.id,
+                title=row['initiative_title'].strip()
+            ).first()
+            if existing:
+                skipped_rows.append(f"Skipped duplicate: \"{row['initiative_title'].strip()}\" for {email}")
+                continue
+
+            # Build slug
+            base_slug = re.sub(r'[^\w]+', '-', row['initiative_title'].lower().strip()).strip('-')
+            slug = base_slug
+            counter = 1
+            while Initiative.query.filter_by(slug=slug).first():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+
+            # Always unpublished — goes into approval queue
+            initiative = Initiative(
+                title=row['initiative_title'].strip(),
+                slug=slug,
+                content=row['initiative_content'].strip(),
+                short_description=row.get('short_description', '')[:300] if row.get('short_description') else None,
+                user_id=user.id,
+                stakeholder_type=user.stakeholder_type,
+                country=user.country,
+                is_published=False,
+                created_at=datetime.utcnow()
+            )
+            db.session.add(initiative)
+            db.session.flush()
+            imported_count += 1
+
+            # Tags
+            if row.get('tags'):
+                tag_names = [t.strip().lower() for t in row['tags'].split(',') if t.strip()]
+                for tag_name in tag_names:
+                    tag = Tag.query.filter_by(name=tag_name).first()
+                    if not tag:
+                        tag = Tag(name=tag_name, is_vetted=True)
+                        db.session.add(tag)
                         db.session.flush()
-                        created_users += 1
-                    existing = Initiative.query.filter_by(
-                        user_id=user.id,
-                        title=row['initiative_title'].strip()
-                    ).first()
-                    if existing:
-                        skipped_rows.append(f"Row {row_num}: Duplicate initiative")
-                        continue
-                    base_slug = re.sub(r'[^\w]+', '-', row['initiative_title'].lower().strip()).strip('-')
-                    slug = base_slug
-                    counter = 1
-                    while Initiative.query.filter_by(slug=slug).first():
-                        slug = f"{base_slug}-{counter}"
-                        counter += 1
-                    initiative = Initiative(
-                        title=row['initiative_title'].strip(),
-                        slug=slug,
-                        content=row['initiative_content'].strip(),               # MARKDOWN CHANGE: raw content
-                        short_description=row.get('short_description', '')[:300] if row.get('short_description') else None,
-                        user_id=user.id,
-                        stakeholder_type=user.stakeholder_type,
-                        country=user.country,
-                        is_published=row.get('is_published', 'true').lower().strip() in ['true', '1', 'yes'],
-                        created_at=datetime.utcnow()
-                    )
-                    db.session.add(initiative)
-                    imported_count += 1
-                    # Process tags if provided
-                    if row.get('tags'):
-                        tag_names = [t.strip().lower() for t in row['tags'].split(',') if t.strip()]
-                        for tag_name in tag_names:
-                            tag = Tag.query.filter_by(name=tag_name).first()
-                            if not tag:
-                                tag = Tag(name=tag_name, is_vetted=True)
-                                db.session.add(tag)
-                                db.session.flush()
-                            initiative.tags.append(tag)
-                            tag.usage_count += 1
-                db.session.commit()
-                flash(f'Import complete: {imported_count} initiatives imported, {created_users} users created', 'success')
-                if skipped_rows:
-                    flash(f'Skipped {len(skipped_rows)} rows. First few: {", ".join(skipped_rows[:3])}', 'warning')
-                return redirect(url_for('admin_import_initiatives'))
-            except Exception as e:
-                flash(f'Error processing file: {str(e)}', 'error')
-                return redirect(request.url)
-    return render_template('admin/import_initiatives.html')
+                    initiative.tags.append(tag)
+                    tag.usage_count += 1
+
+            # Notify user their initiative is pending review
+            if send_emails:
+                try:
+                    send_initiative_pending_email(user, initiative.title)
+                except Exception as e:
+                    app.logger.error(f"Pending email error for {email}: {e}")
+
+        db.session.commit()
+        flash(
+            f'Import complete: {imported_count} initiative(s) queued for approval'
+            + (f', {created_users} new member(s) created' if created_users else '') + '.',
+            'success'
+        )
+        if skipped_rows:
+            flash(f'Skipped {len(skipped_rows)} row(s): {", ".join(skipped_rows[:5])}', 'warning')
+        return redirect(url_for('admin_approvals', type='initiatives'))
+
+    # ── PHASE 1: parse CSV and show preview ───────────────────────────────────
+    if request.method == 'POST':
+        if 'file' not in request.files or request.files['file'].filename == '':
+            flash('No file selected.', 'error')
+            return redirect(request.url)
+
+        file = request.files['file']
+        if not file.filename.endswith('.csv'):
+            flash('Please upload a .csv file.', 'error')
+            return redirect(request.url)
+
+        try:
+            stream     = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+            csv_reader = csv.DictReader(stream)
+            rows_valid   = []
+            rows_invalid = []
+            unknown_emails = []
+
+            for row_num, row in enumerate(csv_reader, start=2):
+                required = ['email', 'name', 'organization', 'stakeholder_type',
+                            'country', 'initiative_title', 'initiative_content']
+                missing = [f for f in required if not row.get(f) or not row.get(f).strip()]
+                if missing:
+                    rows_invalid.append({'row': row_num, 'reason': f"Missing: {', '.join(missing)}"})
+                    continue
+
+                email = row['email'].lower().strip()
+                user  = User.query.filter_by(email=email).first()
+                row_data = {k: v for k, v in row.items()}
+                row_data['_row_num'] = row_num
+                row_data['_is_known'] = user is not None and user.is_approved
+                row_data['_exists_unapproved'] = user is not None and not user.is_approved
+                rows_valid.append(row_data)
+
+                if not user:
+                    unknown_emails.append(email)
+
+            send_emails = request.form.get('send_emails') == 'on'
+
+            return render_template(
+                'admin/import_initiatives.html',
+                preview=True,
+                rows_valid=rows_valid,
+                rows_invalid=rows_invalid,
+                unknown_emails=unknown_emails,
+                rows_json=json.dumps(rows_valid),
+                send_emails=send_emails
+            )
+
+        except Exception as e:
+            flash(f'Error reading CSV: {str(e)}', 'error')
+            return redirect(request.url)
+
+    # GET
+    return render_template('admin/import_initiatives.html', preview=False)
 
 @app.route('/admin/import-template')
 @login_required
@@ -1237,9 +1385,9 @@ def admin_import_template():
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(['email', 'name', 'organization', 'stakeholder_type', 'country',
-                     'initiative_title', 'initiative_content', 'short_description', 'tags', 'is_published'])
+                     'initiative_title', 'initiative_content', 'short_description', 'tags'])
     writer.writerow(['example@unicef.org', 'John Doe', 'UNICEF Ghana', 'UN Agency', 'Ghana',
-                     'Early Literacy Program', 'This initiative focuses on...', 'Improving early grade reading', 'literacy,teacher training', 'true'])
+                     'Early Literacy Program', 'This initiative focuses on...', 'Improving early grade reading', 'literacy,teacher training'])
     output.seek(0)
     return Response(
         output.getvalue(),
@@ -1248,7 +1396,6 @@ def admin_import_template():
     )
 
 # ===================== ADMIN PROJECTS =====================
-# (unchanged from original)
 
 @app.route('/admin/projects')
 @login_required
@@ -1367,7 +1514,6 @@ def admin_event_new():
                 )
                 db.session.add(poll)
                 db.session.flush()
-                # Extract tags from poll title using AI
                 try:
                     tags = clean_tags_for_polls(poll_title)
                     for tag in tags:
@@ -1377,9 +1523,13 @@ def admin_event_new():
                     app.logger.error(f"Poll tag extraction error: {e}")
         db.session.commit()
         
-        # Send notification if requested
+        # Send notification if requested (opt-in: admin may create events in draft
+        # without wanting to blast all members immediately)
         if request.form.get('send_notification'):
-            send_event_notification(event)
+            try:
+                send_event_notification(event)
+            except Exception as e:
+                app.logger.error(f"Event notification error: {e}")
         
         flash('Event created successfully.', 'success')
         return redirect(url_for('admin_events'))
@@ -1397,9 +1547,7 @@ def admin_event_edit(id):
         event.meeting_link = request.form.get('meeting_link')
         event.start_date = datetime.fromisoformat(request.form.get('start_date'))
         event.end_date = datetime.fromisoformat(request.form.get('end_date')) if request.form.get('end_date') else None
-        # Delete existing polls (simplified)
         Poll.query.filter_by(event_id=id).delete()
-        # Recreate polls
         for i in range(1, 6):
             poll_title = request.form.get(f'poll_title_{i}')
             poll_desc = request.form.get(f'poll_desc_{i}')
@@ -1423,7 +1571,10 @@ def admin_event_edit(id):
                     app.logger.error(f"Poll tag extraction error: {e}")
         db.session.commit()
         if request.form.get('send_notification'):
-            send_event_notification(event)
+            try:
+                send_event_notification(event)
+            except Exception as e:
+                app.logger.error(f"Event notification error: {e}")
         flash('Event updated.', 'success')
         return redirect(url_for('admin_events'))
     return render_template('admin/event_form.html', event=event)

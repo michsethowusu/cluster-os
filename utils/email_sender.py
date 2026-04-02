@@ -66,26 +66,93 @@ def send_otp_email(email, otp):
 
 def send_approval_email(email, initiative_slug=None):
     subject = "Welcome to AU ECED-FLN Cluster Platform"
-    
+
+    login_url = url_for('login', _external=True)
+
     initiative_link = ""
     if initiative_slug:
-        with current_app.app_context():
-            link = url_for('view_initiative', slug=initiative_slug, _external=True)
-            initiative_link = f"<p>You can view your initiative <a href='{link}'>here</a>.</p>"
-    
+        link = url_for('view_initiative', slug=initiative_slug, _external=True)
+        initiative_link = f"""
+            <p>Your initiative has also been published. You can view it here:</p>
+            <p style="text-align: center; margin: 10px 0 30px;">
+                <a href="{link}" style="color: #0066cc;">View your initiative →</a>
+            </p>"""
+
     html = f"""
     <html>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
             <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
                 <h2 style="color: #0066cc;">Welcome to AU ECED-FLN Cluster Platform</h2>
-                <p>Your registration has been approved!</p>
-                <p>You can now log in to submit initiatives and participate in discussions.</p>
+                <p>Your registration has been approved! You can now log in to submit initiatives
+                and participate in discussions.</p>
                 {initiative_link}
+                <p style="text-align: center; margin: 30px 0;">
+                    <a href="{login_url}" style="display: inline-block; background: #0066cc; color: white;
+                    padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                        Log In to the Platform
+                    </a>
+                </p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="color: #999; font-size: 0.85em;">This email was sent by the AU ECED-FLN Cluster Platform.</p>
             </div>
         </body>
     </html>
     """
     send_email(email, subject, html)
+
+def send_initiative_approved_email(user, initiative_slug, initiative_title):
+    """Notify a user that their initiative has been approved and published."""
+    with current_app.app_context():
+        link = url_for('view_initiative', slug=initiative_slug, _external=True)
+    subject = "Your initiative has been published – AU ECED-FLN Platform"
+    html = f"""
+    <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h2 style="color: #0066cc;">Your Initiative Has Been Published</h2>
+                <p>Dear {user.name},</p>
+                <p>Your initiative <strong>{initiative_title}</strong> has been reviewed and is now
+                live on the AU ECED-FLN Cluster Platform.</p>
+                <p style="text-align: center; margin: 30px 0;">
+                    <a href="{link}" style="display: inline-block; background: #0066cc; color: white;
+                    padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                        View Your Initiative
+                    </a>
+                </p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="color: #999; font-size: 0.85em;">This email was sent by the AU ECED-FLN Cluster Platform.</p>
+            </div>
+        </body>
+    </html>
+    """
+    send_email(user.email, subject, html)
+
+def send_initiative_pending_email(user, initiative_title):
+    """Notify a user that their imported initiative is pending review."""
+    login_url = url_for('login', _external=True)
+    subject = "Your initiative has been submitted for review – AU ECED-FLN Platform"
+    html = f"""
+    <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h2 style="color: #0066cc;">Initiative Submitted for Review</h2>
+                <p>Dear {user.name},</p>
+                <p>Your initiative <strong>{initiative_title}</strong> has been submitted to the
+                AU ECED-FLN Cluster Platform and is currently pending review by our team.</p>
+                <p>You will receive another email once it has been approved and published.</p>
+                <p style="text-align: center; margin: 30px 0;">
+                    <a href="{login_url}" style="display: inline-block; background: #0066cc; color: white;
+                    padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                        Log In to the Platform
+                    </a>
+                </p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="color: #999; font-size: 0.85em;">This email was sent by the AU ECED-FLN Cluster Platform.</p>
+            </div>
+        </body>
+    </html>
+    """
+    send_email(user.email, subject, html)
 
 def send_import_welcome_email(user):
     """Send a welcome email to a member who was imported by admin."""

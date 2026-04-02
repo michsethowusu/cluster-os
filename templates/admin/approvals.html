@@ -41,6 +41,13 @@
                         <form method="POST" action="{{ url_for('unpublish_item', type=item.__class__.__name__.lower(), id=item.id) }}" class="d-inline">
                             <button type="submit" class="btn btn-danger btn-sm">Reject</button>
                         </form>
+                        {% if item.__class__.__name__ == 'Initiative' %}
+                        <form method="POST" action="{{ url_for('admin_delete_initiative', id=item.id) }}" class="d-inline" onsubmit="return confirm('Permanently delete this initiative? This action cannot be undone.');">
+                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete Permanently">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                        {% endif %}
                     </div>
                 </div>
                 <small class="text-muted mt-2 d-block">Submitted {{ item.created_at | format_date }}</small>

@@ -90,6 +90,12 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_members' %}active{% endif %}" 
+                           href="{{ url_for('admin_members') }}">
+                            <i class="bi bi-people"></i> Members
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if request.endpoint.startswith('admin_project') %}active{% endif %}" 
                            href="{{ url_for('admin_projects') }}">
                             <i class="bi bi-kanban"></i> Projects

@@ -1,0 +1,111 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}Manage Members{% endblock %}
+
+{% block admin_content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <form method="GET" class="row g-3">
+                    <div class="col-md-4">
+                        <input type="text" name="search" class="form-control" placeholder="Search by name, email, or organization" value="{{ search }}">
+                    </div>
+                    <div class="col-md-3">
+                        <select name="stakeholder_type" class="form-select">
+                            <option value="">All Stakeholder Types</option>
+                            {% for stype in stakeholder_types %}
+                            <option value="{{ stype }}" {% if selected_type == stype %}selected{% endif %}>{{ stype }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-search"></i> Filter
+                        </button>
+                    </div>
+                    <div class="col-md-2">
+                        <a href="{{ url_for('admin_members') }}" class="btn btn-outline-secondary w-100">Clear</a>
+                    </div>
+                    <div class="col-md-1">
+                        <span class="btn btn-outline-info w-100 disabled">{{ members|length }} total</span>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Organization</th>
+                                <th>Stakeholder Type</th>
+                                <th>Country</th>
+                                <th>Status</th>
+                                <th>Projects</th>
+                                <th>Joined</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for member in members %}
+                            <tr {% if not member.is_approved %}class="table-warning"{% endif %}>
+                                <td>
+                                    <strong>{{ member.name }}</strong>
+                                    {% if member.is_admin %}
+                                    <span class="badge bg-danger ms-1">Admin</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ member.email }}</td>
+                                <td>{{ member.organization }}</td>
+                                <td><span class="badge bg-secondary">{{ member.stakeholder_type }}</span></td>
+                                <td>{{ member.country }}</td>
+                                <td>
+                                    {% if member.is_approved %}
+                                    <span class="badge bg-success">Approved</span>
+                                    {% else %}
+                                    <span class="badge bg-warning text-dark">Pending</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ member.member_projects.count() }}</td>
+                                <td>{{ member.created_at.strftime('%b %d, %Y') }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        {% if not member.is_approved %}
+                                        <form method="POST" action="{{ url_for('approve_item', type='user', id=member.id) }}" class="d-inline">
+                                            <button type="submit" class="btn btn-success" title="Approve">
+                                                <i class="bi bi-check-lg"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                        {% if member.id != current_user.id and not member.is_admin %}
+                                        <form method="POST" action="{{ url_for('admin_delete_member', id=member.id) }}" class="d-inline" onsubmit="return confirm('Delete {{ member.name }}? This cannot be undone. Make sure they have no initiatives, questions, or recommendations first.');">
+                                            <button type="submit" class="btn btn-danger" title="Delete Member">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="9" class="text-center text-muted py-4">No members found.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

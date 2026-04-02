@@ -579,6 +579,28 @@ def new_initiative():
     
     return render_template('article_form.html', initiative=None)
 
+@app.route('/admin/initiative/<int:id>/delete', methods=['POST'])
+@login_required
+def admin_delete_initiative(id):
+    if not current_user.is_admin:
+        abort(403)
+    initiative = Initiative.query.get_or_404(id)
+    title = initiative.title
+    
+    # Remove tag associations first
+    initiative.tags = []
+    db.session.commit()
+    
+    # Delete related noun phrases
+    NounPhrase.query.filter_by(initiative_id=id).delete()
+    
+    # Delete the initiative
+    db.session.delete(initiative)
+    db.session.commit()
+    
+    flash(f'Initiative "{title}" has been deleted.', 'success')
+    return redirect(url_for('admin_approvals', type='initiatives'))
+
 @app.route('/initiative/<slug>')
 def view_initiative(slug):
     initiative = Initiative.query.filter_by(slug=slug, is_published=True).first_or_404()
@@ -1589,6 +1611,80 @@ def admin_event_delete(id):
     db.session.commit()
     flash('Event deleted.', 'success')
     return redirect(url_for('admin_events'))
+    
+# ===================== ADMIN MEMBERS ROUTES =====================
+
+@app.route('/admin/members')
+@login_required
+def admin_members():
+    if not current_user.is_admin:
+        abort(403)
+    
+    # Get filter parameters
+    search = request.args.get('search', '')
+    stakeholder_type = request.args.get('stakeholder_type', '')
+    
+    query = User.query
+    
+    if search:
+        query = query.filter(
+            db.or_(
+                User.name.ilike(f'%{search}%'),
+                User.email.ilike(f'%{search}%'),
+                User.organization.ilike(f'%{search}%')
+            )
+        )
+    
+    if stakeholder_type:
+        query = query.filter_by(stakeholder_type=stakeholder_type)
+    
+    members = query.order_by(User.created_at.desc()).all()
+    
+    # Get stakeholder types for filter dropdown
+    stakeholder_types = db.session.query(User.stakeholder_type).distinct().all()
+    stakeholder_types = [s[0] for s in stakeholder_types]
+    
+    return render_template('admin/members.html', 
+                         members=members, 
+                         stakeholder_types=stakeholder_types,
+                         search=search,
+                         selected_type=stakeholder_type)
+
+@app.route('/admin/member/<int:id>/delete', methods=['POST'])
+@login_required
+def admin_delete_member(id):
+    if not current_user.is_admin:
+        abort(403)
+    
+    # Prevent admin from deleting themselves
+    if id == current_user.id:
+        flash('You cannot delete your own account.', 'error')
+        return redirect(url_for('admin_dashboard'))
+    
+    user = User.query.get_or_404(id)
+    email = user.email
+    
+    # Check if user has content that might be important
+    initiative_count = Initiative.query.filter_by(user_id=id).count()
+    question_count = Question.query.filter_by(user_id=id).count()
+    recommendation_count = Recommendation.query.filter_by(user_id=id).count()
+    
+    if initiative_count > 0 or question_count > 0 or recommendation_count > 0:
+        flash(f'Cannot delete {email}: User has {initiative_count} initiative(s), {question_count} question(s), and {recommendation_count} recommendation(s). Please delete their content first or reassign it.', 'error')
+        return redirect(url_for('admin_dashboard'))
+    
+    # Delete user's projects and participations
+    MemberProject.query.filter_by(user_id=id).delete()
+    ProjectParticipation.query.filter_by(user_id=id).delete()
+    EventRegistration.query.filter_by(user_id=id).delete()
+    Vote.query.filter_by(user_id=id).delete()
+    
+    # Delete the user
+    db.session.delete(user)
+    db.session.commit()
+    
+    flash(f'Member {email} has been deleted.', 'success')
+    return redirect(url_for('admin_dashboard'))
 
 # ===================== PROJECTS PUBLIC =====================
 

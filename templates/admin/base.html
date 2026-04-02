@@ -11,6 +11,7 @@
         padding: 48px 0 0;
         box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
         background: #f8f9fa;
+        width: 240px;
     }
     
     .admin-sidebar .nav-link {
@@ -37,11 +38,13 @@
     main.admin-main {
         margin-left: 240px;
         padding-top: 20px;
+        min-height: calc(100vh - 56px);
     }
     
     @media (max-width: 767.98px) {
         .admin-sidebar {
             position: static;
+            width: 100%;
             padding-top: 0;
         }
         main.admin-main {
@@ -93,6 +96,12 @@
                         <a class="nav-link {% if request.endpoint == 'admin_members' %}active{% endif %}" 
                            href="{{ url_for('admin_members') }}">
                             <i class="bi bi-people"></i> Members
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_initiatives' %}active{% endif %}" 
+                           href="{{ url_for('admin_initiatives') }}">
+                            <i class="bi bi-file-text"></i> Initiatives
                         </a>
                     </li>
                     <li class="nav-item">

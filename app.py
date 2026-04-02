@@ -605,6 +605,27 @@ def admin_delete_initiative(id):
 def view_initiative(slug):
     initiative = Initiative.query.filter_by(slug=slug, is_published=True).first_or_404()
     return render_template('article.html', initiative=initiative)
+    
+@app.route('/admin/initiatives')
+@login_required
+def admin_initiatives():
+    if not current_user.is_admin:
+        abort(403)
+    
+    filter_type = request.args.get('filter', 'all')
+    
+    query = Initiative.query
+    
+    if filter_type == 'published':
+        query = query.filter_by(is_published=True)
+    elif filter_type == 'pending':
+        query = query.filter_by(is_published=False)
+    
+    initiatives = query.order_by(Initiative.created_at.desc()).all()
+    
+    return render_template('admin/initiatives.html', 
+                         initiatives=initiatives, 
+                         current_filter=filter_type)
 
 @app.route('/initiative/<int:id>/edit', methods=['GET', 'POST'])
 @login_required

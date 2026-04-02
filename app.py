@@ -376,87 +376,40 @@ def register():
             flash('Please provide at least one project description.', 'error')
             return redirect(url_for('register'))
         
-        # Generate OTP
-        otp = ''.join(random.choices(string.digits, k=6))
+        # Auto-approve setting check
+        auto_approve = get_setting('auto_approve_members', 'true').lower() == 'true'
+        is_approved = auto_approve
         
-        # Store registration data in session temporarily
-        session['pending_registration'] = {
-            'email': email,
-            'name': request.form.get('name'),
-            'organization': request.form.get('organization'),
-            'stakeholder_type': request.form.get('stakeholder_type'),
-            'country': request.form.get('country'),
-            'otp': otp,
-            'otp_expiry': (datetime.utcnow() + timedelta(minutes=10)).isoformat(),
-            'custom_fields': {f.field_name: request.form.get(f.field_name) for f in custom_fields},
-            'projects': projects
-        }
+        # Create user immediately (no OTP)
+        user = User(
+            email=email.lower().strip(),
+            name=request.form.get('name'),
+            organization=request.form.get('organization'),
+            stakeholder_type=request.form.get('stakeholder_type'),
+            country=request.form.get('country'),
+            is_approved=is_approved,
+            is_admin=False
+        )
+        db.session.add(user)
+        db.session.commit()
         
-        send_otp_email(email, otp)
-        flash('OTP sent to your email. Please verify to complete registration.', 'info')
-        return redirect(url_for('verify_registration', email=email))
+        # Add projects
+        for proj_desc in projects:
+            member_project = MemberProject(user_id=user.id, description=proj_desc[:300])
+            db.session.add(member_project)
+        db.session.commit()
+        
+        if is_approved:
+            flash('Registration successful! You can now log in.', 'success')
+            return redirect(url_for('login'))
+        else:
+            flash('Registration submitted for admin approval. You will be notified via email.', 'success')
+            return redirect(url_for('index'))
     
     stakeholder_types = ['Government', 'NGO / Civil Society', 'Development Partner / Donor', 
                         'Academic / Research', 'UN Agency', 'Private Sector']
     
     return render_template('register.html', stakeholder_types=stakeholder_types, custom_fields=custom_fields)
-
-@app.route('/verify-registration', methods=['GET', 'POST'])
-def verify_registration():
-    email = request.args.get('email') or request.form.get('email')
-    pending = session.get('pending_registration')
-    
-    if not pending or pending['email'] != email:
-        flash('Registration session expired. Please try again.', 'error')
-        return redirect(url_for('register'))
-    
-    if request.method == 'POST':
-        otp = request.form.get('otp')
-        
-        otp_expiry = datetime.fromisoformat(pending['otp_expiry'])
-        if datetime.utcnow() > otp_expiry:
-            flash('OTP expired. Please register again.', 'error')
-            session.pop('pending_registration', None)
-            return redirect(url_for('register'))
-        
-        if otp == pending['otp']:
-            # Always auto-approve on self-registration (default true)
-            auto_approve = get_setting('auto_approve_members', 'true').lower() == 'true'
-            is_approved = auto_approve
-            
-            # Create user
-            user = User(
-                email=pending['email'],
-                name=pending['name'],
-                organization=pending['organization'],
-                stakeholder_type=pending['stakeholder_type'],
-                country=pending['country'],
-                is_approved=is_approved,
-                is_admin=False
-            )
-            db.session.add(user)
-            db.session.commit()
-            
-            # Add projects
-            for proj_desc in pending['projects']:
-                member_project = MemberProject(user_id=user.id, description=proj_desc[:300])
-                db.session.add(member_project)
-            db.session.commit()
-            
-            # TODO: custom_fields handling (if needed, can store in a separate model)
-            
-            session.pop('pending_registration', None)
-            
-            if is_approved:
-                flash('Registration successful! You can now log in.', 'success')
-                return redirect(url_for('login'))
-            else:
-                flash('Registration submitted for admin approval. You will be notified via email.', 'success')
-                return redirect(url_for('index'))
-        else:
-            flash('Invalid OTP. Please try again.', 'error')
-    
-    return render_template('verify_registration.html', email=email)
 
 @app.route('/profile/edit', methods=['GET', 'POST'])
 @login_required

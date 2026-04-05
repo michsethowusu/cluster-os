@@ -1919,6 +1919,14 @@ def set_admin_password(password):
     admin.password_hash = generate_password_hash(password)
     db.session.commit()
     print(f'Password set for {admin.email}')
+    
+@app.cli.command('sync-all-points')
+def sync_all_points():
+    users = User.query.all()
+    for user in users:
+        award_points(user, commit=False)
+    db.session.commit()
+    print("All user points have been successfully synced with their database history!")
 
 @app.cli.command('init-db')
 def init_db():

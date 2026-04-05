@@ -125,7 +125,7 @@ exec gunicorn -w 4 -b 0.0.0.0:3000 app:app
 After the first successful deploy, set the admin password via the Coolify terminal:
 
 ```bash
-flask set-admin-password yourchosenpassword
+flask set-admin-password 'yourchosenpassword'
 ```
 
 This only needs to be done once. The password is stored as a bcrypt hash in the database.

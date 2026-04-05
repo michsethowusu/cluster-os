@@ -2,13 +2,15 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install curl for health checks (add this line)
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+
+# ADD THIS LINE - Create database tables during build
+RUN python -c "from app import app, db; app.app_context().push(); db.create_all()"
 
 EXPOSE 3000
 

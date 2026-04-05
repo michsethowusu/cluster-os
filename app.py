@@ -2,7 +2,6 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from markupsafe import Markup
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
-from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import os
 import re
@@ -12,7 +11,6 @@ import bleach
 import csv
 import io
 import json
-import click
 import mistune                     # MARKDOWN CHANGE
 from config import Config
 
@@ -59,7 +57,8 @@ class User(db.Model):
     otp = db.Column(db.String(6), nullable=True)
     otp_expiry = db.Column(db.DateTime, nullable=True)
     password_hash = db.Column(db.String(256), nullable=True)
-
+    points = db.Column(db.Integer, default=0, nullable=False)
+    
     # Relationships
     initiatives = db.relationship('Initiative', backref='author', lazy=True)
     recommendations = db.relationship('Recommendation', backref='author', lazy=True)
@@ -157,7 +156,6 @@ class Question(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     
     recommendations = db.relationship('Recommendation', backref='question', lazy=True)
-    user = db.relationship('User', backref='questions', lazy=True)  # ADD THIS
 
 
 class Project(db.Model):
@@ -274,6 +272,27 @@ def set_setting(key, value):
         db.session.add(setting)
     db.session.commit()
 
+
+# ===================== POINTS SYSTEM =====================
+# Points weights
+POINTS = {
+    'recommendation_posted': 10,   # posting a recommendation
+    'recommendation_upvote': 5,    # someone upvotes your recommendation
+    'recommendation_downvote': -2, # someone downvotes your recommendation
+    'initiative_published': 20,    # initiative gets approved and published
+    'question_published': 10,      # question gets approved and published
+    'event_registered': 5,         # registering for an event
+    'project_participated': 15,    # participating in a project activity
+}
+
+def award_points(user, activity, commit=True):
+    """Award or deduct points for a user activity."""
+    pts = POINTS.get(activity, 0)
+    if pts != 0:
+        user.points = (user.points or 0) + pts
+        if commit:
+            db.session.commit()
+
 # ===================== USER LOADER =====================
 
 @login_manager.user_loader
@@ -307,36 +326,23 @@ def index():
 def login():
     if request.method == 'POST':
         email = request.form.get('email')
-        password = request.form.get('password')
         user = User.query.filter_by(email=email).first()
-
+        
         if not user or not user.is_approved:
             flash('Email not found or account pending approval.', 'error')
             return redirect(url_for('login'))
-
-        # Admin uses password login
-        if user.is_admin:
-            # Step 1: email submitted, no password yet — show password field
-            if not password:
-                return render_template('login.html', show_password=True, email=email)
-            # Step 2: password submitted — verify it
-            if not user.password_hash or not check_password_hash(user.password_hash, password):
-                flash('Invalid password.', 'error')
-                return render_template('login.html', show_password=True, email=email)
-            login_user(user)
-            flash('Welcome back!', 'success')
-            return redirect(url_for('admin_dashboard'))
-
-        # Regular users get OTP
+        
+        # Generate OTP
         otp = ''.join(random.choices(string.digits, k=6))
         user.otp = otp
         user.otp_expiry = datetime.utcnow() + timedelta(minutes=10)
         db.session.commit()
+        
         send_otp_email(user.email, otp)
         flash('OTP sent to your email.', 'info')
         return redirect(url_for('verify_otp', email=email))
-
-    return render_template('login.html', show_password=False, email='')
+    
+    return render_template('login.html')
 
 @app.route('/verify-otp', methods=['GET', 'POST'])
 def verify_otp():
@@ -742,6 +748,7 @@ def add_recommendation(id):
     )
     db.session.add(recommendation)
     db.session.commit()
+    award_points(current_user, 'recommendation_posted')
     flash('Your recommendation has been posted.', 'success')
     return redirect(url_for('view_question', id=id))
 
@@ -766,6 +773,13 @@ def vote_recommendation(id):
     upvotes = Vote.query.filter_by(recommendation_id=id, vote_type=1).count()
     downvotes = Vote.query.filter_by(recommendation_id=id, vote_type=-1).count()
     recommendation.score = upvotes - downvotes
+    # Award points to the recommendation author based on vote
+    rec_author = User.query.get(recommendation.user_id)
+    if rec_author:
+        if vote_type == 1:
+            award_points(rec_author, 'recommendation_upvote', commit=False)
+        elif vote_type == -1:
+            award_points(rec_author, 'recommendation_downvote', commit=False)
     db.session.commit()
     return jsonify({'success': True, 'score': recommendation.score})
 
@@ -782,32 +796,25 @@ def members():
 
 @app.route('/leaderboard')
 def leaderboard():
-    # Organization leaderboard (based on initiatives and recommendations)
+    # Top individual members by points
+    expert_stats = User.query.filter_by(is_approved=True, is_admin=False)\
+        .order_by(User.points.desc())\
+        .limit(10).all()
+
+    # Top organisations by sum of member points
     org_stats = db.session.query(
         User.organization,
         User.stakeholder_type,
+        db.func.sum(User.points).label('total_points'),
+        db.func.count(User.id).label('member_count'),
         db.func.count(db.distinct(Initiative.id)).label('initiative_count'),
-        db.func.coalesce(db.func.sum(Recommendation.score), 0).label('total_score')
-    ).select_from(User).\
-    outerjoin(Initiative, User.id == Initiative.user_id).\
-    outerjoin(Recommendation, Initiative.id == Recommendation.initiative_id).\
-    filter(User.is_approved == True).\
-    group_by(User.organization, User.stakeholder_type).\
-    order_by(db.desc('total_score')).\
-    limit(10).all()
-    
-    expert_stats = db.session.query(
-        User.name,
-        User.organization,
-        db.func.count(Recommendation.id).label('rec_count'),
-        db.func.coalesce(db.func.sum(Recommendation.score), 0).label('total_score')
-    ).select_from(User).\
-    outerjoin(Recommendation, User.id == Recommendation.user_id).\
-    filter(User.is_approved == True).\
-    group_by(User.id, User.name, User.organization).\
-    order_by(db.desc('total_score')).\
-    limit(10).all()
-    
+    ).select_from(User)\
+    .outerjoin(Initiative, (User.id == Initiative.user_id) & (Initiative.is_published == True))\
+    .filter(User.is_approved == True, User.is_admin == False)\
+    .group_by(User.organization, User.stakeholder_type)\
+    .order_by(db.desc('total_points'))\
+    .limit(10).all()
+
     return render_template('leaderboard.html', org_stats=org_stats, expert_stats=expert_stats)
 
 # ===================== EVENTS AND POLLS =====================
@@ -849,6 +856,7 @@ def event_register(id):
         registration.poll_answers = poll_answers
         db.session.add(registration)
         db.session.commit()
+        award_points(current_user, 'event_registered')
         flash('You have successfully registered for the event.', 'success')
         return redirect(url_for('event_detail', id=id))
     
@@ -982,7 +990,7 @@ def approve_item(type, id):
 
         # 2. Notify all members that a new initiative has been published
         try:
-            initiative_url = os.environ.get('APP_URL', '').rstrip('/') + f'/initiative/{initiative.slug}'
+            initiative_url = url_for('view_initiative', slug=initiative.slug, _external=True)
             send_member_notification(
                 subject=f"New Initiative: {initiative.title}",
                 html=f"""
@@ -1012,6 +1020,9 @@ def approve_item(type, id):
         except Exception as e:
             app.logger.error(f"Noun phrase extraction error: {e}")
 
+        # Award points to initiative author
+        if author:
+            award_points(author, 'initiative_published')
         flash(f'Initiative "{initiative.title}" published.', 'success')
 
     elif type == 'question':
@@ -1021,7 +1032,7 @@ def approve_item(type, id):
 
         # Notify all members that a new forum discussion is open
         try:
-            question_url = os.environ.get('APP_URL', '').rstrip('/') + f'/forum/{question.id}'
+            question_url = url_for('view_question', id=question.id, _external=True)
             send_member_notification(
                 subject=f"New Discussion: {question.title}",
                 html=f"""
@@ -1043,6 +1054,10 @@ def approve_item(type, id):
         except Exception as e:
             app.logger.error(f"Member notification error (question approved): {e}")
 
+        # Award points to question author
+        q_author = User.query.get(question.user_id)
+        if q_author:
+            award_points(q_author, 'question_published')
         flash('Question published.', 'success')
 
     return redirect(url_for('admin_approvals'))
@@ -1766,6 +1781,7 @@ def participate_project(id):
             )
             db.session.add(participation)
     db.session.commit()
+    award_points(current_user, 'project_participated')
     flash('You have successfully joined the project!', 'success')
     return redirect(url_for('dashboard'))
 
@@ -1857,20 +1873,6 @@ def init_db():
         db.session.add(field)
     db.session.commit()
     print('Database initialized.')
-
-# ===================== ADMIN PASSWORD COMMAND =====================
-
-@app.cli.command('set-admin-password')
-@click.argument('password')
-def set_admin_password(password):
-    """Set the password for the admin user."""
-    admin = User.query.filter_by(is_admin=True).first()
-    if not admin:
-        print('No admin user found. Run flask init-db first.')
-        return
-    admin.password_hash = generate_password_hash(password)
-    db.session.commit()
-    print(f'Password set for {admin.email}')
 
 if __name__ == '__main__':
     with app.app_context():

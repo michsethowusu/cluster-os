@@ -11,6 +11,10 @@ with app.app_context():
             ALTER TABLE \"user\"
             ADD COLUMN IF NOT EXISTS password_hash VARCHAR(256)
         '''))
+        conn.execute(db.text('''
+            ALTER TABLE \"user\"
+            ADD COLUMN IF NOT EXISTS points INTEGER DEFAULT 0
+        '''))
         conn.commit()
     print('DB ready.')
 "

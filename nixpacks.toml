@@ -2,7 +2,7 @@
 nixPkgs = ["python311"]
 
 [phases.install]
-cmds = ["pip install -r requirements.txt", "python -m spacy download en_core_web_sm"]
+cmds = ["pip install -r requirements.txt"]
 
 [start]
 cmd = "gunicorn -w 4 -b 0.0.0.0:3000 app:app"

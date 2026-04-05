@@ -22,15 +22,15 @@
                             <h5 class="mb-1"><i class="bi bi-person"></i> {{ item.name }}</h5>
                             <p class="mb-1">{{ item.organization }} | {{ item.email }}</p>
                             <small class="text-muted">Stakeholder: {{ item.stakeholder_type }} | {{ item.country }}</small>
-                        
+
                         {% elif item.__class__.__name__ == 'Initiative' %}
                             <h5 class="mb-1"><i class="bi bi-file-text"></i> {{ item.title }}</h5>
                             <p class="mb-1">By {{ item.author.name }} ({{ item.author.organization }})</p>
                             <small class="text-muted">{{ item.content[:150] }}...</small>
-                        
+
                         {% elif item.__class__.__name__ == 'Question' %}
                             <h5 class="mb-1"><i class="bi bi-question-circle"></i> {{ item.title }}</h5>
-                            <p class="mb-1">By {{ item.author.name }} ({{ item.author.organization }})</p>
+                            <p class="mb-1">By {{ item.user.name }} ({{ item.user.organization }})</p>
                             <small class="text-muted">{{ item.content[:150] }}...</small>
                         {% endif %}
                     </div>

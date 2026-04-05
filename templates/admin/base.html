@@ -87,7 +87,7 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'admin_approvals' %}active{% endif %}" 
+                        <a class="nav-link {% if request.endpoint == 'admin_approvals' and not request.args.get('type') or request.args.get('type') == 'all' %}active{% endif %}" 
                            href="{{ url_for('admin_approvals') }}">
                             <i class="bi bi-check2-square"></i> Approvals
                         </a>
@@ -102,6 +102,12 @@
                         <a class="nav-link {% if request.endpoint == 'admin_initiatives' %}active{% endif %}" 
                            href="{{ url_for('admin_initiatives') }}">
                             <i class="bi bi-file-text"></i> Initiatives
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_approvals' and request.args.get('type') == 'questions' %}active{% endif %}" 
+                           href="{{ url_for('admin_approvals', type='questions') }}">
+                            <i class="bi bi-question-circle"></i> Q&amp;A Questions
                         </a>
                     </li>
                     <li class="nav-item">

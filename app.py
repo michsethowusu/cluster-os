@@ -155,6 +155,8 @@ class Question(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     
+    user = db.relationship('User', backref='questions')
+    
     recommendations = db.relationship('Recommendation', backref='question', lazy=True)
 
 
@@ -287,9 +289,17 @@ POINTS = {
 
 def award_points(user, activity, commit=True):
     """Award or deduct points for a user activity."""
+    # 1. Resolve Flask-Login's LocalProxy to the actual User model instance
+    if hasattr(user, '_get_current_object'):
+        user = user._get_current_object()
+        
     pts = POINTS.get(activity, 0)
     if pts != 0:
         user.points = (user.points or 0) + pts
+        
+        # 2. Explicitly add the modified object to the session
+        db.session.add(user) 
+        
         if commit:
             db.session.commit()
 

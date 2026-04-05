@@ -1,14 +1,23 @@
 import os
 import requests
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from flask import url_for, current_app
+from flask import current_app
+
+
+def _url(path):
+    """Build an absolute URL using APP_URL env var — no Flask request context needed."""
+    base = os.environ.get('APP_URL', '').rstrip('/')
+    return f"{base}{path}"
+
 
 def send_email(to_email, subject, html_content, text_content=None):
     api_key = os.environ.get('BREVO_API_KEY')
+
+    if not api_key:
+        print("ERROR: BREVO_API_KEY is not set!")
+        return False
+
     sender_raw = os.environ.get('MAIL_DEFAULT_SENDER', 'AU ECED-FLN Platform <cluster@eced-au.org>')
-    
-    # Parse "Name <email>" format
+
     if '<' in sender_raw:
         sender_name = sender_raw.split('<')[0].strip()
         sender_email = sender_raw.split('<')[1].replace('>', '').strip()
@@ -39,10 +48,12 @@ def send_email(to_email, subject, html_content, text_content=None):
         if response.status_code not in (200, 201):
             print(f"Email error: {response.status_code} {response.text}")
             return False
+        print(f"Email sent to {to_email}: {subject}")
         return True
     except Exception as e:
         print(f"Email error: {e}")
         return False
+
 
 def send_otp_email(email, otp):
     subject = "Your Login OTP - AU ECED-FLN Platform"
@@ -52,7 +63,7 @@ def send_otp_email(email, otp):
             <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
                 <h2 style="color: #0066cc;">AU ECED-FLN Cluster Platform</h2>
                 <p>Your one-time password (OTP) for login is:</p>
-                <div style="background: #f4f4f4; padding: 20px; text-align: center; font-size: 24px; 
+                <div style="background: #f4f4f4; padding: 20px; text-align: center; font-size: 24px;
                             font-weight: bold; letter-spacing: 5px; margin: 20px 0;">
                     {otp}
                 </div>
@@ -64,14 +75,15 @@ def send_otp_email(email, otp):
     """
     send_email(email, subject, html)
 
+
 def send_approval_email(email, initiative_slug=None):
     subject = "Welcome to AU ECED-FLN Cluster Platform"
 
-    login_url = url_for('login', _external=True)
+    login_url = _url('/login')
 
     initiative_link = ""
     if initiative_slug:
-        link = url_for('view_initiative', slug=initiative_slug, _external=True)
+        link = _url(f'/initiative/{initiative_slug}')
         initiative_link = f"""
             <p>Your initiative has also been published. You can view it here:</p>
             <p style="text-align: center; margin: 10px 0 30px;">
@@ -100,10 +112,10 @@ def send_approval_email(email, initiative_slug=None):
     """
     send_email(email, subject, html)
 
+
 def send_initiative_approved_email(user, initiative_slug, initiative_title):
     """Notify a user that their initiative has been approved and published."""
-    with current_app.app_context():
-        link = url_for('view_initiative', slug=initiative_slug, _external=True)
+    link = _url(f'/initiative/{initiative_slug}')
     subject = "Your initiative has been published – AU ECED-FLN Platform"
     html = f"""
     <html>
@@ -127,9 +139,10 @@ def send_initiative_approved_email(user, initiative_slug, initiative_title):
     """
     send_email(user.email, subject, html)
 
+
 def send_initiative_pending_email(user, initiative_title):
     """Notify a user that their imported initiative is pending review."""
-    login_url = url_for('login', _external=True)
+    login_url = _url('/login')
     subject = "Your initiative has been submitted for review – AU ECED-FLN Platform"
     html = f"""
     <html>
@@ -154,9 +167,10 @@ def send_initiative_pending_email(user, initiative_title):
     """
     send_email(user.email, subject, html)
 
+
 def send_import_welcome_email(user):
     """Send a welcome email to a member who was imported by admin."""
-    login_url = url_for('login', _external=True)
+    login_url = _url('/login')
     subject = "You've been added to the AU ECED-FLN Cluster Platform"
     html = f"""
     <html>
@@ -195,6 +209,7 @@ def send_import_welcome_email(user):
     """
     send_email(user.email, subject, html)
 
+
 def send_member_notification(subject, html):
     """Send an email notification to all approved members."""
     from app import User, app as flask_app
@@ -203,14 +218,15 @@ def send_member_notification(subject, html):
         for user in users:
             send_email(user.email, subject, html)
 
+
 def send_event_notification(event):
     """Send email notification about a new event to all approved members."""
     from app import User, app as flask_app
     with flask_app.app_context():
         users = User.query.filter_by(is_approved=True).all()
         subject = f"New Event: {event.title}"
-        event_url = url_for('event_detail', id=event.id, _external=True)
-        
+        event_url = _url(f'/event/{event.id}')
+
         html = f"""
         <html>
             <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
@@ -218,7 +234,8 @@ def send_event_notification(event):
                     <h2 style="color: #0066cc;">{event.title}</h2>
                     <p>{event.description[:500]}</p>
                     <p><strong>Date:</strong> {event.start_date.strftime('%B %d, %Y at %H:%M')}</p>
-                    <p><a href="{event_url}" style="display: inline-block; background: #0066cc; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Register Now</a></p>
+                    <p><a href="{event_url}" style="display: inline-block; background: #0066cc; color: white;
+                    padding: 10px 20px; text-decoration: none; border-radius: 5px;">Register Now</a></p>
                 </div>
             </body>
         </html>

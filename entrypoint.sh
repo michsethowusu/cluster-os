@@ -17,7 +17,7 @@ with app.app_context():
             ADD COLUMN IF NOT EXISTS points INTEGER DEFAULT 0
         '''))
         
-        # Update Project table (Fixes your 500 error)
+        # Update Project table
         conn.execute(db.text('''
             ALTER TABLE project
             ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT FALSE
@@ -28,6 +28,16 @@ with app.app_context():
         '''))
         conn.execute(db.text('''
             ALTER TABLE project
+            ADD COLUMN IF NOT EXISTS submitted_by INTEGER
+        '''))
+
+        # Update Event table (Fixes your Admin Panel crash)
+        conn.execute(db.text('''
+            ALTER TABLE event
+            ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT FALSE
+        '''))
+        conn.execute(db.text('''
+            ALTER TABLE event
             ADD COLUMN IF NOT EXISTS submitted_by INTEGER
         '''))
 

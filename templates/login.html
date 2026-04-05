@@ -9,24 +9,46 @@
             <div class="card shadow">
                 <div class="card-body p-5">
                     <h3 class="text-center mb-4">Member Login</h3>
-                    <p class="text-muted text-center mb-4">Enter your email to receive a one-time password</p>
-                    
-                    <form method="POST" action="{{ url_for('login') }}">
-                        <div class="mb-3">
-                            <label class="form-label">Email Address</label>
-                            <input type="email" name="email" class="form-control form-control-lg" required 
-                                   placeholder="you@organization.org">
+
+                    {% if show_password %}
+                        {# Step 2: admin password entry #}
+                        <p class="text-muted text-center mb-4">Enter your admin password</p>
+                        <form method="POST" action="{{ url_for('login') }}">
+                            <input type="hidden" name="email" value="{{ email }}">
+                            <div class="mb-3">
+                                <label class="form-label">Password</label>
+                                <input type="password" name="password" class="form-control form-control-lg"
+                                       required autofocus placeholder="Your password">
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100 btn-lg">
+                                Log In
+                            </button>
+                        </form>
+                        <div class="text-center mt-3">
+                            <a href="{{ url_for('login') }}" class="text-muted small">← Use a different email</a>
                         </div>
-                        <button type="submit" class="btn btn-primary w-100 btn-lg">
-                            Send OTP
-                        </button>
-                    </form>
-                    
-                    <hr class="my-4">
-                    
-                    <p class="text-center text-muted mb-0">
-                        Not a member? <a href="{{ url_for('register') }}">Request Access</a>
-                    </p>
+
+                    {% else %}
+                        {# Step 1: email entry (all users) #}
+                        <p class="text-muted text-center mb-4">Enter your email to continue</p>
+                        <form method="POST" action="{{ url_for('login') }}">
+                            <div class="mb-3">
+                                <label class="form-label">Email Address</label>
+                                <input type="email" name="email" class="form-control form-control-lg"
+                                       required autofocus placeholder="you@organization.org">
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100 btn-lg">
+                                Continue
+                            </button>
+                        </form>
+
+                        <hr class="my-4">
+
+                        <p class="text-center text-muted mb-0">
+                            Not a member? <a href="{{ url_for('register') }}">Request Access</a>
+                        </p>
+                    {% endif %}
+
                 </div>
             </div>
         </div>

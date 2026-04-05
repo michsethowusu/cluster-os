@@ -1,186 +1,199 @@
-## Setup Instructions:
+# AU ECED-FLN Cluster Platform
 
-1. **Install dependencies:**
+A Flask-based web platform for the African Union Early Childhood Education and Development & Foundational Learning (ECED-FLN) Cluster. It connects member organisations across Africa to share initiatives, participate in forums, register for events, and collaborate on projects.
 
-bash
+---
 
- Copy
+## Tech Stack
 
-```bash
-pip install -r requirements.txt
-python -m spacy download en_core_web_sm
+- **Backend:** Python 3.11, Flask, Flask-SQLAlchemy, Flask-Login
+- **Database:** PostgreSQL (via SQLAlchemy)
+- **Email:** Brevo API (transactional email)
+- **AI Features:** NVIDIA NIM API (meta/llama-3.1-70b-instruct)
+- **NLP:** spaCy (noun phrase extraction for auto-tagging)
+- **Markdown:** mistune + bleach
+- **Deployment:** Docker + Coolify
+
+---
+
+## Project Structure
+
 ```
-
-1. **Configure environment variables:** Edit the `.env` file with your actual credentials:
-
-- Gmail App Password (not your regular password)
-- NVIDIA NIM API Key from build.nvidia.com
-- Secret key for Flask sessions
-
-1. **Initialize database:**
-
-bash
-
- Copy
-
-```bash
-flask init-db
-```
-
-1. **Run the application:**
-
-bash
-
- Copy
-
-```bash
-python app.py
-```
-
-1. **Access the admin panel:**
-
-- Default admin email is set in `.env` (default: [admin@au-eced-fln.org](mailto:admin@africa-eced-fln.org))
-- First user to register with that email becomes admin, or run `flask init-db` to create default admin
-
-
-
-
-
- Create Structured Flask Codebase with SQLAlchemy and Flask-Login
-
- 
-
-The user wants a comprehensive Flask application for the AU ECED and FLN Cluster platform. Let me break down the requirements:
-
-1. **Core Features:**
-   - OTP-based email login (no passwords)
-   - Registration form with ECED Initiative submission
-   - Admin approval workflow for registrations and initiatives
-   - File-based SQLite database (no separate server)
-   - Article/Initiative submission and editing
-   - Auto-tagging using noun phrases vetted by AI (NVIDIA NIM API)
-   - Full-text search using tokenized noun phrases
-   - Auto-translation to French (Google Translate API)
-   - AI-generated catchy titles and descriptions (NVIDIA NIM API)
-   - Q&A/Forum section with upvote/downvote
-   - Organization-based leaderboard (not individual)
-   - Stakeholder statistics on homepage
-   - Clean, modern UI maintaining current Joomla feel
-2. **Technical Requirements:**
-   - Flask app with file-based DB
-   - Gmail SMTP for emails
-   - NVIDIA NIM API (meta/llama-3.1-70b-instruct) for AI features
-   - Google Translate API (free)
-   - Admin panel for managing approvals and form fields
-   - Noun phrase extraction and database updates
-3. **Stakeholder Types:** Government, NGO/Civil Society, Development Partner/Donor, Academic/Research, UN Agency, Private Sector
-4. **Q&A Permissions:** Admin-only posting of questions
-
-Let me create a complete, production-ready Flask application structure:
-
-**File Structure:**
-
-plain
-
- Copy
-
-```plain
-au-ecd-fln-platform/
-├── app.py                 # Main application entry
-├── config.py              # Configuration settings
-├── requirements.txt       # Dependencies
-├── .env.example          # Environment variables template
-├── database.db           # SQLite database (created on run)
-├── static/
-│   ├── css/
-│   │   └── style.css     # Custom styles
-│   ├── js/
-│   │   └── main.js       # Frontend logic
-│   └── uploads/          # File uploads
-├── templates/
-│   ├── base.html         # Base template
-│   ├── index.html        # Homepage
-│   ├── login.html        # OTP login
-│   ├── register.html     # Registration
-│   ├── dashboard.html    # User dashboard
-│   ├── article.html      # Article detail
-│   ├── article_form.html # Create/Edit article
-│   ├── search.html       # Search results
-│   ├── forum.html        # Q&A forum
-│   ├── question.html     # Question detail
-│   ├── admin/
-│   │   ├── dashboard.html
-│   │   ├── approvals.html
-│   │   ├── settings.html
-│   │   └── fields.html
-│   └── emails/           # Email templates
-└── utils/
-    ├── __init__.py
-    ├── auth.py           # OTP and authentication
-    ├── email_sender.py   # Gmail SMTP
-    ├── ai_services.py    # NVIDIA NIM integration
-    ├── search.py         # Full-text search logic
-    ├── nlp.py            # Noun phrase extraction
-    └── translation.py    # Google Translate
-```
-
-Since I cannot actually create a zip file for download (as per my instructions), I will provide all the code files in a structured format that the user can copy into their own directory structure. I'll create a comprehensive, well-organized codebase.
-
-Let me start building this step by step:
-
-1. First, the requirements and configuration
-2. Database models (SQLAlchemy)
-3. Utility modules (AI, email, search, etc.)
-4. Route handlers
-5. Templates (HTML with Jinja2)
-6. Static files (CSS/JS)
-
-Key design decisions:
-
-- Use Flask-SQLAlchemy for ORM
-- Use Flask-Login for session management
-- Use spaCy for noun phrase extraction (lightweight)
-- Use NVIDIA NIM API for AI features
-- Use googletrans for translation (free, though limited)
-- Use SQLite for simplicity (file-based as requested)
-- Modular architecture for future extensibility
-
-Let me write the code:
-
-I'll build a comprehensive Flask application for the AU ECED and FLN Cluster platform. Since I cannot generate downloadable ZIP files directly, I'll provide you with the complete file structure and code that you can easily set up.
-
-Create this directory structure:
-
-plain
-
- Copy
-
-```plain
-au-ecd-fln-platform/
-├── app.py
-├── config.py
-├── requirements.txt
-├── .env
-├── database.db (created automatically)
+project/
+├── app.py                  # Main application — models, routes, CLI commands
+├── config.py               # Configuration (reads from environment variables)
+├── requirements.txt        # Python dependencies
+├── Dockerfile              # Docker build
+├── entrypoint.sh           # Startup script (DB init + gunicorn)
 ├── static/
 │   ├── css/style.css
 │   ├── js/main.js
 │   └── uploads/
-└── templates/
-    ├── base.html
-    ├── index.html
-    ├── login.html
-    ├── register.html
-    ├── dashboard.html
-    ├── article.html
-    ├── article_form.html
-    ├── search.html
-    ├── forum.html
-    ├── question.html
-    ├── members.html
-    └── admin/
-        ├── base.html
-        ├── dashboard.html
-        ├── approvals.html
-        └── settings.html
+├── templates/
+│   ├── base.html
+│   ├── index.html
+│   ├── login.html
+│   ├── register.html
+│   ├── verify_otp.html
+│   ├── dashboard.html
+│   ├── article.html
+│   ├── article_form.html
+│   ├── search.html
+│   ├── forum.html
+│   ├── question.html
+│   ├── members.html
+│   ├── leaderboard.html
+│   ├── events.html
+│   ├── event_detail.html
+│   ├── event_register.html
+│   ├── polls.html
+│   ├── poll_detail.html
+│   ├── projects.html
+│   ├── project_detail.html
+│   ├── profile_edit.html
+│   ├── search_members.html
+│   └── admin/
+│       ├── dashboard.html
+│       ├── approvals.html
+│       ├── settings.html
+│       ├── fields.html
+│       ├── members.html
+│       ├── initiatives.html
+│       ├── events.html
+│       ├── event_form.html
+│       ├── projects.html
+│       ├── project_form.html
+│       ├── import_members.html
+│       └── import_initiatives.html
+└── utils/
+    ├── __init__.py
+    ├── email_sender.py     # Brevo API email functions
+    ├── ai_services.py      # NVIDIA NIM API integration
+    ├── nlp.py              # Noun phrase extraction (spaCy)
+    └── translation.py      # Text translation
 ```
+
+---
+
+## Environment Variables
+
+Set these in Coolify (or a `.env` file for local development):
+
+| Variable | Description |
+|---|---|
+| `SECRET_KEY` | Flask session secret key |
+| `POSTGRESQL_URL` | Full PostgreSQL connection URL |
+| `BREVO_API_KEY` | Brevo transactional email API key |
+| `MAIL_DEFAULT_SENDER` | Sender name and email, e.g. `Name <email@domain.com>` |
+| `NVIDIA_API_KEY` | NVIDIA NIM API key for AI features |
+| `ADMIN_EMAIL` | Email address for the admin account |
+| `APP_URL` | Full public URL of the app, e.g. `https://yourdomain.com` |
+
+> **Note:** The app will refuse to start if `POSTGRESQL_URL` (or `DATABASE_URL`) is not set.
+
+---
+
+## Deployment (Coolify + Docker)
+
+The app is deployed via Docker on Coolify. On every container start, `entrypoint.sh` runs `db.create_all()` to ensure all database tables exist (safe to run repeatedly — it never drops existing data), then starts gunicorn.
+
+### Dockerfile summary
+
+- Base image: `python:3.11-slim`
+- Installs dependencies from `requirements.txt`
+- Runs on port `3000` via gunicorn with 4 workers
+- Health check: `GET /health`
+
+### entrypoint.sh
+
+```sh
+#!/bin/sh
+set -e
+python -c "
+from app import app, db
+with app.app_context():
+    db.create_all()
+    print('DB tables ready.')
+"
+exec gunicorn -w 4 -b 0.0.0.0:3000 app:app
+```
+
+---
+
+## Initial Setup (First Deploy)
+
+After the first successful deploy, set the admin password via the Coolify terminal:
+
+```bash
+flask set-admin-password yourchosenpassword
+```
+
+This only needs to be done once. The password is stored as a bcrypt hash in the database.
+
+---
+
+## Authentication
+
+- **Regular members** log in with their email and receive a **6-digit OTP** via email (valid for 10 minutes).
+- **Admin** logs in with email + **password** (no OTP). Password is set via the `flask set-admin-password` CLI command.
+
+---
+
+## Key Features
+
+### Member-facing
+- OTP-based passwordless login
+- Registration with stakeholder profile and project descriptions
+- Submit and edit ECED-FLN initiatives (Markdown supported)
+- Forum Q&A with upvote/downvote on recommendations
+- Event listing and registration with embedded polls
+- Project participation
+- AI-powered member search (finds members by project expertise)
+- French translation toggle on content
+
+### Admin panel (`/admin`)
+- Approve/reject member registrations
+- Publish/unpublish initiatives and forum questions
+- Manage events and polls
+- Manage projects and activities
+- Import members and initiatives via CSV
+- Configure registration form fields
+- Toggle auto-approval for new members
+- Trigger NLP re-processing on published initiatives
+
+### AI & NLP (NVIDIA NIM)
+- Auto-generates initiative tags from content using noun phrase extraction (spaCy) vetted by AI
+- Generates catchy titles and short descriptions for initiatives
+- Ranks members by relevance to a search query
+
+---
+
+## Local Development
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+python -m spacy download en_core_web_sm
+
+# Create a .env file with the required variables (see above)
+
+# Initialise the database and create admin user
+flask init-db
+
+# Set admin password
+flask set-admin-password yourpassword
+
+# Run
+python app.py
+```
+
+The app runs on `http://localhost:5000` in development mode.
+
+---
+
+## Notes
+
+- The sender domain (`cluster@eced-au.org`) must be a **verified sender** in your Brevo account under Settings → Senders & IPs.
+- `APP_URL` must be set correctly for email links to work (e.g. login links in approval emails).
+- File uploads are stored in `static/uploads/` — if using Docker, mount a persistent volume to this path to retain uploads across redeploys.
+- SQLite is not supported — PostgreSQL only.

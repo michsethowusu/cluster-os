@@ -16,14 +16,14 @@
             <div class="card mb-4">
                 <div class="card-body">
                     <span class="badge bg-primary mb-2">Question</span>
-                    {% if question.author_id == current_user.id or current_user.is_admin %}
+                    {% if question.user_id == current_user.id or current_user.is_admin %}
                         <a href="{{ url_for('edit_question', id=question.id) }}" class="btn btn-sm btn-outline-primary float-end">
                             <i class="bi bi-pencil"></i> Edit
                         </a>
                     {% endif %}
                     <h3 class="card-title">{{ question.title }}</h3>
                     <p class="text-muted small">
-                        Posted by <strong>{{ question.author.name }}</strong> ({{ question.author.organization }}) 
+                        Posted by <strong>{{ question.user.name }}</strong> ({{ question.user.organization }}) 
                         on {{ question.created_at | format_date }}
                     </p>
                     <hr>
@@ -103,8 +103,8 @@
                 <div class="card-body">
                     <h6>About This Question</h6>
                     <ul class="list-unstyled mb-0 small">
-                        <li class="mb-2"><i class="bi bi-person"></i> {{ question.author.name }}</li>
-                        <li class="mb-2"><i class="bi bi-building"></i> {{ question.author.organization }}</li>
+                        <li class="mb-2"><i class="bi bi-person"></i> {{ question.user.name }}</li>
+                        <li class="mb-2"><i class="bi bi-building"></i> {{ question.user.organization }}</li>
                         <li class="mb-2"><i class="bi bi-calendar"></i> {{ question.created_at | format_date }}</li>
                         <li><i class="bi bi-chat"></i> {{ recommendations|length }} recommendation(s)</li>
                     </ul>

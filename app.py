@@ -11,6 +11,7 @@ import bleach
 import csv
 import io
 import json
+import click
 import mistune                     # MARKDOWN CHANGE
 from config import Config
 
@@ -369,8 +370,27 @@ def login():
         if not user or not user.is_approved:
             flash('Email not found or account pending approval.', 'error')
             return redirect(url_for('login'))
+            
+        # Admin uses password login
+        if user.is_admin:
+            from werkzeug.security import check_password_hash
+            password = request.form.get('password')
+            if not password:
+                return render_template('login.html', show_password=True, email=email)
+            if not user.password_hash or not check_password_hash(user.password_hash, password):
+                flash('Invalid password.', 'error')
+                return redirect(url_for('login'))
+            
+            # Reset OTP fields just in case
+            user.otp = None
+            user.otp_expiry = None
+            db.session.commit()
+            
+            login_user(user)
+            flash('Welcome back!', 'success')
+            return redirect(url_for('admin_dashboard'))
         
-        # Generate OTP
+        # Regular users get OTP
         otp = ''.join(random.choices(string.digits, k=6))
         user.otp = otp
         user.otp_expiry = datetime.utcnow() + timedelta(minutes=10)
@@ -1887,6 +1907,18 @@ def markdown_filter(text):
     return Markup(cleaned_html)
 
 # ===================== INIT DB COMMAND =====================
+
+@app.cli.command('set-admin-password')
+@click.argument('password')
+def set_admin_password(password):
+    from werkzeug.security import generate_password_hash
+    admin = User.query.filter_by(is_admin=True).first()
+    if not admin:
+        print('No admin user found.')
+        return
+    admin.password_hash = generate_password_hash(password)
+    db.session.commit()
+    print(f'Password set for {admin.email}')
 
 @app.cli.command('init-db')
 def init_db():

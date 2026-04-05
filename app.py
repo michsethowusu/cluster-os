@@ -845,12 +845,16 @@ def vote_recommendation(id):
 
 @app.route('/members')
 def members():
-    orgs = db.session.query(
+    stakeholder_filter = request.args.get('type', '')
+    query = db.session.query(
         User.organization,
         User.stakeholder_type,
         db.func.count(User.id).label('member_count')
-    ).filter_by(is_approved=True).group_by(User.organization, User.stakeholder_type).all()
-    return render_template('members.html', organizations=orgs)
+    ).filter(User.is_approved == True)
+    if stakeholder_filter:
+        query = query.filter(User.stakeholder_type == stakeholder_filter)
+    orgs = query.group_by(User.organization, User.stakeholder_type).all()
+    return render_template('members.html', organizations=orgs, stakeholder_filter=stakeholder_filter)
 
 @app.route('/leaderboard')
 def leaderboard():

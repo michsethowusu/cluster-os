@@ -29,28 +29,36 @@
     <!-- Stats Section -->
     <div class="row mb-5">
         <div class="col-md-3 mb-3">
-            <div class="stats-card text-center">
-                <div class="stats-number">{{ stats.total_members }}</div>
-                <div class="text-muted">Cluster Members</div>
-            </div>
+            <a href="{{ url_for('members') }}" class="text-decoration-none">
+                <div class="stats-card text-center" style="cursor:pointer;">
+                    <div class="stats-number">{{ stats.total_members }}</div>
+                    <div class="text-muted">Cluster Members</div>
+                </div>
+            </a>
         </div>
         <div class="col-md-3 mb-3">
-            <div class="stats-card text-center">
-                <div class="stats-number">{{ stats.total_initiatives }}</div>
-                <div class="text-muted">ECED Initiatives</div>
-            </div>
+            <a href="{{ url_for('search') }}" class="text-decoration-none">
+                <div class="stats-card text-center" style="cursor:pointer;">
+                    <div class="stats-number">{{ stats.total_initiatives }}</div>
+                    <div class="text-muted">ECED Initiatives</div>
+                </div>
+            </a>
         </div>
         <div class="col-md-3 mb-3">
-            <div class="stats-card text-center">
-                <div class="stats-number">{{ stats.stakeholders|length }}</div>
-                <div class="text-muted">Stakeholder Types</div>
-            </div>
+            <a href="{{ url_for('members') }}" class="text-decoration-none">
+                <div class="stats-card text-center" style="cursor:pointer;">
+                    <div class="stats-number">{{ stats.stakeholders|length }}</div>
+                    <div class="text-muted">Stakeholder Types</div>
+                </div>
+            </a>
         </div>
         <div class="col-md-3 mb-3">
-            <div class="stats-card text-center">
-                <div class="stats-number">{{ stats.stakeholders.values()|sum }}</div>
-                <div class="text-muted">Organizations</div>
-            </div>
+            <a href="{{ url_for('members') }}" class="text-decoration-none">
+                <div class="stats-card text-center" style="cursor:pointer;">
+                    <div class="stats-number">{{ stats.stakeholders.values()|sum }}</div>
+                    <div class="text-muted">Organizations</div>
+                </div>
+            </a>
         </div>
     </div>
 
@@ -61,10 +69,12 @@
             <div class="row">
                 {% for type, count in stats.stakeholders.items() %}
                     <div class="col-md-4 mb-3">
-                        <div class="stats-card d-flex justify-content-between align-items-center">
-                            <span><i class="bi bi-building text-primary"></i> {{ type }}</span>
-                            <span class="badge bg-primary rounded-pill">{{ count }}</span>
-                        </div>
+                        <a href="{{ url_for('members', type=type) }}" class="text-decoration-none">
+                            <div class="stats-card d-flex justify-content-between align-items-center" style="cursor:pointer;">
+                                <span><i class="bi bi-building text-primary"></i> {{ type }}</span>
+                                <span class="badge bg-primary rounded-pill">{{ count }}</span>
+                            </div>
+                        </a>
                     </div>
                 {% endfor %}
             </div>

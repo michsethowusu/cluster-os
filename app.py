@@ -157,6 +157,7 @@ class Question(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     
     recommendations = db.relationship('Recommendation', backref='question', lazy=True)
+    user = db.relationship('User', backref='questions', lazy=True)  # ADD THIS
 
 
 class Project(db.Model):

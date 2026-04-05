@@ -458,6 +458,16 @@ def search_members():
     ranked_users = [user_map[uid] for uid in ranked_ids if uid in user_map]
     
     return render_template('search_members.html', query=query, results=ranked_users)
+    
+@app.route('/test-email')
+def test_email():
+    from utils.email_sender import send_email
+    result = send_email(
+        to_email='cluster@eced-au.org',  # send to yourself
+        subject='Test email from platform',
+        html_content='<p>If you see this, Brevo is working.</p>'
+    )
+    return f"Result: {result}"
 
 @app.route('/dashboard')
 @login_required

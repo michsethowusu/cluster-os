@@ -14,12 +14,6 @@ import json
 import mistune                     # MARKDOWN CHANGE
 from config import Config
 
-#Initialise DB - only on first run
-#@app.route('/force-init')
-#def force_init():
-#    db.create_all()
-#    return "Database Tables Created!"
-
 app = Flask(__name__)
 app.config.from_object(Config)
 
@@ -310,14 +304,21 @@ def login():
             return redirect(url_for('login'))
         
         # Generate OTP
-        otp = ''.join(random.choices(string.digits, k=6))
-        user.otp = otp
-        user.otp_expiry = datetime.utcnow() + timedelta(minutes=10)
-        db.session.commit()
-        
-        send_otp_email(user.email, otp)
-        flash('OTP sent to your email.', 'info')
-        return redirect(url_for('verify_otp', email=email))
+            # Skip OTP for admin — log in directly
+            if user.is_admin:
+                login_user(user)
+                flash('Welcome back!', 'success')
+                return redirect(url_for('admin_dashboard'))
+
+            # Generate OTP for regular users
+            otp = ''.join(random.choices(string.digits, k=6))
+            user.otp = otp
+            user.otp_expiry = datetime.utcnow() + timedelta(minutes=10)
+            db.session.commit()
+
+            send_otp_email(user.email, otp)
+            flash('OTP sent to your email.', 'info')
+            return redirect(url_for('verify_otp', email=email))
     
     return render_template('login.html')
 

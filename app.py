@@ -1744,6 +1744,10 @@ def participate_project(id):
 
 # ===================== API ROUTES =====================
 
+@app.route('/health')
+def health_check():
+    return {"status": "ok", "message": "Application is running"}, 200
+
 @app.route('/api/translate', methods=['POST'])
 def api_translate():
     data = request.get_json()

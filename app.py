@@ -287,21 +287,49 @@ POINTS = {
     'project_participated': 15,    # participating in a project activity
 }
 
-def award_points(user, activity, commit=True):
-    """Award or deduct points for a user activity."""
+def award_points(user, activity=None, commit=True):
+    """Recalculate a user's total points based on their actual database history."""
     # 1. Resolve Flask-Login's LocalProxy to the actual User model instance
     if hasattr(user, '_get_current_object'):
         user = user._get_current_object()
         
-    pts = POINTS.get(activity, 0)
-    if pts != 0:
-        user.points = (user.points or 0) + pts
-        
-        # 2. Explicitly add the modified object to the session
-        db.session.add(user) 
-        
-        if commit:
-            db.session.commit()
+    total_points = 0
+    
+    # +20: Published Initiatives
+    total_points += Initiative.query.filter_by(user_id=user.id, is_published=True).count() * 20
+    
+    # +10: Published Questions
+    total_points += Question.query.filter_by(user_id=user.id, is_published=True).count() * 10
+    
+    # +10: Posted Recommendations
+    total_points += Recommendation.query.filter_by(user_id=user.id).count() * 10
+    
+    # +15: Project Participations
+    total_points += ProjectParticipation.query.filter_by(user_id=user.id).count() * 15
+    
+    # +5: Event Registrations
+    total_points += EventRegistration.query.filter_by(user_id=user.id).count() * 5
+    
+    # +5 / -2: Upvotes and Downvotes on their Recommendations
+    upvotes = Vote.query.join(Recommendation).filter(
+        Recommendation.user_id == user.id, 
+        Vote.vote_type == 1
+    ).count()
+    
+    downvotes = Vote.query.join(Recommendation).filter(
+        Recommendation.user_id == user.id, 
+        Vote.vote_type == -1
+    ).count()
+    
+    total_points += (upvotes * 5)
+    total_points += (downvotes * -2)
+    
+    # 2. Update the user's score with the undeniable truth from the DB
+    user.points = total_points
+    db.session.add(user)
+    
+    if commit:
+        db.session.commit()
 
 # ===================== USER LOADER =====================
 

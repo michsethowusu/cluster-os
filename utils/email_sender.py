@@ -210,6 +210,93 @@ def send_import_welcome_email(user):
     send_email(user.email, subject, html)
 
 
+def send_project_notification(project):
+    """Notify all approved members that a new project has been published."""
+    from app import User, app as flask_app
+    with flask_app.app_context():
+        users = User.query.filter_by(is_approved=True).all()
+        project_url = _url(f'/project/{project.id}')
+        subject = f"New Project: {project.title}"
+        html = f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h2 style="color: #0066cc;">New Project on the Platform</h2>
+                    <p>A new collaborative project has been published on the AU ECED-FLN Cluster Platform:</p>
+                    <h3 style="margin: 16px 0 8px;">{project.title}</h3>
+                    <p style="color: #555;">{project.description[:300]}{'...' if len(project.description) > 300 else ''}</p>
+                    <p><strong>Deadline:</strong> {project.deadline.strftime('%B %d, %Y')}</p>
+                    <p style="text-align: center; margin: 30px 0;">
+                        <a href="{project_url}" style="display: inline-block; background: #0066cc; color: white;
+                        padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                            View Project &amp; Join
+                        </a>
+                    </p>
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                    <p style="color: #999; font-size: 0.85em;">This email was sent by the AU ECED-FLN Cluster Platform.</p>
+                </div>
+            </body>
+        </html>
+        """
+        for user in users:
+            send_email(user.email, subject, html)
+
+
+def send_project_approved_email(user, project):
+    """Notify the submitter that their project has been approved and published."""
+    project_url = _url(f'/project/{project.id}')
+    subject = "Your project has been published – AU ECED-FLN Platform"
+    html = f"""
+    <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h2 style="color: #0066cc;">Your Project Has Been Published</h2>
+                <p>Dear {user.name},</p>
+                <p>Your project <strong>{project.title}</strong> has been reviewed and is now
+                live on the AU ECED-FLN Cluster Platform. Members can now view it and sign up to participate.</p>
+                <p style="text-align: center; margin: 30px 0;">
+                    <a href="{project_url}" style="display: inline-block; background: #0066cc; color: white;
+                    padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                        View Your Project
+                    </a>
+                </p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="color: #999; font-size: 0.85em;">This email was sent by the AU ECED-FLN Cluster Platform.</p>
+            </div>
+        </body>
+    </html>
+    """
+    send_email(user.email, subject, html)
+
+
+def send_event_approved_email(user, event):
+    """Notify the submitter that their event has been approved and published."""
+    event_url = _url(f'/event/{event.id}')
+    subject = "Your event has been published – AU ECED-FLN Platform"
+    html = f"""
+    <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h2 style="color: #0066cc;">Your Event Has Been Published</h2>
+                <p>Dear {user.name},</p>
+                <p>Your event <strong>{event.title}</strong> has been reviewed and is now
+                live on the AU ECED-FLN Cluster Platform. All members have been notified and can register.</p>
+                <p><strong>Date:</strong> {event.start_date.strftime('%B %d, %Y at %H:%M UTC')}</p>
+                <p style="text-align: center; margin: 30px 0;">
+                    <a href="{event_url}" style="display: inline-block; background: #0066cc; color: white;
+                    padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                        View Your Event
+                    </a>
+                </p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="color: #999; font-size: 0.85em;">This email was sent by the AU ECED-FLN Cluster Platform.</p>
+            </div>
+        </body>
+    </html>
+    """
+    send_email(user.email, subject, html)
+
+
 def send_member_notification(subject, html):
     """Send an email notification to all approved members."""
     from app import User, app as flask_app

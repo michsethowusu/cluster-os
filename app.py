@@ -38,6 +38,9 @@ from utils.email_sender import (
     send_import_welcome_email,
     send_initiative_approved_email,
     send_initiative_pending_email,
+    send_project_notification,
+    send_project_approved_email,
+    send_event_approved_email,
 )
 from utils.ai_services import generate_title_description, vet_tags_nvidia, rank_members_by_query, clean_tags_for_polls
 from utils.nlp import extract_noun_phrases, update_noun_phrase_db
@@ -169,9 +172,12 @@ class Project(db.Model):
     start_date = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_active = db.Column(db.Boolean, default=True)
-    
+    is_published = db.Column(db.Boolean, default=False)
+    submitted_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
     activities = db.relationship('ProjectActivity', backref='project', lazy=True, cascade='all, delete-orphan')
     participations = db.relationship('ProjectParticipation', backref='project', lazy=True)
+    submitter = db.relationship('User', foreign_keys=[submitted_by])
 
 
 class ProjectActivity(db.Model):
@@ -229,9 +235,12 @@ class Event(db.Model):
     end_date = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
-    
+    is_published = db.Column(db.Boolean, default=False)
+    submitted_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
     polls = db.relationship('Poll', backref='event', lazy='dynamic', cascade='all, delete-orphan')
     registrations = db.relationship('EventRegistration', backref='event', lazy='dynamic', cascade='all, delete-orphan')
+    submitter = db.relationship('User', foreign_keys=[submitted_by])
 
 
 class Poll(db.Model):
@@ -566,8 +575,17 @@ def dashboard():
     participations = ProjectParticipation.query.filter_by(user_id=current_user.id).all()
     project_ids = list(set([p.project_id for p in participations]))
     user_projects = Project.query.filter(Project.id.in_(project_ids)).all() if project_ids else []
-    
-    return render_template('dashboard.html', initiatives=user_initiatives, projects=user_projects)
+
+    # Projects and events submitted by this member (pending or published)
+    submitted_projects = Project.query.filter_by(submitted_by=current_user.id).order_by(Project.created_at.desc()).all()
+    submitted_events = Event.query.filter_by(submitted_by=current_user.id).order_by(Event.created_at.desc()).all()
+
+    return render_template('dashboard.html',
+                           initiatives=user_initiatives,
+                           projects=user_projects,
+                           submitted_projects=submitted_projects,
+                           submitted_events=submitted_events,
+                           now=datetime.utcnow())
 
 @app.route('/initiative/new', methods=['GET', 'POST'])
 @login_required
@@ -845,16 +863,12 @@ def vote_recommendation(id):
 
 @app.route('/members')
 def members():
-    stakeholder_filter = request.args.get('type', '')
-    query = db.session.query(
+    orgs = db.session.query(
         User.organization,
         User.stakeholder_type,
         db.func.count(User.id).label('member_count')
-    ).filter(User.is_approved == True)
-    if stakeholder_filter:
-        query = query.filter(User.stakeholder_type == stakeholder_filter)
-    orgs = query.group_by(User.organization, User.stakeholder_type).all()
-    return render_template('members.html', organizations=orgs, stakeholder_filter=stakeholder_filter)
+    ).filter_by(is_approved=True).group_by(User.organization, User.stakeholder_type).all()
+    return render_template('members.html', organizations=orgs)
 
 @app.route('/leaderboard')
 def leaderboard():
@@ -884,8 +898,8 @@ def leaderboard():
 @app.route('/events')
 def events():
     now = datetime.utcnow()
-    upcoming = Event.query.filter(Event.start_date >= now).order_by(Event.start_date).all()
-    past = Event.query.filter(Event.start_date < now).order_by(Event.start_date.desc()).all()
+    upcoming = Event.query.filter(Event.start_date >= now, Event.is_published == True).order_by(Event.start_date).all()
+    past = Event.query.filter(Event.start_date < now, Event.is_published == True).order_by(Event.start_date.desc()).all()
     return render_template('events.html', upcoming=upcoming, past=past)
 
 @app.route('/event/<int:id>')
@@ -995,10 +1009,14 @@ def admin_dashboard():
     pending_users = User.query.filter_by(is_approved=False).count()
     pending_initiatives = Initiative.query.filter_by(is_published=False).count()
     pending_questions = Question.query.filter_by(is_published=False).count()
-    return render_template('admin/dashboard.html', 
+    pending_projects = Project.query.filter_by(is_published=False).count()
+    pending_events = Event.query.filter_by(is_published=False).count()
+    return render_template('admin/dashboard.html',
                          pending_users=pending_users,
                          pending_initiatives=pending_initiatives,
-                         pending_questions=pending_questions)
+                         pending_questions=pending_questions,
+                         pending_projects=pending_projects,
+                         pending_events=pending_events)
 
 @app.route('/admin/approvals')
 @login_required
@@ -1012,11 +1030,17 @@ def admin_approvals():
         items = Initiative.query.filter_by(is_published=False).all()
     elif type_filter == 'questions':
         items = Question.query.filter_by(is_published=False).all()
+    elif type_filter == 'projects':
+        items = Project.query.filter_by(is_published=False).all()
+    elif type_filter == 'events':
+        items = Event.query.filter_by(is_published=False).all()
     else:
         users = User.query.filter_by(is_approved=False).all()
         initiatives = Initiative.query.filter_by(is_published=False).all()
         questions = Question.query.filter_by(is_published=False).all()
-        items = list(users) + list(initiatives) + list(questions)
+        projects = Project.query.filter_by(is_published=False).all()
+        events = Event.query.filter_by(is_published=False).all()
+        items = list(users) + list(initiatives) + list(questions) + list(projects) + list(events)
     return render_template('admin/approvals.html', items=items, type_filter=type_filter)
 
 @app.route('/admin/approve/<type>/<int:id>', methods=['POST'])
@@ -1122,6 +1146,50 @@ def approve_item(type, id):
             award_points(q_author, 'question_published')
         flash('Question published.', 'success')
 
+    elif type == 'project':
+        project = Project.query.get_or_404(id)
+        project.is_published = True
+        db.session.commit()
+
+        # 1. Notify the submitter their project is approved
+        if project.submitted_by:
+            submitter = User.query.get(project.submitted_by)
+            if submitter:
+                try:
+                    send_project_approved_email(submitter, project)
+                except Exception as e:
+                    app.logger.error(f"Project approval email error for {submitter.email}: {e}")
+
+        # 2. Notify all members about the new project
+        try:
+            send_project_notification(project)
+        except Exception as e:
+            app.logger.error(f"Member notification error (project approved): {e}")
+
+        flash(f'Project "{project.title}" published and members notified.', 'success')
+
+    elif type == 'event':
+        event = Event.query.get_or_404(id)
+        event.is_published = True
+        db.session.commit()
+
+        # 1. Notify the submitter their event is approved
+        if event.submitted_by:
+            submitter = User.query.get(event.submitted_by)
+            if submitter:
+                try:
+                    send_event_approved_email(submitter, event)
+                except Exception as e:
+                    app.logger.error(f"Event approval email error for {submitter.email}: {e}")
+
+        # 2. Notify all members about the new event
+        try:
+            send_event_notification(event)
+        except Exception as e:
+            app.logger.error(f"Member notification error (event approved): {e}")
+
+        flash(f'Event "{event.title}" published and members notified.', 'success')
+
     return redirect(url_for('admin_approvals'))
 
 @app.route('/admin/unpublish/<type>/<int:id>', methods=['POST'])
@@ -1134,6 +1202,12 @@ def unpublish_item(type, id):
         item.is_published = False
     elif type == 'question':
         item = Question.query.get_or_404(id)
+        item.is_published = False
+    elif type == 'project':
+        item = Project.query.get_or_404(id)
+        item.is_published = False
+    elif type == 'event':
+        item = Event.query.get_or_404(id)
         item.is_published = False
     db.session.commit()
     flash('Item unpublished.', 'success')
@@ -1516,7 +1590,9 @@ def admin_new_project():
             title=request.form.get('title'),
             description=request.form.get('description'),
             deadline=datetime.fromisoformat(request.form.get('deadline')),
-            start_date=datetime.fromisoformat(request.form.get('start_date')) if request.form.get('start_date') else None
+            start_date=datetime.fromisoformat(request.form.get('start_date')) if request.form.get('start_date') else None,
+            is_published=True,
+            submitted_by=current_user.id
         )
         db.session.add(project)
         db.session.flush()
@@ -1533,6 +1609,11 @@ def admin_new_project():
                 )
                 db.session.add(activity)
         db.session.commit()
+        if request.form.get('send_notification'):
+            try:
+                send_project_notification(project)
+            except Exception as e:
+                app.logger.error(f"Project notification error: {e}")
         flash('Project created successfully.', 'success')
         return redirect(url_for('admin_projects'))
     return render_template('admin/project_form.html', project=None)
@@ -1764,6 +1845,63 @@ def admin_delete_member(id):
     flash(f'Member {email} has been deleted.', 'success')
     return redirect(url_for('admin_dashboard'))
 
+# ===================== MEMBER PROJECT SUBMISSION =====================
+
+@app.route('/project/new', methods=['GET', 'POST'])
+@login_required
+def member_new_project():
+    if request.method == 'POST':
+        project = Project(
+            title=request.form.get('title'),
+            description=request.form.get('description'),
+            deadline=datetime.fromisoformat(request.form.get('deadline')),
+            start_date=datetime.fromisoformat(request.form.get('start_date')) if request.form.get('start_date') else None,
+            is_published=False,
+            submitted_by=current_user.id
+        )
+        db.session.add(project)
+        db.session.flush()
+        titles = request.form.getlist('activity_title[]')
+        descs = request.form.getlist('activity_desc[]')
+        deadlines = request.form.getlist('activity_deadline[]')
+        for i, title in enumerate(titles):
+            if title.strip():
+                activity = ProjectActivity(
+                    project_id=project.id,
+                    title=title,
+                    description=descs[i] if i < len(descs) else '',
+                    deadline=datetime.fromisoformat(deadlines[i]) if i < len(deadlines) and deadlines[i] else None
+                )
+                db.session.add(activity)
+        db.session.commit()
+        flash('Project submitted for admin approval. You will be notified when it goes live.', 'success')
+        return redirect(url_for('dashboard'))
+    return render_template('project_form_member.html')
+
+
+# ===================== MEMBER EVENT SUBMISSION =====================
+
+@app.route('/event/new', methods=['GET', 'POST'])
+@login_required
+def member_new_event():
+    if request.method == 'POST':
+        event = Event(
+            title=request.form.get('title'),
+            description=request.form.get('description'),
+            meeting_link=request.form.get('meeting_link'),
+            start_date=datetime.fromisoformat(request.form.get('start_date')),
+            end_date=datetime.fromisoformat(request.form.get('end_date')) if request.form.get('end_date') else None,
+            created_by=current_user.id,
+            submitted_by=current_user.id,
+            is_published=False
+        )
+        db.session.add(event)
+        db.session.commit()
+        flash('Event submitted for admin approval. You will be notified when it goes live.', 'success')
+        return redirect(url_for('dashboard'))
+    return render_template('event_form_member.html')
+
+
 # ===================== PROJECTS PUBLIC =====================
 
 @app.route('/projects')
@@ -1771,13 +1909,16 @@ def projects():
     now = datetime.utcnow()
     current_projects = Project.query.filter(
         Project.deadline > now,
+        Project.is_published == True,
         (Project.start_date == None) | (Project.start_date <= now)
     ).order_by(Project.deadline.asc()).all()
     upcoming_projects = Project.query.filter(
-        Project.start_date > now
+        Project.start_date > now,
+        Project.is_published == True
     ).order_by(Project.start_date.asc()).all()
     past_projects = Project.query.filter(
-        Project.deadline <= now
+        Project.deadline <= now,
+        Project.is_published == True
     ).order_by(Project.deadline.desc()).limit(5).all()
     stats = {
         'total_projects': Project.query.count(),

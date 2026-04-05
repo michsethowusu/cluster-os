@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Submit a Project – AU ECED-FLN{% endblock %}
+
+{% block content %}
+<div class="container mt-5 mb-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+
+            <div class="mb-4">
+                <a href="{{ url_for('dashboard') }}" class="text-decoration-none text-muted">
+                    <i class="bi bi-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
+
+            <div class="stats-card">
+                <h2 class="mb-1 fw-bold">Submit a Project</h2>
+                <p class="text-muted mb-4">
+                    Propose a collaborative project for the cluster. An admin will review and publish it —
+                    you'll receive an email once it goes live.
+                </p>
+
+                <form method="POST" action="{{ url_for('member_new_project') }}">
+
+                    <!-- Title -->
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Project Title <span class="text-danger">*</span></label>
+                        <input type="text" name="title" class="form-control" required
+                               placeholder="e.g. Early Grade Reading Assessment – East Africa">
+                    </div>
+
+                    <!-- Description -->
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Description <span class="text-danger">*</span></label>
+                        <textarea name="description" class="form-control" rows="5" required
+                                  placeholder="Describe the project goals, context, and expected outcomes..."></textarea>
+                    </div>
+
+                    <!-- Dates -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Start Date</label>
+                            <input type="datetime-local" name="start_date" class="form-control">
+                            <small class="text-muted">Leave blank if starting immediately.</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Deadline <span class="text-danger">*</span></label>
+                            <input type="datetime-local" name="deadline" class="form-control" required>
+                        </div>
+                    </div>
+
+                    <!-- Activities -->
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Activities</label>
+                        <p class="text-muted small mb-3">
+                            Break the project into specific activities that members can sign up for.
+                        </p>
+                        <div id="activities-container">
+                            <div class="activity-row border rounded p-3 mb-3">
+                                <div class="mb-2">
+                                    <input type="text" name="activity_title[]" class="form-control"
+                                           placeholder="Activity title (e.g. Data collection)">
+                                </div>
+                                <div class="mb-2">
+                                    <textarea name="activity_desc[]" class="form-control" rows="2"
+                                              placeholder="Brief description of this activity..."></textarea>
+                                </div>
+                                <div>
+                                    <label class="form-label small text-muted">Activity deadline (optional)</label>
+                                    <input type="datetime-local" name="activity_deadline[]" class="form-control">
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addActivity()">
+                            <i class="bi bi-plus-circle"></i> Add Another Activity
+                        </button>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-send"></i> Submit for Review
+                        </button>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function addActivity() {
+    const container = document.getElementById('activities-container');
+    const template = container.querySelector('.activity-row').cloneNode(true);
+    // Clear all inputs in the cloned row
+    template.querySelectorAll('input, textarea').forEach(el => el.value = '');
+    // Add a remove button
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn btn-outline-danger btn-sm mt-2';
+    removeBtn.innerHTML = '<i class="bi bi-trash"></i> Remove';
+    removeBtn.onclick = () => template.remove();
+    template.appendChild(removeBtn);
+    container.appendChild(template);
+}
+</script>
+{% endblock %}

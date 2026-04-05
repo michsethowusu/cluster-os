@@ -3,11 +3,19 @@
 {% block admin_title %}Pending Approvals{% endblock %}
 
 {% block admin_actions %}
-<div class="btn-group">
-    <a href="{{ url_for('admin_approvals', type='all') }}" class="btn btn-outline-primary btn-sm {% if type_filter == 'all' %}active{% endif %}">All</a>
-    <a href="{{ url_for('admin_approvals', type='users') }}" class="btn btn-outline-primary btn-sm {% if type_filter == 'users' %}active{% endif %}">Users</a>
-    <a href="{{ url_for('admin_approvals', type='initiatives') }}" class="btn btn-outline-primary btn-sm {% if type_filter == 'initiatives' %}active{% endif %}">Initiatives</a>
-    <a href="{{ url_for('admin_approvals', type='questions') }}" class="btn btn-outline-primary btn-sm {% if type_filter == 'questions' %}active{% endif %}">Questions</a>
+<div class="btn-group flex-wrap">
+    <a href="{{ url_for('admin_approvals', type='all') }}"
+       class="btn btn-outline-primary btn-sm {% if type_filter == 'all' %}active{% endif %}">All</a>
+    <a href="{{ url_for('admin_approvals', type='users') }}"
+       class="btn btn-outline-primary btn-sm {% if type_filter == 'users' %}active{% endif %}">Users</a>
+    <a href="{{ url_for('admin_approvals', type='initiatives') }}"
+       class="btn btn-outline-primary btn-sm {% if type_filter == 'initiatives' %}active{% endif %}">Initiatives</a>
+    <a href="{{ url_for('admin_approvals', type='questions') }}"
+       class="btn btn-outline-primary btn-sm {% if type_filter == 'questions' %}active{% endif %}">Questions</a>
+    <a href="{{ url_for('admin_approvals', type='projects') }}"
+       class="btn btn-outline-primary btn-sm {% if type_filter == 'projects' %}active{% endif %}">Projects</a>
+    <a href="{{ url_for('admin_approvals', type='events') }}"
+       class="btn btn-outline-primary btn-sm {% if type_filter == 'events' %}active{% endif %}">Events</a>
 </div>
 {% endblock %}
 
@@ -17,44 +25,96 @@
         {% for item in items %}
             <div class="approval-item">
                 <div class="d-flex w-100 justify-content-between align-items-start">
-                    <div>
+                    <div class="flex-grow-1 me-3">
+
                         {% if item.__class__.__name__ == 'User' %}
+                            <span class="badge bg-warning text-dark mb-1">Registration</span>
                             <h5 class="mb-1"><i class="bi bi-person"></i> {{ item.name }}</h5>
                             <p class="mb-1">{{ item.organization }} | {{ item.email }}</p>
                             <small class="text-muted">Stakeholder: {{ item.stakeholder_type }} | {{ item.country }}</small>
 
                         {% elif item.__class__.__name__ == 'Initiative' %}
+                            <span class="badge bg-info text-dark mb-1">Initiative</span>
                             <h5 class="mb-1"><i class="bi bi-file-text"></i> {{ item.title }}</h5>
                             <p class="mb-1">By {{ item.author.name }} ({{ item.author.organization }})</p>
                             <small class="text-muted">{{ item.content[:150] }}...</small>
 
                         {% elif item.__class__.__name__ == 'Question' %}
+                            <span class="badge bg-secondary mb-1">Question</span>
                             <h5 class="mb-1"><i class="bi bi-question-circle"></i> {{ item.title }}</h5>
                             <p class="mb-1">By {{ item.user.name }} ({{ item.user.organization }})</p>
                             <small class="text-muted">{{ item.content[:150] }}...</small>
+
+                        {% elif item.__class__.__name__ == 'Project' %}
+                            <span class="badge mb-1 text-white" style="background-color:#198754;">Project</span>
+                            <h5 class="mb-1"><i class="bi bi-kanban"></i> {{ item.title }}</h5>
+                            {% if item.submitter %}
+                                <p class="mb-1">By {{ item.submitter.name }} ({{ item.submitter.organization }})</p>
+                            {% endif %}
+                            <small class="text-muted">{{ item.description[:150] }}...</small>
+                            <br>
+                            <small class="text-muted">
+                                Deadline: {{ item.deadline.strftime('%b %d, %Y') }}
+                                {% if item.start_date %} · Starts: {{ item.start_date.strftime('%b %d, %Y') }}{% endif %}
+                                {% if item.activities %} · {{ item.activities|length }} activit{{ 'y' if item.activities|length == 1 else 'ies' }}{% endif %}
+                            </small>
+
+                        {% elif item.__class__.__name__ == 'Event' %}
+                            <span class="badge mb-1 text-white" style="background-color:#6f42c1;">Event</span>
+                            <h5 class="mb-1"><i class="bi bi-calendar-event"></i> {{ item.title }}</h5>
+                            {% if item.submitter %}
+                                <p class="mb-1">By {{ item.submitter.name }} ({{ item.submitter.organization }})</p>
+                            {% endif %}
+                            <small class="text-muted">{{ item.description[:150] }}...</small>
+                            <br>
+                            <small class="text-muted">
+                                Date: {{ item.start_date.strftime('%b %d, %Y at %H:%M') }} UTC
+                                {% if item.meeting_link %}· <a href="{{ item.meeting_link }}" target="_blank">Meeting link</a>{% endif %}
+                            </small>
+
                         {% endif %}
                     </div>
-                    <div class="btn-group">
-                        <form method="POST" action="{{ url_for('approve_item', type=item.__class__.__name__.lower(), id=item.id) }}" class="d-inline">
-                            <button type="submit" class="btn btn-success btn-sm">Approve</button>
+
+                    <!-- Action buttons -->
+                    <div class="btn-group flex-column flex-sm-row gap-1">
+                        <form method="POST"
+                              action="{{ url_for('approve_item', type=item.__class__.__name__.lower(), id=item.id) }}"
+                              class="d-inline">
+                            <button type="submit" class="btn btn-success btn-sm">
+                                <i class="bi bi-check-lg"></i> Approve
+                            </button>
                         </form>
-                        <form method="POST" action="{{ url_for('unpublish_item', type=item.__class__.__name__.lower(), id=item.id) }}" class="d-inline">
-                            <button type="submit" class="btn btn-danger btn-sm">Reject</button>
+
+                        {% if item.__class__.__name__ not in ('User',) %}
+                        <form method="POST"
+                              action="{{ url_for('unpublish_item', type=item.__class__.__name__.lower(), id=item.id) }}"
+                              class="d-inline">
+                            <button type="submit" class="btn btn-danger btn-sm">
+                                <i class="bi bi-x-lg"></i> Reject
+                            </button>
                         </form>
+                        {% endif %}
+
                         {% if item.__class__.__name__ == 'Initiative' %}
-                        <form method="POST" action="{{ url_for('admin_delete_initiative', id=item.id) }}" class="d-inline" onsubmit="return confirm('Permanently delete this initiative? This action cannot be undone.');">
-                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete Permanently">
+                        <form method="POST"
+                              action="{{ url_for('admin_delete_initiative', id=item.id) }}"
+                              class="d-inline"
+                              onsubmit="return confirm('Permanently delete this initiative? This cannot be undone.');">
+                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete permanently">
                                 <i class="bi bi-trash"></i>
                             </button>
                         </form>
                         {% endif %}
                     </div>
                 </div>
+
                 <small class="text-muted mt-2 d-block">Submitted {{ item.created_at | format_date }}</small>
             </div>
         {% endfor %}
     </div>
 {% else %}
-    <div class="alert alert-success">No pending approvals!</div>
+    <div class="alert alert-success">
+        <i class="bi bi-check-circle"></i> No pending approvals!
+    </div>
 {% endif %}
 {% endblock %}

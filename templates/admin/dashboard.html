@@ -31,9 +31,27 @@
             </div>
         </div>
     </div>
+    <div class="col-md-4 mb-4">
+        <div class="card text-white" style="background-color: #198754;">
+            <div class="card-body">
+                <h5 class="card-title">Pending Projects</h5>
+                <p class="card-text display-6">{{ pending_projects }}</p>
+                <a href="{{ url_for('admin_approvals', type='projects') }}" class="text-white">Review →</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card text-white" style="background-color: #6f42c1;">
+            <div class="card-body">
+                <h5 class="card-title">Pending Events</h5>
+                <p class="card-text display-6">{{ pending_events }}</p>
+                <a href="{{ url_for('admin_approvals', type='events') }}" class="text-white">Review →</a>
+            </div>
+        </div>
+    </div>
 </div>
 
-<div class="card mt-4">
+<div class="card mt-2">
     <div class="card-body">
         <h5>Maintenance Actions</h5>
         <form action="{{ url_for('trigger_nlp') }}" method="POST" class="d-inline">

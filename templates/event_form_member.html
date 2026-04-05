@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Submit an Event – AU ECED-FLN{% endblock %}
+
+{% block content %}
+<div class="container mt-5 mb-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+
+            <div class="mb-4">
+                <a href="{{ url_for('dashboard') }}" class="text-decoration-none text-muted">
+                    <i class="bi bi-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
+
+            <div class="stats-card">
+                <h2 class="mb-1 fw-bold">Submit an Event</h2>
+                <p class="text-muted mb-4">
+                    Propose a cluster event — webinar, workshop, or meeting. An admin will review it
+                    and all members will be notified once it's published.
+                </p>
+
+                <form method="POST" action="{{ url_for('member_new_event') }}">
+
+                    <!-- Title -->
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Event Title <span class="text-danger">*</span></label>
+                        <input type="text" name="title" class="form-control" required
+                               placeholder="e.g. ECED-FLN Cluster Webinar – Term 2 Review">
+                    </div>
+
+                    <!-- Description -->
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Description <span class="text-danger">*</span></label>
+                        <textarea name="description" class="form-control" rows="5" required
+                                  placeholder="What is this event about? Who should attend? What will be covered?"></textarea>
+                    </div>
+
+                    <!-- Dates -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Start Date &amp; Time <span class="text-danger">*</span></label>
+                            <input type="datetime-local" name="start_date" class="form-control" required>
+                            <small class="text-muted">All times in UTC.</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">End Date &amp; Time</label>
+                            <input type="datetime-local" name="end_date" class="form-control">
+                            <small class="text-muted">Optional.</small>
+                        </div>
+                    </div>
+
+                    <!-- Meeting link -->
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Meeting / Registration Link</label>
+                        <input type="url" name="meeting_link" class="form-control"
+                               placeholder="https://zoom.us/j/...">
+                        <small class="text-muted">
+                            Zoom, Teams, Google Meet, or any registration URL.
+                            This will only be visible to logged-in members.
+                        </small>
+                    </div>
+
+                    <div class="alert alert-info d-flex align-items-start gap-2">
+                        <i class="bi bi-info-circle-fill mt-1 flex-shrink-0"></i>
+                        <span>
+                            Your event will be reviewed before publishing. Once approved, all cluster
+                            members will receive an email notification automatically.
+                        </span>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-send"></i> Submit for Review
+                        </button>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

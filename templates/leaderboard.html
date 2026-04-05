@@ -35,7 +35,8 @@
                                 </td>
                                 <td><strong>{{ expert.name }}</strong></td>
                                 <td><small class="text-muted">{{ expert.organization }}</small></td>
-                                <td class="text-end fw-bold text-primary">{{ expert.points or 0 }}</td>
+                                {# Accessing the 'points' attribute of the User model #}
+                                <td class="text-end fw-bold text-primary">{{ expert.points if expert.points is not none else 0 }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -66,7 +67,8 @@
                                     <span class="badge bg-light text-dark fw-normal">{{ org.stakeholder_type }}</span>
                                 </td>
                                 <td class="text-center">{{ org.member_count }}</td>
-                                <td class="text-end fw-bold text-primary">{{ org.total_points or 0 }}</td>
+                                {# CRITICAL: Use 'total_points' label from the SQLAlchemy query #}
+                                <td class="text-end fw-bold text-primary">{{ org.total_points if org.total_points is not none else 0 }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -76,31 +78,31 @@
         </div>
     </div>
 
-    <div class="mt-5 p-4 bg-white rounded-3 shadow-sm">
-        <h5 class="mb-3">How to earn points?</h5>
+    <div class="mt-5 p-4 bg-white rounded-3 shadow-sm border">
+        <h5 class="mb-3">How are points calculated?</h5>
         <div class="row g-3 text-center">
             <div class="col-6 col-md-3">
-                <div class="p-2 border rounded">
+                <div class="p-2 border rounded bg-light">
                     <div class="fw-bold text-primary">+20</div>
-                    <small>Published Initiative</small>
+                    <small>Initiative Published</small>
                 </div>
             </div>
             <div class="col-6 col-md-3">
-                <div class="p-2 border rounded">
+                <div class="p-2 border rounded bg-light">
                     <div class="fw-bold text-primary">+10</div>
-                    <small>Expert Recommendation</small>
+                    <small>Recommendation</small>
                 </div>
             </div>
             <div class="col-6 col-md-3">
-                <div class="p-2 border rounded">
+                <div class="p-2 border rounded bg-light">
                     <div class="fw-bold text-primary">+15</div>
-                    <small>Project Participation</small>
+                    <small>Project Task</small>
                 </div>
             </div>
             <div class="col-6 col-md-3">
-                <div class="p-2 border rounded">
+                <div class="p-2 border rounded bg-light">
                     <div class="fw-bold text-primary">+5</div>
-                    <small>Event Registration</small>
+                    <small>Event RSVP</small>
                 </div>
             </div>
         </div>

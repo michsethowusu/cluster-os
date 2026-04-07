@@ -1402,6 +1402,11 @@ def admin_import_initiatives():
         created_users  = 0
         skipped_rows   = []
 
+        # Collect emails to send AFTER commit, so we never send emails for
+        # data that gets rolled back due to a later error in the same batch.
+        pending_welcome_emails  = []  # list of User objects
+        pending_pending_emails  = []  # list of (User, initiative_title) tuples
+
         for row in rows:
             email = row['email'].lower().strip()
             user  = User.query.filter_by(email=email).first()
@@ -1428,22 +1433,23 @@ def admin_import_initiatives():
                 db.session.flush()
                 created_users += 1
                 if send_emails:
-                    try:
-                        send_import_welcome_email(user)
-                    except Exception as e:
-                        app.logger.error(f"Welcome email error for {email}: {e}")
+                    pending_welcome_emails.append(user)
 
             # Check duplicate initiative
+            # Truncate to 200 chars for the duplicate check too, so it matches
+            # what will actually be stored.
+            initiative_title = row['initiative_title'].strip()[:200]
             existing = Initiative.query.filter_by(
                 user_id=user.id,
-                title=row['initiative_title'].strip()
+                title=initiative_title
             ).first()
             if existing:
-                skipped_rows.append(f"Skipped duplicate: \"{row['initiative_title'].strip()}\" for {email}")
+                skipped_rows.append(f"Skipped duplicate: \"{initiative_title}\" for {email}")
                 continue
 
-            # Build slug
-            base_slug = re.sub(r'[^\w]+', '-', row['initiative_title'].lower().strip()).strip('-')
+            # Build slug — truncate base to 190 chars so a numeric suffix still fits
+            # within the VARCHAR(200) column.
+            base_slug = re.sub(r'[^\w]+', '-', row['initiative_title'].lower().strip()).strip('-')[:190]
             slug = base_slug
             counter = 1
             while Initiative.query.filter_by(slug=slug).first():
@@ -1452,7 +1458,7 @@ def admin_import_initiatives():
 
             # Always unpublished — goes into approval queue
             initiative = Initiative(
-                title=row['initiative_title'].strip(),
+                title=initiative_title,
                 slug=slug,
                 content=row['initiative_content'].strip(),
                 short_description=row.get('short_description', '')[:300] if row.get('short_description') else None,
@@ -1478,14 +1484,25 @@ def admin_import_initiatives():
                     initiative.tags.append(tag)
                     tag.usage_count += 1
 
-            # Notify user their initiative is pending review
             if send_emails:
-                try:
-                    send_initiative_pending_email(user, initiative.title)
-                except Exception as e:
-                    app.logger.error(f"Pending email error for {email}: {e}")
+                pending_pending_emails.append((user, initiative.title))
 
+        # Commit everything first — only send emails once data is safely persisted.
         db.session.commit()
+
+        # Send welcome emails for newly created members
+        for welcome_user in pending_welcome_emails:
+            try:
+                send_import_welcome_email(welcome_user)
+            except Exception as e:
+                app.logger.error(f"Welcome email error for {welcome_user.email}: {e}")
+
+        # Notify each user their initiative is pending review
+        for pending_user, pending_title in pending_pending_emails:
+            try:
+                send_initiative_pending_email(pending_user, pending_title)
+            except Exception as e:
+                app.logger.error(f"Pending email error for {pending_user.email}: {e}")
         flash(
             f'Import complete: {imported_count} initiative(s) queued for approval'
             + (f', {created_users} new member(s) created' if created_users else '') + '.',

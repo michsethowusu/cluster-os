@@ -428,12 +428,6 @@ def verify_otp():
             user.otp_expiry = None
             db.session.commit()
             login_user(user)
-            
-            # Check if user has projects
-            if user.member_projects.count() == 0:
-                flash('Please add at least one project description to complete your profile.', 'warning')
-                return redirect(url_for('edit_profile'))
-            
             flash('Welcome back!', 'success')
             return redirect(url_for('dashboard'))
         else:
@@ -453,48 +447,82 @@ def register():
     custom_fields = RegistrationField.query.filter_by(is_active=True).order_by(RegistrationField.order).all()
     
     if request.method == 'POST':
-        email = request.form.get('email')
+        email = request.form.get('email', '').lower().strip()
         
         if User.query.filter_by(email=email).first():
             flash('Email already registered.', 'error')
             return redirect(url_for('register'))
         
-        # Validate projects: at least one
-        projects = request.form.getlist('project[]')
-        projects = [p.strip() for p in projects if p.strip()]
-        if len(projects) == 0:
-            flash('Please provide at least one project description.', 'error')
+        # Validate initiative fields
+        initiative_title = request.form.get('initiative_title', '').strip()
+        initiative_short_desc = request.form.get('initiative_short_description', '').strip()
+        initiative_content = request.form.get('initiative_content', '').strip()
+
+        if not initiative_title:
+            flash('Please provide an initiative title.', 'error')
             return redirect(url_for('register'))
-        
-        # Auto-approve setting check
-        auto_approve = get_setting('auto_approve_members', 'true').lower() == 'true'
-        is_approved = auto_approve
-        
-        # Create user immediately (no OTP)
+        if not initiative_content:
+            flash('Please provide initiative content.', 'error')
+            return redirect(url_for('register'))
+
+        # New registrations always go through approval — initiative gives the admin
+        # something meaningful to review before granting access.
         user = User(
-            email=email.lower().strip(),
+            email=email,
             name=request.form.get('name'),
             organization=request.form.get('organization'),
             stakeholder_type=request.form.get('stakeholder_type'),
             country=request.form.get('country'),
-            is_approved=is_approved,
+            is_approved=False,
             is_admin=False
         )
         db.session.add(user)
         db.session.commit()
-        
-        # Add projects
-        for proj_desc in projects:
-            member_project = MemberProject(user_id=user.id, description=proj_desc[:300])
-            db.session.add(member_project)
+
+        # Build a unique slug for the initiative
+        slug = re.sub(r'[^\w]+', '-', initiative_title.lower()).strip('-')[:190]
+        base_slug = slug
+        counter = 1
+        while Initiative.query.filter_by(slug=slug).first():
+            slug = f"{base_slug}-{counter}"
+            counter += 1
+
+        initiative = Initiative(
+            title=initiative_title[:200],
+            slug=slug,
+            content=initiative_content,
+            short_description=initiative_short_desc[:300] if initiative_short_desc else None,
+            user_id=user.id,
+            stakeholder_type=user.stakeholder_type,
+            country=user.country,
+            is_published=False   # Published only when the user is approved
+        )
+        db.session.add(initiative)
         db.session.commit()
-        
-        if is_approved:
-            flash('Registration successful! You can now log in.', 'success')
-            return redirect(url_for('login'))
-        else:
-            flash('Registration submitted for admin approval. You will be notified via email.', 'success')
-            return redirect(url_for('index'))
+
+        # Extract and vet tags in the background (non-blocking)
+        try:
+            phrases = extract_noun_phrases(initiative_content)
+            vetted_tags = vet_tags_nvidia(phrases)
+            for tag_name in vetted_tags:
+                tag = Tag.query.filter_by(name=tag_name).first()
+                if not tag:
+                    tag = Tag(name=tag_name, is_vetted=True)
+                    db.session.add(tag)
+                    db.session.flush()
+                initiative.tags.append(tag)
+                tag.usage_count += 1
+            db.session.commit()
+            update_noun_phrase_db(initiative.id, phrases)
+        except Exception as e:
+            app.logger.error(f"Registration initiative tag processing error: {e}")
+
+        flash(
+            'Thank you for registering! Your application is under review. '
+            'You will receive an email once your account is approved.',
+            'success'
+        )
+        return redirect(url_for('index'))
     
     stakeholder_types = ['Government', 'NGO / Civil Society', 'Development Partner / Donor', 
                         'Academic / Research', 'UN Agency', 'Private Sector']
@@ -533,17 +561,27 @@ def search_members():
     if not query:
         return render_template('search_members.html', results=[])
     
-    users = User.query.filter(User.member_projects.any()).all()
+    # Only search members who have at least one published initiative
+    users = User.query.filter(
+        User.is_approved == True,
+        User.initiatives.any(Initiative.is_published == True)
+    ).all()
+
     if not users:
         return render_template('search_members.html', query=query, results=[])
     
-    # Prepare data for AI: {id: id, projects: list of descriptions}
-    user_data = [{'id': u.id, 'projects': [p.description for p in u.member_projects]} for u in users]
+    # Prepare data for AI ranking using initiative titles + short descriptions
+    user_data = []
+    for u in users:
+        published = [i for i in u.initiatives if i.is_published]
+        if published:
+            descriptions = [
+                f"{i.title}: {i.short_description or ''}" for i in published[:5]
+            ]
+            user_data.append({'id': u.id, 'projects': descriptions})
     
-    # Call AI service to rank
     ranked_ids = rank_members_by_query(query, user_data)
     
-    # Fetch users in order
     user_map = {u.id: u for u in users}
     ranked_users = [user_map[uid] for uid in ranked_ids if uid in user_map]
     
@@ -562,11 +600,6 @@ def test_email():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    # Check if user has projects, if not, redirect to profile edit
-    if current_user.member_projects.count() == 0:
-        flash('Please add at least one project description to complete your profile.', 'warning')
-        return redirect(url_for('edit_profile'))
-    
     user_initiatives = Initiative.query.filter_by(user_id=current_user.id).order_by(
         Initiative.created_at.desc()
     ).all()
@@ -1053,13 +1086,54 @@ def approve_item(type, id):
         user = User.query.get_or_404(id)
         user.is_approved = True
         db.session.commit()
-        # Notify the user their account is approved
-        initiative = Initiative.query.filter_by(user_id=user.id).first()
+
+        # Publish the member's registration initiative (the first pending one)
+        reg_initiative = Initiative.query.filter_by(user_id=user.id, is_published=False).first()
+        if reg_initiative:
+            reg_initiative.is_published = True
+            db.session.commit()
+
+            # Update noun phrases for the now-live initiative
+            try:
+                phrases = extract_noun_phrases(reg_initiative.content)
+                update_noun_phrase_db(reg_initiative.id, phrases)
+            except Exception as e:
+                app.logger.error(f"Noun phrase extraction error on user approval: {e}")
+
+            # Award points for the published initiative
+            award_points(user, 'initiative_published')
+
+            # Notify all members about the new initiative
+            try:
+                initiative_url = url_for('view_initiative', slug=reg_initiative.slug, _external=True)
+                send_member_notification(
+                    subject=f"New Initiative: {reg_initiative.title}",
+                    html=f"""
+                    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#333;">
+                        <h2 style="color:#0066cc;">New Initiative Published</h2>
+                        <p>A new initiative has been published on the AU ECED-FLN Cluster Platform:</p>
+                        <h3 style="margin:16px 0 8px;">{reg_initiative.title}</h3>
+                        <p style="color:#555;">{reg_initiative.short_description or ''}</p>
+                        <p style="text-align:center;margin:30px 0;">
+                            <a href="{initiative_url}"
+                               style="display:inline-block;background:#0066cc;color:white;
+                                      padding:12px 30px;text-decoration:none;border-radius:5px;font-weight:bold;">
+                                Read Initiative
+                            </a>
+                        </p>
+                        <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
+                        <p style="color:#999;font-size:0.85em;">This email was sent by the AU ECED-FLN Cluster Platform.</p>
+                    </div>"""
+                )
+            except Exception as e:
+                app.logger.error(f"Member notification error (new member initiative published): {e}")
+
+        # Send the welcome / approval email to the new member
         try:
-            send_approval_email(user.email, initiative.slug if initiative else None)
+            send_approval_email(user.email, reg_initiative.slug if reg_initiative else None)
         except Exception as e:
             app.logger.error(f"Approval email error for {user.email}: {e}")
-        flash(f'User {user.email} approved.', 'success')
+        flash(f'User {user.email} approved and their initiative published.', 'success')
 
     elif type == 'initiative':
         initiative = Initiative.query.get_or_404(id)

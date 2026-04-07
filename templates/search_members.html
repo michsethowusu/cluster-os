@@ -42,12 +42,14 @@
                                     <i class="bi bi-tag"></i> {{ member.stakeholder_type }}
                                 </p>
                                 <div class="mt-2">
-                                    <strong class="small">Projects:</strong>
+                                    <strong class="small">Initiatives:</strong>
                                     <ul class="list-unstyled small mt-1">
-                                        {% for proj in member.member_projects %}
+                                        {% for initiative in member.initiatives if initiative.is_published %}
                                         <li class="mb-1">
                                             <i class="bi bi-check-circle-fill text-success"></i>
-                                            {{ proj.description[:80] }}{% if proj.description|length > 80 %}...{% endif %}
+                                            <a href="{{ url_for('view_initiative', slug=initiative.slug) }}" class="text-decoration-none">
+                                                {{ initiative.title[:80] }}{% if initiative.title|length > 80 %}...{% endif %}
+                                            </a>
                                         </li>
                                         {% endfor %}
                                     </ul>

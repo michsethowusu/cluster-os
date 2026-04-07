@@ -12,6 +12,8 @@
                     <p class="text-muted text-center mb-4">Complete the form below to request access to the cluster.</p>
                     
                     <form method="POST" action="{{ url_for('register') }}" class="needs-validation" novalidate>
+
+                        <!-- ── Personal & Organisation Details ── -->
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Full Name *</label>
@@ -22,7 +24,7 @@
                                 <input type="email" name="email" class="form-control" required>
                             </div>
                         </div>
-                        
+
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Organization *</label>
@@ -33,7 +35,7 @@
                                 <input type="text" name="country" class="form-control" required>
                             </div>
                         </div>
-                        
+
                         <div class="mb-3">
                             <label class="form-label">Stakeholder Type *</label>
                             <select name="stakeholder_type" class="form-select" required>
@@ -43,30 +45,70 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        
+
+                        <!-- ── Admin-configured custom fields ── -->
                         {% for field in custom_fields %}
                             <div class="mb-3">
                                 <label class="form-label">{{ field.field_label }}{% if field.is_required %} *{% endif %}</label>
                                 {% if field.field_type == 'textarea' %}
-                                    <textarea name="{{ field.field_name }}" class="form-control" {% if field.is_required %}required{% endif %}></textarea>
+                                    <textarea name="{{ field.field_name }}" class="form-control"
+                                              {% if field.is_required %}required{% endif %}></textarea>
                                 {% else %}
-                                    <input type="{{ field.field_type }}" name="{{ field.field_name }}" class="form-control" {% if field.is_required %}required{% endif %}>
+                                    <input type="{{ field.field_type }}" name="{{ field.field_name }}"
+                                           class="form-control" {% if field.is_required %}required{% endif %}>
                                 {% endif %}
                             </div>
                         {% endfor %}
-                        
-                        <!-- Projects Section -->
+
+                        <!-- ── Initiative Section ── -->
+                        <hr class="my-4">
+                        <h5 class="mb-1">Your ECED-FLN Initiative *</h5>
+                        <p class="text-muted small mb-3">
+                            Share an initiative you have led or contributed to in Early Childhood Education &amp;
+                            Development or Foundational Learning. This is how other members will find you through
+                            expertise search, and it will be published on the platform once your account is approved.
+                        </p>
+
                         <div class="mb-3">
-                            <label class="form-label">Projects you have participated in or are currently involved with *</label>
-                            <p class="text-muted small">Provide short descriptions (max 300 characters each). At least one is required.</p>
-                            <div id="projects-container">
-                                <div class="project-row mb-2">
-                                    <textarea name="project[]" class="form-control" rows="2" maxlength="300" placeholder="e.g., Early Literacy Program in Northern Ghana: trained 200 teachers..."></textarea>
-                                </div>
-                            </div>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addProjectField()">+ Add another project</button>
+                            <label class="form-label">Initiative Title *</label>
+                            <input type="text" name="initiative_title" class="form-control"
+                                   maxlength="200"
+                                   placeholder="e.g., Community-Based Early Literacy Programme in Northern Ghana"
+                                   required>
                         </div>
-                        
+
+                        <div class="mb-3">
+                            <label class="form-label">Short Description *
+                                <span class="text-muted fw-normal">(max 300 characters — shown in search results)</span>
+                            </label>
+                            <textarea name="initiative_short_description" class="form-control" rows="2"
+                                      maxlength="300"
+                                      placeholder="A brief summary that will appear on member cards and search results."
+                                      required></textarea>
+                            <div class="form-text text-end">
+                                <span id="short-desc-count">0</span> / 300
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Full Initiative Description *
+                                <span class="text-muted fw-normal">(Markdown supported)</span>
+                            </label>
+                            <textarea name="initiative_content" class="form-control" rows="8"
+                                      placeholder="Describe the initiative in detail: objectives, target beneficiaries, geographic scope, outcomes, lessons learned, etc."
+                                      required></textarea>
+                            <div class="form-text">
+                                You can use **bold**, *italic*, bullet lists, and headings.
+                                This full description will appear on your initiative's dedicated page.
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info small py-2 mb-4">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Your account and initiative will be reviewed by our team. Once approved you will
+                            receive a welcome email and your initiative will go live immediately.
+                        </div>
+
                         <button type="submit" class="btn btn-primary btn-lg w-100">
                             Request Access
                         </button>
@@ -76,14 +118,36 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
+{% block extra_js %}
 <script>
-function addProjectField() {
-    const container = document.getElementById('projects-container');
-    const div = document.createElement('div');
-    div.className = 'project-row mb-2';
-    div.innerHTML = '<textarea name="project[]" class="form-control" rows="2" maxlength="300" placeholder="Describe another project..."></textarea>';
-    container.appendChild(div);
-}
+// Live character counter for short description
+(function () {
+    const textarea = document.querySelector('textarea[name="initiative_short_description"]');
+    const counter  = document.getElementById('short-desc-count');
+    if (!textarea || !counter) return;
+
+    function update() {
+        counter.textContent = textarea.value.length;
+        counter.classList.toggle('text-danger', textarea.value.length >= 300);
+    }
+    textarea.addEventListener('input', update);
+    update();
+})();
+
+// Bootstrap client-side validation
+(function () {
+    'use strict';
+    document.querySelectorAll('.needs-validation').forEach(function (form) {
+        form.addEventListener('submit', function (event) {
+            if (!form.checkValidity()) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            form.classList.add('was-validated');
+        }, false);
+    });
+})();
 </script>
 {% endblock %}

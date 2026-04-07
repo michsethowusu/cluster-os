@@ -1,6 +1,6 @@
 {% extends "admin/base.html" %}
 
-{% block admin_title %}Bulk Import Members{% endblock %}
+{% block admin_title %}Bulk Import / Invite Members{% endblock %}
 
 {% block admin_actions %}
 <a href="{{ url_for('admin_import_members_template') }}" class="btn btn-outline-primary btn-sm">
@@ -13,34 +13,57 @@
     <div class="col-lg-8">
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0">Import Members from CSV</h5>
+                <h5 class="mb-0">Import or Invite Members via CSV</h5>
             </div>
             <div class="card-body">
-                <div class="alert alert-info">
-                    <h6><i class="bi bi-info-circle"></i> How it works:</h6>
+                <div class="alert alert-info" id="info-import">
+                    <h6><i class="bi bi-info-circle"></i> Import mode — adds members directly:</h6>
                     <ul class="mb-0">
                         <li>Upload a CSV file with member data</li>
                         <li>Required columns: email, name, organization, stakeholder_type, country</li>
                         <li>If a member already exists, it will be skipped</li>
-                        <li>Imported members will be auto-approved if the setting is enabled</li>
+                        <li>Imported members will be auto-approved and sent a welcome email</li>
                         <li>Imported members will be prompted to add projects on their first login</li>
                     </ul>
                 </div>
-                
+                <div class="alert alert-warning d-none" id="info-invite">
+                    <h6><i class="bi bi-envelope"></i> Invite mode — sends an invitation email only:</h6>
+                    <ul class="mb-0">
+                        <li>No accounts are created</li>
+                        <li>Each person receives an email inviting them to register on the platform</li>
+                        <li>People who already have an account are skipped</li>
+                        <li>Only <strong>email</strong> and <strong>name</strong> columns are required in invite mode</li>
+                    </ul>
+                </div>
+
                 <form method="POST" enctype="multipart/form-data">
                     <div class="mb-3">
                         <label class="form-label">CSV File *</label>
                         <input type="file" name="file" class="form-control" accept=".csv" required>
                         <div class="form-text">Max file size: 16MB</div>
                     </div>
-                    
-                    <button type="submit" class="btn btn-primary">
+
+                    <div class="mb-4">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="invite_only"
+                                   id="invite_only" role="switch">
+                            <label class="form-check-label fw-semibold" for="invite_only">
+                                Invite only — send invitation emails without creating accounts
+                            </label>
+                        </div>
+                        <div class="form-text ms-4">
+                            When checked, no accounts are created. Recipients receive an email with a link to
+                            register themselves on the platform.
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="submit-btn">
                         <i class="bi bi-upload"></i> Import Members
                     </button>
                 </form>
             </div>
         </div>
-        
+
         <div class="card">
             <div class="card-header">
                 <h6 class="mb-0">CSV Format Specification</h6>
@@ -53,15 +76,19 @@
                     <tbody>
                         <tr><td>email</td><td>Yes</td><td>Member email address</td></tr>
                         <tr><td>name</td><td>Yes</td><td>Full name</td></tr>
-                        <tr><td>organization</td><td>Yes</td><td>Organization name</td></tr>
-                        <tr><td>stakeholder_type</td><td>Yes</td><td>One of: Government, NGO / Civil Society, Development Partner / Donor, Academic / Research, UN Agency, Private Sector</td></tr>
-                        <tr><td>country</td><td>Yes</td><td>Country name</td></tr>
+                        <tr><td>organization</td><td class="text-muted" id="org-required">Yes</td><td>Organization name</td></tr>
+                        <tr><td>stakeholder_type</td><td class="text-muted" id="stype-required">Yes</td><td>One of: Government, NGO / Civil Society, Development Partner / Donor, Academic / Research, UN Agency, Private Sector</td></tr>
+                        <tr><td>country</td><td class="text-muted" id="country-required">Yes</td><td>Country name</td></tr>
                     </tbody>
                 </table>
+                <p class="text-muted small mb-0" id="invite-note" style="display:none;">
+                    <i class="bi bi-info-circle"></i> In invite mode, only <strong>email</strong> and <strong>name</strong>
+                    are used. The other columns can be omitted or left blank.
+                </p>
             </div>
         </div>
     </div>
-    
+
     <div class="col-lg-4">
         <div class="card">
             <div class="card-body">
@@ -73,4 +100,35 @@ john@unicef.org,John Doe,UNICEF Ghana,UN Agency,Ghana</pre>
         </div>
     </div>
 </div>
+
+<script>
+(function () {
+    const checkbox = document.getElementById('invite_only');
+    const infoImport = document.getElementById('info-import');
+    const infoInvite = document.getElementById('info-invite');
+    const submitBtn = document.getElementById('submit-btn');
+    const inviteNote = document.getElementById('invite-note');
+    const orgRequired = document.getElementById('org-required');
+    const stypeRequired = document.getElementById('stype-required');
+    const countryRequired = document.getElementById('country-required');
+
+    function update() {
+        const inviting = checkbox.checked;
+        infoImport.classList.toggle('d-none', inviting);
+        infoInvite.classList.toggle('d-none', !inviting);
+        submitBtn.innerHTML = inviting
+            ? '<i class="bi bi-envelope"></i> Send Invitations'
+            : '<i class="bi bi-upload"></i> Import Members';
+        submitBtn.className = inviting ? 'btn btn-warning' : 'btn btn-primary';
+        inviteNote.style.display = inviting ? '' : 'none';
+        const optLabel = inviting ? 'Optional' : 'Yes';
+        orgRequired.textContent = optLabel;
+        stypeRequired.textContent = optLabel;
+        countryRequired.textContent = optLabel;
+    }
+
+    checkbox.addEventListener('change', update);
+    update();
+})();
+</script>
 {% endblock %}

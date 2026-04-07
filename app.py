@@ -36,6 +36,7 @@ from utils.email_sender import (
     send_event_notification,
     send_member_notification,
     send_import_welcome_email,
+    send_invitation_email,
     send_initiative_approved_email,
     send_initiative_pending_email,
     send_project_notification,
@@ -1385,11 +1386,14 @@ def admin_import_members():
         if file.filename == '':
             flash('No file selected', 'error')
             return redirect(request.url)
+        # Read the invite_only checkbox — present means checked
+        invite_only = request.form.get('invite_only') == 'on'
         if file and file.filename.endswith('.csv'):
             try:
                 stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
                 csv_reader = csv.DictReader(stream)
                 imported = 0
+                invited = 0
                 errors = []
                 for row_num, row in enumerate(csv_reader, start=2):
                     required = ['email', 'name', 'organization', 'stakeholder_type', 'country']
@@ -1397,8 +1401,23 @@ def admin_import_members():
                     if missing:
                         errors.append(f"Row {row_num}: Missing fields {missing}")
                         continue
+                    email = row['email'].lower().strip()
+                    name = row['name'].strip()
+                    # ── INVITE-ONLY MODE ──────────────────────────────────────
+                    if invite_only:
+                        if User.query.filter_by(email=email).first():
+                            errors.append(f"Row {row_num}: {email} already has an account — skipped")
+                            continue
+                        try:
+                            send_invitation_email(email, name)
+                            invited += 1
+                        except Exception as e:
+                            app.logger.error(f"Invitation email error for {email}: {e}")
+                            errors.append(f"Row {row_num}: Failed to send invitation to {email}")
+                        continue
+                    # ── NORMAL IMPORT MODE ────────────────────────────────────
                     # Check duplicate
-                    if User.query.filter_by(email=row['email'].lower().strip()).first():
+                    if User.query.filter_by(email=email).first():
                         errors.append(f"Row {row_num}: Email already exists")
                         continue
                     # Validate stakeholder_type
@@ -1409,8 +1428,8 @@ def admin_import_members():
                         continue
                     # Create user — always approved when imported by admin
                     user = User(
-                        email=row['email'].lower().strip(),
-                        name=row['name'].strip(),
+                        email=email,
+                        name=name,
                         organization=row['organization'].strip(),
                         stakeholder_type=row['stakeholder_type'].strip(),
                         country=row['country'].strip(),
@@ -1426,7 +1445,10 @@ def admin_import_members():
                         app.logger.error(f"Import welcome email error for {user.email}: {e}")
                     imported += 1
                 db.session.commit()
-                flash(f'Imported {imported} members. Errors: {len(errors)}', 'info' if errors else 'success')
+                if invite_only:
+                    flash(f'Sent {invited} invitation(s). Errors: {len(errors)}', 'info' if errors else 'success')
+                else:
+                    flash(f'Imported {imported} members. Errors: {len(errors)}', 'info' if errors else 'success')
                 if errors:
                     for err in errors[:5]:
                         flash(err, 'error')

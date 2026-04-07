@@ -210,6 +210,43 @@ def send_import_welcome_email(user):
     send_email(user.email, subject, html)
 
 
+def send_invitation_email(email, name):
+    """Send an invitation email to someone who hasn't registered yet."""
+    register_url = _url('/register')
+    subject = "You're invited to join the AU ECED-FLN Cluster Platform"
+    html = f"""
+    <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h2 style="color: #0066cc;">You've Been Invited to the AU ECED-FLN Cluster Platform</h2>
+                <p>Dear {name},</p>
+                <p>You have been invited to join the <strong>African Union Early Childhood Education and
+                Development &amp; Foundational Learning (ECED-FLN) Cluster Platform</strong> — a network
+                connecting experts and organisations across Africa working to accelerate Early Childhood
+                Education and Foundational Learning.</p>
+                <p>As a member you will be able to:</p>
+                <ul>
+                    <li>Share and explore ECED-FLN initiatives from across the continent</li>
+                    <li>Participate in the Q&amp;A forum and contribute recommendations</li>
+                    <li>Register for cluster events and complete polls</li>
+                    <li>Connect with other experts in the network</li>
+                </ul>
+                <p style="text-align: center; margin: 30px 0;">
+                    <a href="{register_url}" style="display: inline-block; background: #0066cc; color: white;
+                    padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                        Register Now
+                    </a>
+                </p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="color: #999; font-size: 0.85em;">This invitation was sent by the AU ECED-FLN Cluster Platform.
+                If you believe you received this in error, please ignore it.</p>
+            </div>
+        </body>
+    </html>
+    """
+    send_email(email, subject, html)
+
+
 def send_project_notification(project):
     """Notify all approved members that a new project has been published."""
     from app import User, app as flask_app

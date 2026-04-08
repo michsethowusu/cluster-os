@@ -16,6 +16,20 @@ with app.app_context():
             ALTER TABLE \"user\"
             ADD COLUMN IF NOT EXISTS points INTEGER DEFAULT 0
         '''))
+        conn.execute(db.text('''
+            ALTER TABLE \"user\"
+            ADD COLUMN IF NOT EXISTS is_subscribed BOOLEAN DEFAULT true
+        '''))
+        
+        # Update Initiative table
+        conn.execute(db.text('''
+            ALTER TABLE initiative
+            ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0
+        '''))
+        conn.execute(db.text('''
+            ALTER TABLE initiative
+            ADD COLUMN IF NOT EXISTS quality_score INTEGER
+        '''))
         
         # Update Project table
         conn.execute(db.text('''
@@ -40,29 +54,13 @@ with app.app_context():
             ALTER TABLE event
             ADD COLUMN IF NOT EXISTS submitted_by INTEGER
         '''))
-
-        # ── Zoom integration columns ──────────────────────────────────────
-        # zoom_webinar_id: stores the Zoom Meeting ID (column kept for backwards DB compat) created via API
         conn.execute(db.text('''
             ALTER TABLE event
             ADD COLUMN IF NOT EXISTS zoom_webinar_id VARCHAR(100)
         '''))
-        # zoom_recording_url: fetched after the event ends
         conn.execute(db.text('''
             ALTER TABLE event
             ADD COLUMN IF NOT EXISTS zoom_recording_url VARCHAR(500)
-        '''))
-        # meeting_link kept for backwards compatibility but no longer used (Zoom Meetings API now used)
-        # (existing data preserved, new events use Zoom)
-
-        # ── EventAttachment table (created by db.create_all above,
-        #    but we ensure the folder exists via the app) ──────────────────
-        # No manual ALTER needed — db.create_all() handles the new model.
-
-        # Update Initiative table
-        conn.execute(db.text('''
-            ALTER TABLE initiative
-            ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0
         '''))
 
         conn.commit()

@@ -42,6 +42,8 @@ from utils.email_sender import (
     send_project_notification,
     send_project_approved_email,
     send_event_approved_email,
+    send_project_signup_confirmation,
+    send_project_signup_admin_alert,
 )
 from utils.ai_services import generate_title_description, vet_tags_nvidia, rank_members_by_query, clean_tags_for_polls
 from utils.nlp import extract_noun_phrases, update_noun_phrase_db
@@ -2085,6 +2087,7 @@ def participate_project(id):
     if not activity_ids:
         flash('Please select at least one activity.', 'error')
         return redirect(url_for('project_detail', id=id))
+    signed_up_activities = []
     for activity_id in activity_ids:
         activity = ProjectActivity.query.get(activity_id)
         if activity and activity.project_id == id:
@@ -2096,9 +2099,25 @@ def participate_project(id):
                 user_id=current_user.id
             )
             db.session.add(participation)
+            signed_up_activities.append(activity)
     db.session.commit()
     award_points(current_user, 'project_participated')
     flash('You have successfully joined the project!', 'success')
+
+    # Notify the participant with a confirmation email
+    try:
+        send_project_signup_confirmation(current_user, project, signed_up_activities)
+    except Exception as e:
+        app.logger.error(f"Project signup confirmation email error: {e}")
+
+    # Alert the admin about the new sign-up
+    try:
+        admin = User.query.filter_by(is_admin=True).first()
+        if admin:
+            send_project_signup_admin_alert(admin.email, current_user, project, signed_up_activities)
+    except Exception as e:
+        app.logger.error(f"Project signup admin alert email error: {e}")
+
     return redirect(url_for('dashboard'))
 
 # ===================== API ROUTES =====================

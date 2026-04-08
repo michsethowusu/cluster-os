@@ -247,6 +247,99 @@ def send_invitation_email(email, name):
     send_email(email, subject, html)
 
 
+def send_project_signup_confirmation(user, project, signed_up_activities):
+    """
+    Confirm to a member that they have successfully joined a project.
+    signed_up_activities: list of ProjectActivity objects they signed up for.
+    """
+    project_url = _url(f'/project/{project.id}')
+    activity_items = "".join(
+        f"<li>{a.title}</li>" for a in signed_up_activities
+    )
+    subject = f"You've joined: {project.title} – AU ECED-FLN Platform"
+    html = f"""
+    <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h2 style="color: #0066cc;">You've Joined a Project!</h2>
+                <p>Dear {user.name},</p>
+                <p>You have successfully signed up to participate in the following project on the
+                AU ECED-FLN Cluster Platform:</p>
+                <h3 style="margin: 16px 0 8px;">{project.title}</h3>
+                <p><strong>Deadline:</strong> {project.deadline.strftime('%B %d, %Y')}</p>
+                <p><strong>Activities you signed up for:</strong></p>
+                <ul style="margin: 8px 0 16px 20px;">
+                    {activity_items}
+                </ul>
+                <p style="text-align: center; margin: 30px 0;">
+                    <a href="{project_url}" style="display: inline-block; background: #0066cc; color: white;
+                    padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                        View Project
+                    </a>
+                </p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="color: #999; font-size: 0.85em;">This email was sent by the AU ECED-FLN Cluster Platform.</p>
+            </div>
+        </body>
+    </html>
+    """
+    send_email(user.email, subject, html)
+
+
+def send_project_signup_admin_alert(admin_email, user, project, signed_up_activities):
+    """
+    Notify the admin that a member has signed up for a project.
+    admin_email: the admin's email address (string).
+    signed_up_activities: list of ProjectActivity objects.
+    """
+    admin_project_url = _url(f'/admin/project/{project.id}/edit')
+    activity_items = "".join(
+        f"<li>{a.title}</li>" for a in signed_up_activities
+    )
+    subject = f"[New Sign-up] {user.name} joined \"{project.title}\""
+    html = f"""
+    <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h2 style="color: #0066cc;">New Project Sign-up</h2>
+                <p>A member has just signed up for a project on the AU ECED-FLN Cluster Platform.</p>
+                <table style="width:100%; border-collapse: collapse; margin: 16px 0;">
+                    <tr>
+                        <td style="padding: 6px 12px 6px 0; font-weight: bold; width: 130px;">Member</td>
+                        <td style="padding: 6px 0;">{user.name} ({user.email})</td>
+                    </tr>
+                    <tr style="background:#f9f9f9;">
+                        <td style="padding: 6px 12px 6px 0; font-weight: bold;">Organisation</td>
+                        <td style="padding: 6px 0;">{user.organization}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 6px 12px 6px 0; font-weight: bold;">Project</td>
+                        <td style="padding: 6px 0;">{project.title}</td>
+                    </tr>
+                    <tr style="background:#f9f9f9;">
+                        <td style="padding: 6px 12px 6px 0; font-weight: bold;">Deadline</td>
+                        <td style="padding: 6px 0;">{project.deadline.strftime('%B %d, %Y')}</td>
+                    </tr>
+                </table>
+                <p><strong>Activities selected:</strong></p>
+                <ul style="margin: 8px 0 16px 20px;">
+                    {activity_items}
+                </ul>
+                <p style="text-align: center; margin: 30px 0;">
+                    <a href="{admin_project_url}" style="display: inline-block; background: #0066cc; color: white;
+                    padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                        Manage Project in Admin
+                    </a>
+                </p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="color: #999; font-size: 0.85em;">This is an automated alert from the AU ECED-FLN Cluster Platform.</p>
+            </div>
+        </body>
+    </html>
+    """
+    send_email(admin_email, subject, html)
+
+
 def send_project_notification(project):
     """Notify all approved members that a new project has been published."""
     from app import User, app as flask_app

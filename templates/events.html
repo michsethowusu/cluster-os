@@ -7,7 +7,7 @@
     <div class="row mb-4">
         <div class="col-12">
             <h3>Upcoming Events</h3>
-            <p class="text-muted">Join events organized by the cluster</p>
+            <p class="text-muted">Join events organised by the cluster — all hosted as Zoom Meetings</p>
         </div>
     </div>
 
@@ -15,33 +15,83 @@
         {% for event in upcoming %}
         <div class="card mb-4">
             <div class="card-body">
-                <h4 class="card-title">{{ event.title }}</h4>
-                <p class="card-text">{{ event.description }}</p>
-                <p class="text-muted">
-                    <i class="bi bi-calendar"></i> {{ event.start_date.strftime('%B %d, %Y at %H:%M') }}
-                    {% if event.end_date %} - {{ event.end_date.strftime('%B %d, %Y at %H:%M') }}{% endif %}
+                <div class="d-flex justify-content-between align-items-start">
+                    <h4 class="card-title mb-1">{{ event.title }}</h4>
+                    {% if event.zoom_webinar_id %}
+                    <span class="badge bg-primary ms-2">
+                        <i class="bi bi-camera-video-fill"></i> Zoom Meeting
+                    </span>
+                    {% endif %}
+                </div>
+                <p class="card-text mt-2">{{ event.description[:250] }}{% if event.description|length > 250 %}…{% endif %}</p>
+                <p class="text-muted mb-3">
+                    <i class="bi bi-calendar"></i>
+                    {{ event.start_date.strftime('%B %d, %Y at %H:%M UTC') }}
+                    {% if event.end_date %} – {{ event.end_date.strftime('%B %d, %Y at %H:%M UTC') }}{% endif %}
                 </p>
-                <a href="{{ url_for('event_detail', id=event.id) }}" class="btn btn-primary">View Details</a>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <a href="{{ url_for('event_detail', id=event.id) }}" class="btn btn-primary">
+                        View Details & Register
+                    </a>
+                    {% set reg_count = event.registrations.count() %}
+                    {% if reg_count > 0 %}
+                    <span class="text-muted small">
+                        <i class="bi bi-people-fill"></i> {{ reg_count }} registered
+                    </span>
+                    {% endif %}
+                </div>
             </div>
         </div>
         {% endfor %}
     {% else %}
-        <div class="alert alert-info">No upcoming events at the moment.</div>
+        <div class="alert alert-info">No upcoming events at the moment. Check back soon.</div>
     {% endif %}
 
+    <!-- ── Past Events ── -->
     {% if past %}
-        <h4 class="mt-5">Past Events</h4>
-        <div class="list-group">
-            {% for event in past %}
-            <a href="{{ url_for('event_detail', id=event.id) }}" class="list-group-item list-group-item-action">
-                <div class="d-flex w-100 justify-content-between">
-                    <h5 class="mb-1">{{ event.title }}</h5>
-                    <small class="text-muted">{{ event.start_date.strftime('%b %d, %Y') }}</small>
+    <h4 class="mt-5 mb-3">Past Events</h4>
+    <div class="list-group">
+        {% for event in past %}
+        <div class="list-group-item list-group-item-action">
+            <div class="d-flex w-100 justify-content-between align-items-start">
+                <div class="flex-grow-1">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <h5 class="mb-0">{{ event.title }}</h5>
+                        {% if event.zoom_recording_url %}
+                            {% if current_user.is_authenticated %}
+                            <a href="{{ event.zoom_recording_url }}" target="_blank"
+                               class="badge bg-success text-decoration-none">
+                                <i class="bi bi-play-circle-fill"></i> Recording
+                            </a>
+                            {% else %}
+                            <span class="badge bg-secondary" title="Login to watch recording">
+                                <i class="bi bi-play-circle"></i> Recording (login required)
+                            </span>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                    <p class="mb-1 text-muted small">
+                        {{ event.description[:150] }}{% if event.description|length > 150 %}…{% endif %}
+                    </p>
                 </div>
-                <p class="mb-1">{{ event.description[:150] }}...</p>
-            </a>
-            {% endfor %}
+                <small class="text-muted ms-3 text-nowrap">
+                    {{ event.start_date.strftime('%b %d, %Y') }}
+                </small>
+            </div>
+            <div class="mt-2">
+                <a href="{{ url_for('event_detail', id=event.id) }}"
+                   class="btn btn-sm btn-outline-secondary">
+                    View Details
+                </a>
+                {% if event.zoom_recording_url and not current_user.is_authenticated %}
+                <a href="{{ url_for('login') }}" class="btn btn-sm btn-outline-primary ms-1">
+                    <i class="bi bi-lock"></i> Login to watch recording
+                </a>
+                {% endif %}
+            </div>
         </div>
+        {% endfor %}
+    </div>
     {% endif %}
 </div>
 {% endblock %}

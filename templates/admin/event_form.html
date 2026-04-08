@@ -7,90 +7,222 @@
     <div class="col-lg-8">
         <div class="card">
             <div class="card-body">
-                <form method="POST" action="{% if event %}{{ url_for('admin_event_edit', id=event.id) }}{% else %}{{ url_for('admin_event_new') }}{% endif %}">
+                <form method="POST"
+                      action="{% if event %}{{ url_for('admin_event_edit', id=event.id) }}{% else %}{{ url_for('admin_event_new') }}{% endif %}"
+                      enctype="multipart/form-data">
+
                     <div class="mb-3">
                         <label class="form-label">Event Title *</label>
-                        <input type="text" name="title" class="form-control" value="{{ event.title if event else '' }}" required>
+                        <input type="text" name="title" class="form-control"
+                               value="{{ event.title if event else '' }}" required>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label class="form-label">Description *</label>
                         <textarea name="description" class="form-control" rows="4" required>{{ event.description if event else '' }}</textarea>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Meeting Link (for logged-in members)</label>
-                        <input type="url" name="meeting_link" class="form-control" value="{{ event.meeting_link if event else '' }}">
-                        <div class="form-text">This link will only be visible to registered members.</div>
-                    </div>
-                    
+
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Start Date & Time *</label>
-                            <input type="datetime-local" name="start_date" class="form-control" 
+                            <label class="form-label">Start Date & Time (UTC) *</label>
+                            <input type="datetime-local" name="start_date" class="form-control"
                                    value="{{ event.start_date.strftime('%Y-%m-%dT%H:%M') if event else '' }}" required>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">End Date & Time (optional)</label>
+                            <label class="form-label">End Date & Time (UTC, optional)</label>
                             <input type="datetime-local" name="end_date" class="form-control"
                                    value="{{ event.end_date.strftime('%Y-%m-%dT%H:%M') if event and event.end_date else '' }}">
                         </div>
                     </div>
-                    
+
+                    {% if event and event.zoom_webinar_id %}
+                    <div class="alert alert-success py-2 mb-3">
+                        <i class="bi bi-camera-video-fill"></i>
+                        <strong>Zoom Meeting linked:</strong>
+                        <code>{{ event.zoom_webinar_id }}</code>
+                        {% if event.zoom_recording_url %}
+                            &nbsp;·&nbsp;
+                            <a href="{{ event.zoom_recording_url }}" target="_blank" class="alert-link">
+                                <i class="bi bi-play-circle"></i> Recording available
+                            </a>
+                        {% endif %}
+                    </div>
+                    {% elif event %}
+                    <div class="alert alert-warning py-2 mb-3">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        No Zoom Zoom Meeting linked yet. Saving this form will attempt to create one.
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info py-2 mb-3">
+                        <i class="bi bi-camera-video"></i>
+                        A Zoom Meeting will be created automatically when you save this event.
+                        Members who register will receive a Zoom confirmation email with their personal join link.
+                    </div>
+                    {% endif %}
+
                     <hr>
-                    <h5>Polls (up to 5)</h5>
-                    <p class="text-muted small">Add polls that attendees will answer when registering.</p>
-                    
+                    <!-- ── Polls ── -->
+                    <h5>Polls <small class="text-muted">(up to 5)</small></h5>
+                    <p class="text-muted small">Attendees answer these polls when registering.</p>
+
                     <div id="polls-container">
                         {% if event %}
                             {% for poll in event.polls %}
-                                <div class="poll-row mb-4 p-3 border rounded">
-                                    <input type="hidden" name="poll_id[]" value="{{ poll.id }}">
-                                    <div class="mb-2">
-                                        <label class="form-label">Poll Title</label>
-                                        <input type="text" name="poll_title[]" class="form-control" value="{{ poll.title }}" required>
-                                    </div>
-                                    <div class="mb-2">
-                                        <label class="form-label">Description</label>
-                                        <textarea name="poll_desc[]" class="form-control" rows="2">{{ poll.description or '' }}</textarea>
-                                    </div>
-                                    <div class="mb-2">
-                                        <label class="form-label">Options (one per line)</label>
-                                        <textarea name="poll_options[]" class="form-control" rows="3" required>{% for opt in poll.options %}{{ opt.text }}{% if not loop.last %}\n{% endif %}{% endfor %}</textarea>
-                                        <div class="form-text">Enter each option on a new line.</div>
-                                    </div>
-                                    <div class="text-end">
-                                        <button type="button" class="btn btn-sm btn-danger" onclick="this.closest('.poll-row').remove()">Remove Poll</button>
-                                    </div>
+                            <div class="poll-row mb-4 p-3 border rounded">
+                                <input type="hidden" name="poll_id[]" value="{{ poll.id }}">
+                                <div class="mb-2">
+                                    <label class="form-label">Poll Title</label>
+                                    <input type="text" name="poll_title[]" class="form-control"
+                                           value="{{ poll.title }}" required>
                                 </div>
+                                <div class="mb-2">
+                                    <label class="form-label">Description</label>
+                                    <textarea name="poll_desc[]" class="form-control" rows="2">{{ poll.description or '' }}</textarea>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label">Options (one per line)</label>
+                                    <textarea name="poll_options[]" class="form-control" rows="3" required>{% for opt in poll.options %}{{ opt.text }}{% if not loop.last %}
+{% endif %}{% endfor %}</textarea>
+                                    <div class="form-text">Enter each option on a new line.</div>
+                                </div>
+                                <div class="text-end">
+                                    <button type="button" class="btn btn-sm btn-danger"
+                                            onclick="this.closest('.poll-row').remove()">Remove Poll</button>
+                                </div>
+                            </div>
                             {% endfor %}
                         {% endif %}
                     </div>
-                    
-                    <button type="button" class="btn btn-outline-primary mb-3" onclick="addPoll()">
+
+                    <button type="button" class="btn btn-outline-primary mb-4" onclick="addPoll()"
+                            id="add-poll-btn">
                         <i class="bi bi-plus"></i> Add Poll
                     </button>
-                    
+
+                    <hr>
+                    <!-- ── Attachments ── -->
+                    <h5>Downloadable Attachments <small class="text-muted">(up to 5 files)</small></h5>
+                    <p class="text-muted small">
+                        Files members can download from the event page (login required to download).
+                        Accepted: PDF, Word, Excel, PowerPoint, images, ZIP, MP4, MP3.
+                    </p>
+
+                    {% if event %}
+                        <!-- Existing attachments -->
+                        {% set existing = event.attachments.all() %}
+                        {% if existing %}
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Current Attachments</label>
+                            <ul class="list-group mb-2">
+                                {% for att in existing %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>
+                                        <i class="bi bi-paperclip text-muted me-1"></i>
+                                        {{ att.label or att.filename }}
+                                        <small class="text-muted ms-1">({{ att.filename }})</small>
+                                    </span>
+                                    <div class="form-check mb-0">
+                                        <input class="form-check-input" type="checkbox"
+                                               name="delete_attachment[]" value="{{ att.id }}"
+                                               id="del_att_{{ att.id }}">
+                                        <label class="form-check-label text-danger small"
+                                               for="del_att_{{ att.id }}">Delete</label>
+                                    </div>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+
+                        {% set slots = 5 - existing | length %}
+                        {% if slots > 0 %}
+                        <div class="mb-3" id="new-attachments-area">
+                            <label class="form-label">Add New Files
+                                <span class="text-muted small">({{ slots }} slot{{ 's' if slots != 1 else '' }} remaining)</span>
+                            </label>
+                            {% for i in range(slots) %}
+                            <div class="row mb-2 attachment-row">
+                                <div class="col-md-7">
+                                    <input type="file" name="attachments[]" class="form-control form-control-sm"
+                                           accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.png,.jpg,.jpeg,.gif,.mp4,.mp3">
+                                </div>
+                                <div class="col-md-5">
+                                    <input type="text" name="attachment_labels[]" class="form-control form-control-sm"
+                                           placeholder="Label (optional)">
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="alert alert-secondary py-2">
+                            Maximum 5 attachments reached. Delete an existing one to add a new file.
+                        </div>
+                        {% endif %}
+
+                    {% else %}
+                        <!-- New event: show 5 upload slots -->
+                        <div id="new-attachments-area">
+                            {% for i in range(5) %}
+                            <div class="row mb-2 attachment-row">
+                                <div class="col-md-7">
+                                    <input type="file" name="attachments[]" class="form-control form-control-sm"
+                                           accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.png,.jpg,.jpeg,.gif,.mp4,.mp3">
+                                </div>
+                                <div class="col-md-5">
+                                    <input type="text" name="attachment_labels[]" class="form-control form-control-sm"
+                                           placeholder="Label (optional)">
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    <hr>
                     <div class="mb-3 form-check">
-                        <input type="checkbox" class="form-check-input" name="send_notification" id="send_notification">
+                        <input type="checkbox" class="form-check-input" name="send_notification"
+                               id="send_notification">
                         <label class="form-check-label" for="send_notification">
                             Send email notification to all members about this event
                         </label>
                     </div>
-                    
-                    <hr>
+
                     <div class="d-flex justify-content-between">
                         <a href="{{ url_for('admin_events') }}" class="btn btn-outline-secondary">Cancel</a>
-                        <button type="submit" class="btn btn-primary">Save Event</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Save Event
+                        </button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar tips -->
+    <div class="col-lg-4">
+        <div class="card border-info">
+            <div class="card-header bg-info text-white">
+                <i class="bi bi-info-circle"></i> How Zoom Integration Works
+            </div>
+            <div class="card-body small">
+                <ol class="ps-3 mb-0">
+                    <li class="mb-2">Save this form → a <strong>Zoom Meeting</strong> is created automatically.</li>
+                    <li class="mb-2">When a member registers, they are registered on Zoom and receive a <strong>Zoom-branded confirmation email</strong> with their unique join link.</li>
+                    <li class="mb-2">After the event ends, use the <strong>Fetch Recording</strong> button on the events list to pull the cloud recording URL from Zoom.</li>
+                    <li>The recording is shown only to <strong>logged-in members</strong>.</li>
+                </ol>
             </div>
         </div>
     </div>
 </div>
 
 <script>
+let pollCount = document.querySelectorAll('.poll-row').length;
+
 function addPoll() {
+    if (pollCount >= 5) {
+        alert('Maximum 5 polls allowed.');
+        return;
+    }
     const container = document.getElementById('polls-container');
     const div = document.createElement('div');
     div.className = 'poll-row mb-4 p-3 border rounded';
@@ -109,10 +241,22 @@ function addPoll() {
             <div class="form-text">Enter each option on a new line.</div>
         </div>
         <div class="text-end">
-            <button type="button" class="btn btn-sm btn-danger" onclick="this.closest('.poll-row').remove()">Remove Poll</button>
+            <button type="button" class="btn btn-sm btn-danger"
+                    onclick="this.closest('.poll-row').remove(); pollCount--; updatePollBtn();">
+                Remove Poll
+            </button>
         </div>
     `;
     container.appendChild(div);
+    pollCount++;
+    updatePollBtn();
 }
+
+function updatePollBtn() {
+    const btn = document.getElementById('add-poll-btn');
+    if (btn) btn.disabled = pollCount >= 5;
+}
+
+updatePollBtn();
 </script>
 {% endblock %}

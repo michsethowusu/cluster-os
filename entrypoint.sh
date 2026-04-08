@@ -31,7 +31,7 @@ with app.app_context():
             ADD COLUMN IF NOT EXISTS submitted_by INTEGER
         '''))
 
-        # Update Event table (Fixes your Admin Panel crash)
+        # Update Event table
         conn.execute(db.text('''
             ALTER TABLE event
             ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT FALSE
@@ -41,6 +41,24 @@ with app.app_context():
             ADD COLUMN IF NOT EXISTS submitted_by INTEGER
         '''))
 
+        # ── Zoom integration columns ──────────────────────────────────────
+        # zoom_webinar_id: stores the Zoom Meeting ID (column kept for backwards DB compat) created via API
+        conn.execute(db.text('''
+            ALTER TABLE event
+            ADD COLUMN IF NOT EXISTS zoom_webinar_id VARCHAR(100)
+        '''))
+        # zoom_recording_url: fetched after the event ends
+        conn.execute(db.text('''
+            ALTER TABLE event
+            ADD COLUMN IF NOT EXISTS zoom_recording_url VARCHAR(500)
+        '''))
+        # meeting_link kept for backwards compatibility but no longer used (Zoom Meetings API now used)
+        # (existing data preserved, new events use Zoom)
+
+        # ── EventAttachment table (created by db.create_all above,
+        #    but we ensure the folder exists via the app) ──────────────────
+        # No manual ALTER needed — db.create_all() handles the new model.
+
         # Update Initiative table
         conn.execute(db.text('''
             ALTER TABLE initiative
@@ -49,6 +67,15 @@ with app.app_context():
 
         conn.commit()
     print('DB ready.')
+"
+
+# Ensure the event attachments upload directory exists
+python -c "
+import os
+from app import app
+folder = os.path.join(app.config['UPLOAD_FOLDER'], 'event_attachments')
+os.makedirs(folder, exist_ok=True)
+print(f'Upload folder ready: {folder}')
 "
 
 exec gunicorn -w 4 -b 0.0.0.0:3000 app:app

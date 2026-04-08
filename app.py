@@ -1,8 +1,9 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, abort, session, Response
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, abort, session, Response, send_from_directory
 from markupsafe import Markup
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from datetime import datetime, timedelta
+from werkzeug.utils import secure_filename
 import os
 import re
 import random
@@ -13,14 +14,9 @@ import io
 import json
 import click
 import threading
+import uuid
 import mistune                     # MARKDOWN CHANGE
 from config import Config
-
-#Initialise DB - only on first run
-#@app.route('/force-init')
-#def force_init():
-#    db.create_all()
-#    return "Database Tables Created!"
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -51,6 +47,12 @@ from utils.email_sender import (
 from utils.ai_services import generate_title_description, vet_tags_nvidia, rank_members_by_query, clean_tags_for_polls
 from utils.nlp import extract_noun_phrases, update_noun_phrase_db
 from utils.translation import translate_text
+from utils.zoom_api import (
+    create_zoom_webinar,
+    register_user_for_webinar,
+    fetch_recording_url,
+    delete_zoom_webinar,
+)
 
 # ===================== MODELS =====================
 
@@ -234,20 +236,22 @@ class Translation(db.Model):
 
 # NEW MODELS FOR EVENTS AND POLLS
 class Event(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(200), nullable=False)
-    description = db.Column(db.Text, nullable=False)
-    meeting_link = db.Column(db.String(500))
-    start_date = db.Column(db.DateTime, nullable=False)
-    end_date = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
-    is_published = db.Column(db.Boolean, default=False)
-    submitted_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    id                 = db.Column(db.Integer, primary_key=True)
+    title              = db.Column(db.String(200), nullable=False)
+    description        = db.Column(db.Text, nullable=False)
+    start_date         = db.Column(db.DateTime, nullable=False)
+    end_date           = db.Column(db.DateTime)
+    created_at         = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by         = db.Column(db.Integer, db.ForeignKey('user.id'))
+    is_published       = db.Column(db.Boolean, default=False)
+    submitted_by       = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    zoom_webinar_id    = db.Column(db.String(100), nullable=True)   # stores Zoom Meeting ID
+    zoom_recording_url = db.Column(db.String(500), nullable=True)
 
-    polls = db.relationship('Poll', backref='event', lazy='dynamic', cascade='all, delete-orphan')
+    polls         = db.relationship('Poll',              backref='event', lazy='dynamic', cascade='all, delete-orphan')
     registrations = db.relationship('EventRegistration', backref='event', lazy='dynamic', cascade='all, delete-orphan')
-    submitter = db.relationship('User', foreign_keys=[submitted_by])
+    attachments   = db.relationship('EventAttachment',   backref='event', lazy='dynamic', cascade='all, delete-orphan')
+    submitter     = db.relationship('User', foreign_keys=[submitted_by])
 
 
 class Poll(db.Model):
@@ -276,6 +280,16 @@ class EventRegistration(db.Model):
     poll_answers = db.Column(db.JSON)
 
 
+class EventAttachment(db.Model):
+    """Up to 5 downloadable files per event, uploaded by admin."""
+    id          = db.Column(db.Integer, primary_key=True)
+    event_id    = db.Column(db.Integer, db.ForeignKey('event.id'), nullable=False)
+    filename    = db.Column(db.String(300), nullable=False)    # original filename shown to user
+    stored_name = db.Column(db.String(300), nullable=False)    # UUID-based name on disk
+    label       = db.Column(db.String(200))                     # optional friendly label
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 # ===================== HELPER FUNCTIONS =====================
 
 def get_setting(key, default=None):
@@ -291,6 +305,26 @@ def set_setting(key, value):
         db.session.add(setting)
     db.session.commit()
 
+ALLOWED_ATTACHMENT_EXTENSIONS = {
+    'pdf', 'doc', 'docx', 'xls', 'xlsx',
+    'ppt', 'pptx', 'txt', 'zip', 'png',
+    'jpg', 'jpeg', 'gif', 'mp4', 'mp3',
+}
+
+def allowed_attachment(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_ATTACHMENT_EXTENSIONS
+
+def save_attachment(file_obj):
+    """Save an uploaded attachment to UPLOAD_FOLDER/event_attachments/.
+    Returns (original_filename, stored_name) tuple."""
+    original = secure_filename(file_obj.filename)
+    ext      = original.rsplit('.', 1)[1].lower() if '.' in original else 'bin'
+    stored   = f"{uuid.uuid4().hex}.{ext}"
+    folder   = os.path.join(app.config['UPLOAD_FOLDER'], 'event_attachments')
+    os.makedirs(folder, exist_ok=True)
+    file_obj.save(os.path.join(folder, stored))
+    return original, stored
 
 # ===================== POINTS SYSTEM =====================
 # Points weights
@@ -636,25 +670,34 @@ def test_email():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    user_initiatives = Initiative.query.filter_by(user_id=current_user.id).order_by(
-        Initiative.created_at.desc()
-    ).all()
-    
-    # Get user's project participations
+    user_initiatives = Initiative.query.filter_by(
+        user_id=current_user.id
+    ).order_by(Initiative.created_at.desc()).all()
+
     participations = ProjectParticipation.query.filter_by(user_id=current_user.id).all()
-    project_ids = list(set([p.project_id for p in participations]))
-    user_projects = Project.query.filter(Project.id.in_(project_ids)).all() if project_ids else []
+    project_ids    = list({p.project_id for p in participations})
+    user_projects  = Project.query.filter(Project.id.in_(project_ids)).all() \
+                     if project_ids else []
 
-    # Projects and events submitted by this member (pending or published)
-    submitted_projects = Project.query.filter_by(submitted_by=current_user.id).order_by(Project.created_at.desc()).all()
-    submitted_events = Event.query.filter_by(submitted_by=current_user.id).order_by(Event.created_at.desc()).all()
+    submitted_projects = Project.query.filter_by(
+        submitted_by=current_user.id
+    ).order_by(Project.created_at.desc()).all()
 
-    return render_template('dashboard.html',
-                           initiatives=user_initiatives,
-                           projects=user_projects,
-                           submitted_projects=submitted_projects,
-                           submitted_events=submitted_events,
-                           now=datetime.utcnow())
+    event_registrations  = EventRegistration.query.filter_by(user_id=current_user.id).all()
+    registered_event_ids = [r.event_id for r in event_registrations]
+    registered_events    = Event.query.filter(
+        Event.id.in_(registered_event_ids),
+        Event.is_published == True,
+    ).order_by(Event.start_date.desc()).all() if registered_event_ids else []
+
+    return render_template(
+        'dashboard.html',
+        initiatives=user_initiatives,
+        projects=user_projects,
+        submitted_projects=submitted_projects,
+        registered_events=registered_events,
+        now=datetime.utcnow(),
+    )
 
 @app.route('/initiative/new', methods=['GET', 'POST'])
 @login_required
@@ -970,31 +1013,39 @@ def leaderboard():
 
 @app.route('/events')
 def events():
-    now = datetime.utcnow()
-    upcoming = Event.query.filter(Event.start_date >= now, Event.is_published == True).order_by(Event.start_date).all()
-    past = Event.query.filter(Event.start_date < now, Event.is_published == True).order_by(Event.start_date.desc()).all()
-    return render_template('events.html', upcoming=upcoming, past=past)
+    now      = datetime.utcnow()
+    upcoming = Event.query.filter(
+        Event.start_date >= now, Event.is_published == True
+    ).order_by(Event.start_date).all()
+    past     = Event.query.filter(
+        Event.start_date < now, Event.is_published == True
+    ).order_by(Event.start_date.desc()).all()
+    return render_template('events.html', upcoming=upcoming, past=past, now=now)
 
 @app.route('/event/<int:id>')
 def event_detail(id):
-    event = Event.query.get_or_404(id)
-    registered = False
-    meeting_link = None
+    event             = Event.query.get_or_404(id)
+    registered        = False
     user_poll_answers = None
-    
+
     if current_user.is_authenticated:
-        registration = EventRegistration.query.filter_by(event_id=id, user_id=current_user.id).first()
+        registration = EventRegistration.query.filter_by(
+            event_id=id, user_id=current_user.id
+        ).first()
         registered = registration is not None
         if registered:
-            meeting_link = event.meeting_link  # Only show meeting link to registered users
-            user_poll_answers = registration.poll_answers  # Get user's poll answers
-    
-    return render_template('event_detail.html', 
-                         event=event, 
-                         registered=registered, 
-                         meeting_link=meeting_link,
-                         user_poll_answers=user_poll_answers,
-                         now=datetime.utcnow())
+            user_poll_answers = registration.poll_answers
+
+    attachments = EventAttachment.query.filter_by(event_id=id).all()
+
+    return render_template(
+        'event_detail.html',
+        event=event,
+        registered=registered,
+        user_poll_answers=user_poll_answers,
+        attachments=attachments,
+        now=datetime.utcnow(),
+    )
 
 @app.route('/event/<int:id>/register', methods=['GET', 'POST'])
 @login_required
@@ -1003,31 +1054,79 @@ def event_register(id):
     if event.start_date < datetime.utcnow():
         flash('This event has already passed.', 'error')
         return redirect(url_for('event_detail', id=id))
-    
+
+    existing = EventRegistration.query.filter_by(
+        event_id=id, user_id=current_user.id
+    ).first()
+    if existing:
+        flash('You are already registered for this event.', 'info')
+        return redirect(url_for('event_detail', id=id))
+
     if request.method == 'POST':
-        # Save registration
-        registration = EventRegistration(user_id=current_user.id, event_id=id)
-        # Save poll answers
         poll_answers = {}
         for poll in event.polls:
             selected = request.form.get(f'poll_{poll.id}')
             if selected:
                 poll_answers[str(poll.id)] = selected
-        registration.poll_answers = poll_answers
+
+        registration = EventRegistration(
+            user_id=current_user.id,
+            event_id=id,
+            poll_answers=poll_answers,
+        )
         db.session.add(registration)
         db.session.commit()
         award_points(current_user, 'event_registered')
-        
-        try:
-            send_event_registration_confirmation(current_user, event)
-        except Exception as e:
-            app.logger.error(f"Event registration confirmation email error: {e}")
-        
-        flash('You have successfully registered for the event.', 'success')
+
+        # Register on Zoom Meeting — Zoom sends its own branded confirmation email
+        if event.zoom_webinar_id:
+            try:
+                join_url = register_user_for_webinar(event.zoom_webinar_id, current_user)
+                app.logger.info(
+                    f"Zoom meeting registration OK: user={current_user.id} join_url={join_url}"
+                )
+                # Zoom's email IS the confirmation — no duplicate platform email needed.
+            except Exception as e:
+                app.logger.error(
+                    f"Zoom meeting registration failed: user={current_user.id} event={id}: {e}"
+                )
+                try:
+                    send_event_registration_confirmation(current_user, event)
+                except Exception as email_err:
+                    app.logger.error(f"Fallback confirmation email error: {email_err}")
+                flash(
+                    'Registered! Note: Zoom confirmation email may be delayed — '
+                    'check your inbox shortly.',
+                    'warning',
+                )
+                return redirect(url_for('event_detail', id=id))
+        else:
+            try:
+                send_event_registration_confirmation(current_user, event)
+            except Exception as e:
+                app.logger.error(f"Confirmation email error: {e}")
+
+        flash(
+            'You have successfully registered! Check your email for the Zoom join link.',
+            'success',
+        )
         return redirect(url_for('event_detail', id=id))
-    
-    # GET: show registration form with polls
+
     return render_template('event_register.html', event=event)
+
+@app.route('/event/attachment/<int:att_id>')
+def download_attachment(att_id):
+    """Serve an event attachment file. Login required."""
+    if not current_user.is_authenticated:
+        flash('Please log in to download attachments.', 'error')
+        return redirect(url_for('login'))
+    att    = EventAttachment.query.get_or_404(att_id)
+    folder = os.path.join(app.config['UPLOAD_FOLDER'], 'event_attachments')
+    return send_from_directory(
+        folder, att.stored_name,
+        as_attachment=True,
+        download_name=att.filename,
+    )
 
 @app.route('/polls')
 def polls():
@@ -1139,189 +1238,44 @@ def approve_item(type, id):
     if not current_user.is_admin:
         abort(403)
 
-    if type == 'user':
-        user = User.query.get_or_404(id)
-        user.is_approved = True
+    if type == 'initiative':
+        item = Initiative.query.get_or_404(id)
+        item.is_published = True
+        submitter = User.query.get(item.user_id)
+        if submitter:
+            award_points(submitter, 'initiative_approved')
         db.session.commit()
-
-        # Publish the member's registration initiative (the first pending one)
-        reg_initiative = Initiative.query.filter_by(user_id=user.id, is_published=False).first()
-        if reg_initiative:
-            reg_initiative.is_published = True
-            db.session.commit()
-
-            # Update noun phrases for the now-live initiative
-            try:
-                phrases = extract_noun_phrases(reg_initiative.content)
-                update_noun_phrase_db(reg_initiative.id, phrases)
-            except Exception as e:
-                app.logger.error(f"Noun phrase extraction error on user approval: {e}")
-
-            # Award points for the published initiative
-            award_points(user, 'initiative_published')
-
-            # Notify all members about the new initiative
-            try:
-                initiative_url = url_for('view_initiative', slug=reg_initiative.slug, _external=True)
-                send_member_notification(
-                    subject=f"New Initiative: {reg_initiative.title}",
-                    html=f"""
-                    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#333;">
-                        <h2 style="color:#0066cc;">New Initiative Published</h2>
-                        <p>A new initiative has been published on the AU ECED-FLN Cluster Platform:</p>
-                        <h3 style="margin:16px 0 8px;">{reg_initiative.title}</h3>
-                        <p style="color:#555;">{reg_initiative.short_description or ''}</p>
-                        <p style="text-align:center;margin:30px 0;">
-                            <a href="{initiative_url}"
-                               style="display:inline-block;background:#0066cc;color:white;
-                                      padding:12px 30px;text-decoration:none;border-radius:5px;font-weight:bold;">
-                                Read Initiative
-                            </a>
-                        </p>
-                        <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
-                        <p style="color:#999;font-size:0.85em;">This email was sent by the AU ECED-FLN Cluster Platform.</p>
-                    </div>"""
-                )
-            except Exception as e:
-                app.logger.error(f"Member notification error (new member initiative published): {e}")
-
-        # Send the welcome / approval email to the new member
-        try:
-            send_approval_email(user.email, reg_initiative.slug if reg_initiative else None)
-        except Exception as e:
-            app.logger.error(f"Approval email error for {user.email}: {e}")
-        flash(f'User {user.email} approved and their initiative published.', 'success')
-
-    elif type == 'initiative':
-        initiative = Initiative.query.get_or_404(id)
-        initiative.is_published = True
-        db.session.commit()
-
-        # 1. Notify the author their initiative is now live
-        author = User.query.get(initiative.user_id)
-        if author:
-            try:
-                send_initiative_approved_email(author, initiative.slug, initiative.title)
-            except Exception as e:
-                app.logger.error(f"Initiative approval email error for {author.email}: {e}")
-
-        # 2. Notify all members that a new initiative has been published
-        try:
-            initiative_url = url_for('view_initiative', slug=initiative.slug, _external=True)
-            send_member_notification(
-                subject=f"New Initiative: {initiative.title}",
-                html=f"""
-                <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#333;">
-                    <h2 style="color:#0066cc;">New Initiative Published</h2>
-                    <p>A new initiative has been published on the AU ECED-FLN Cluster Platform:</p>
-                    <h3 style="margin:16px 0 8px;">{initiative.title}</h3>
-                    <p style="color:#555;">{initiative.short_description or ''}</p>
-                    <p style="text-align:center;margin:30px 0;">
-                        <a href="{initiative_url}"
-                           style="display:inline-block;background:#0066cc;color:white;
-                                  padding:12px 30px;text-decoration:none;border-radius:5px;font-weight:bold;">
-                            Read Initiative
-                        </a>
-                    </p>
-                    <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
-                    <p style="color:#999;font-size:0.85em;">This email was sent by the AU ECED-FLN Cluster Platform.</p>
-                </div>"""
-            )
-        except Exception as e:
-            app.logger.error(f"Member notification error (initiative approved): {e}")
-
-        # 3. Update noun phrases
-        try:
-            phrases = extract_noun_phrases(initiative.content)
-            update_noun_phrase_db(initiative.id, phrases)
-        except Exception as e:
-            app.logger.error(f"Noun phrase extraction error: {e}")
-
-        # Award points to initiative author
-        if author:
-            award_points(author, 'initiative_published')
-        flash(f'Initiative "{initiative.title}" published.', 'success')
-
-    elif type == 'question':
-        question = Question.query.get_or_404(id)
-        question.is_published = True
-        db.session.commit()
-
-        # Notify all members that a new forum discussion is open
-        try:
-            question_url = url_for('view_question', id=question.id, _external=True)
-            send_member_notification(
-                subject=f"New Discussion: {question.title}",
-                html=f"""
-                <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#333;">
-                    <h2 style="color:#0066cc;">New Forum Discussion</h2>
-                    <p>A new question has been posted on the AU ECED-FLN Cluster Platform:</p>
-                    <h3 style="margin:16px 0 8px;">{question.title}</h3>
-                    <p style="text-align:center;margin:30px 0;">
-                        <a href="{question_url}"
-                           style="display:inline-block;background:#0066cc;color:white;
-                                  padding:12px 30px;text-decoration:none;border-radius:5px;font-weight:bold;">
-                            Join the Discussion
-                        </a>
-                    </p>
-                    <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
-                    <p style="color:#999;font-size:0.85em;">This email was sent by the AU ECED-FLN Cluster Platform.</p>
-                </div>"""
-            )
-        except Exception as e:
-            app.logger.error(f"Member notification error (question approved): {e}")
-
-        # Award points to question author
-        q_author = User.query.get(question.user_id)
-        if q_author:
-            award_points(q_author, 'question_published')
-        flash('Question published.', 'success')
+        flash('Initiative published.', 'success')
 
     elif type == 'project':
-        project = Project.query.get_or_404(id)
-        project.is_published = True
-        db.session.commit()
-
-        # 1. Notify the submitter their project is approved
-        if project.submitted_by:
-            submitter = User.query.get(project.submitted_by)
+        item = Project.query.get_or_404(id)
+        item.is_published = True
+        if item.submitted_by:
+            submitter = User.query.get(item.submitted_by)
             if submitter:
-                try:
-                    send_project_approved_email(submitter, project)
-                except Exception as e:
-                    app.logger.error(f"Project approval email error for {submitter.email}: {e}")
-
-        # 2. Notify all members about the new project
-        try:
-            send_project_notification(project)
-        except Exception as e:
-            app.logger.error(f"Member notification error (project approved): {e}")
-
-        flash(f'Project "{project.title}" published and members notified.', 'success')
+                award_points(submitter, 'project_approved')
+        db.session.commit()
+        flash('Project published.', 'success')
 
     elif type == 'event':
-        event = Event.query.get_or_404(id)
-        event.is_published = True
+        item = Event.query.get_or_404(id)
+        item.is_published = True                         # <-- was missing in old code
+        if not item.zoom_webinar_id:
+            try:
+                meeting_id = create_zoom_webinar(item)
+                item.zoom_webinar_id = meeting_id
+                app.logger.info(f"Zoom meeting created on approval: {meeting_id} for event {item.id}")
+            except Exception as e:
+                app.logger.error(f"Zoom meeting creation failed on approval (event {item.id}): {e}")
+                flash('Event published, but Zoom meeting creation failed. '
+                      'Edit the event to retry.', 'warning')
         db.session.commit()
+        flash('Event published.', 'success')
 
-        # 1. Notify the submitter their event is approved
-        if event.submitted_by:
-            submitter = User.query.get(event.submitted_by)
-            if submitter:
-                try:
-                    send_event_approved_email(submitter, event)
-                except Exception as e:
-                    app.logger.error(f"Event approval email error for {submitter.email}: {e}")
+    else:
+        abort(400)
 
-        # 2. Notify all members about the new event
-        try:
-            send_event_notification(event)
-        except Exception as e:
-            app.logger.error(f"Member notification error (event approved): {e}")
-
-        flash(f'Event "{event.title}" published and members notified.', 'success')
-
-    return redirect(url_for('admin_approvals'))
+    return redirect(request.referrer or url_for('admin_dashboard'))
 
 @app.route('/admin/approve-all', methods=['POST'])
 @login_required
@@ -1971,58 +1925,92 @@ def admin_events():
 def admin_event_new():
     if not current_user.is_admin:
         abort(403)
+
     if request.method == 'POST':
-        title = request.form.get('title')
+        title       = request.form.get('title')
         description = request.form.get('description')
-        meeting_link = request.form.get('meeting_link')
-        start_date = datetime.fromisoformat(request.form.get('start_date'))
-        end_date = datetime.fromisoformat(request.form.get('end_date')) if request.form.get('end_date') else None
-        
+        start_date  = datetime.fromisoformat(request.form.get('start_date'))
+        end_date    = datetime.fromisoformat(request.form.get('end_date')) \
+                      if request.form.get('end_date') else None
+
         event = Event(
             title=title,
             description=description,
-            meeting_link=meeting_link,
             start_date=start_date,
             end_date=end_date,
-            created_by=current_user.id
+            created_by=current_user.id,
+            is_published=True,   # admin-created events go live immediately
         )
         db.session.add(event)
         db.session.flush()
-        
-        # Handle polls (max 5)
-        for i in range(1, 6):
-            poll_title = request.form.get(f'poll_title_{i}')
-            poll_desc = request.form.get(f'poll_desc_{i}')
-            poll_options = request.form.getlist(f'poll_options_{i}[]')
-            if poll_title and poll_options:
-                options = [{'text': opt, 'order': idx} for idx, opt in enumerate(poll_options) if opt]
-                poll = Poll(
+
+        # ── Polls (max 5) ──────────────────────────────────────────────
+        poll_titles  = request.form.getlist('poll_title[]')
+        poll_descs   = request.form.getlist('poll_desc[]')
+        poll_options = request.form.getlist('poll_options[]')
+
+        for i, poll_title in enumerate(poll_titles[:5]):
+            if not poll_title.strip():
+                continue
+            raw_opts = poll_options[i] if i < len(poll_options) else ''
+            options  = [
+                {'text': o.strip(), 'order': idx}
+                for idx, o in enumerate(raw_opts.splitlines())
+                if o.strip()
+            ]
+            if not options:
+                continue
+            poll = Poll(
+                event_id=event.id,
+                title=poll_title.strip(),
+                description=poll_descs[i].strip() if i < len(poll_descs) else '',
+                options=options,
+            )
+            db.session.add(poll)
+            db.session.flush()
+            try:
+                tags = clean_tags_for_polls(poll_title)
+                for tag in tags:
+                    db.session.add(PollTag(poll_id=poll.id, tag=tag))
+            except Exception as e:
+                app.logger.error(f"Poll tag extraction error: {e}")
+
+        # ── Attachments (max 5) ────────────────────────────────────────
+        files  = request.files.getlist('attachments[]')
+        labels = request.form.getlist('attachment_labels[]')
+        for i, f in enumerate(files[:5]):
+            if f and f.filename and allowed_attachment(f.filename):
+                original, stored = save_attachment(f)
+                label = labels[i].strip() if i < len(labels) else ''
+                db.session.add(EventAttachment(
                     event_id=event.id,
-                    title=poll_title,
-                    description=poll_desc,
-                    options=options
-                )
-                db.session.add(poll)
-                db.session.flush()
-                try:
-                    tags = clean_tags_for_polls(poll_title)
-                    for tag in tags:
-                        poll_tag = PollTag(poll_id=poll.id, tag=tag)
-                        db.session.add(poll_tag)
-                except Exception as e:
-                    app.logger.error(f"Poll tag extraction error: {e}")
+                    filename=original,
+                    stored_name=stored,
+                    label=label or original,
+                ))
+
         db.session.commit()
-        
-        # Send notification if requested (opt-in: admin may create events in draft
-        # without wanting to blast all members immediately)
+
+        # ── Create Zoom Meeting ────────────────────────────────────────
+        try:
+            meeting_id = create_zoom_webinar(event)   # uses Meetings API internally
+            event.zoom_webinar_id = meeting_id
+            db.session.commit()
+            app.logger.info(f"Zoom meeting created: {meeting_id} for event {event.id}")
+        except Exception as e:
+            app.logger.error(f"Zoom meeting creation failed for event {event.id}: {e}")
+            flash('Event saved, but Zoom meeting creation failed. '
+                  'Check your Zoom credentials and try editing the event.', 'warning')
+
         if request.form.get('send_notification'):
             try:
                 send_event_notification(event)
             except Exception as e:
                 app.logger.error(f"Event notification error: {e}")
-        
-        flash('Event created successfully.', 'success')
+
+        flash('Event created and Zoom meeting scheduled.', 'success')
         return redirect(url_for('admin_events'))
+
     return render_template('admin/event_form.html')
 
 @app.route('/admin/event/<int:id>/edit', methods=['GET', 'POST'])
@@ -2031,95 +2019,124 @@ def admin_event_edit(id):
     if not current_user.is_admin:
         abort(403)
     event = Event.query.get_or_404(id)
+
     if request.method == 'POST':
-        event.title = request.form.get('title')
+        event.title       = request.form.get('title')
         event.description = request.form.get('description')
-        event.meeting_link = request.form.get('meeting_link')
-        event.start_date = datetime.fromisoformat(request.form.get('start_date'))
-        event.end_date = datetime.fromisoformat(request.form.get('end_date')) if request.form.get('end_date') else None
-        
-        # Get existing polls
+        event.start_date  = datetime.fromisoformat(request.form.get('start_date'))
+        event.end_date    = datetime.fromisoformat(request.form.get('end_date')) \
+                            if request.form.get('end_date') else None
+
+        # ── Polls ──────────────────────────────────────────────────────
         existing_polls = Poll.query.filter_by(event_id=id).all()
-        
-        # Handle polls (max 5) - UPDATE IN PLACE instead of delete+recreate
-        for i in range(1, 6):
-            poll_title = request.form.get(f'poll_title_{i}')
-            poll_desc = request.form.get(f'poll_desc_{i}')
-            poll_options = request.form.getlist(f'poll_options_{i}[]')
-            
-            if not poll_title or not poll_options:
+        poll_titles    = request.form.getlist('poll_title[]')
+        poll_descs     = request.form.getlist('poll_desc[]')
+        poll_options   = request.form.getlist('poll_options[]')
+
+        for i, poll_title in enumerate(poll_titles[:5]):
+            if not poll_title.strip():
                 continue
-            
-            # Build options list
-            options = [{'text': opt, 'order': idx} for idx, opt in enumerate(poll_options) if opt.strip()]
-            
+            raw_opts = poll_options[i] if i < len(poll_options) else ''
+            options  = [
+                {'text': o.strip(), 'order': idx}
+                for idx, o in enumerate(raw_opts.splitlines())
+                if o.strip()
+            ]
             if not options:
                 continue
-            
-            if i <= len(existing_polls):
-                # Update existing poll (preserves responses!)
-                poll = existing_polls[i-1]
-                poll.title = poll_title
-                poll.description = poll_desc
-                # Only update options if they've changed (to avoid breaking existing responses)
+            if i < len(existing_polls):
+                poll             = existing_polls[i]
+                poll.title       = poll_title.strip()
+                poll.description = poll_descs[i].strip() if i < len(poll_descs) else ''
                 if poll.options != options:
                     poll.options = options
-                # Note: We don't delete poll tags, just re-extract them
                 PollTag.query.filter_by(poll_id=poll.id).delete()
                 db.session.flush()
                 try:
                     tags = clean_tags_for_polls(poll_title)
                     for tag in tags:
-                        poll_tag = PollTag(poll_id=poll.id, tag=tag)
-                        db.session.add(poll_tag)
+                        db.session.add(PollTag(poll_id=poll.id, tag=tag))
                 except Exception as e:
                     app.logger.error(f"Poll tag extraction error: {e}")
             else:
-                # Create new poll
                 poll = Poll(
                     event_id=event.id,
-                    title=poll_title,
-                    description=poll_desc,
-                    options=options
+                    title=poll_title.strip(),
+                    description=poll_descs[i].strip() if i < len(poll_descs) else '',
+                    options=options,
                 )
                 db.session.add(poll)
                 db.session.flush()
                 try:
                     tags = clean_tags_for_polls(poll_title)
                     for tag in tags:
-                        poll_tag = PollTag(poll_id=poll.id, tag=tag)
-                        db.session.add(poll_tag)
+                        db.session.add(PollTag(poll_id=poll.id, tag=tag))
                 except Exception as e:
                     app.logger.error(f"Poll tag extraction error: {e}")
-        
-        # Only delete polls that were removed AND have no responses
-        # (Polls with responses are kept even if removed from form)
-        for i in range(5, len(existing_polls)):  # Any poll beyond the 5 we processed
+
+        # Remove polls beyond those submitted (only if no responses recorded)
+        for i in range(len(poll_titles), len(existing_polls)):
             poll = existing_polls[i]
-            # Check if this poll has any responses in EventRegistration.poll_answers
-            has_responses = False
-            registrations = EventRegistration.query.filter_by(event_id=id).all()
-            for reg in registrations:
-                if reg.poll_answers and str(poll.id) in reg.poll_answers:
-                    has_responses = True
-                    break
-            
+            has_responses = any(
+                reg.poll_answers and str(poll.id) in reg.poll_answers
+                for reg in EventRegistration.query.filter_by(event_id=id).all()
+            )
             if not has_responses:
-                # Safe to delete - no one has answered this poll
                 PollTag.query.filter_by(poll_id=poll.id).delete()
                 db.session.delete(poll)
-            else:
-                # Keep poll with responses but log warning
-                app.logger.warning(f"Poll {poll.id} has responses but was removed from form - keeping it")
-        
+
+        # ── Attachments: add new uploads ──────────────────────────────
+        files          = request.files.getlist('attachments[]')
+        labels         = request.form.getlist('attachment_labels[]')
+        existing_count = EventAttachment.query.filter_by(event_id=id).count()
+        slots          = max(0, 5 - existing_count)
+        for i, f in enumerate(files[:slots]):
+            if f and f.filename and allowed_attachment(f.filename):
+                original, stored = save_attachment(f)
+                label = labels[i].strip() if i < len(labels) else ''
+                db.session.add(EventAttachment(
+                    event_id=event.id,
+                    filename=original,
+                    stored_name=stored,
+                    label=label or original,
+                ))
+
+        # ── Attachments: delete checked ones ──────────────────────────
+        for att_id in request.form.getlist('delete_attachment[]'):
+            att = EventAttachment.query.get(int(att_id))
+            if att and att.event_id == id:
+                path = os.path.join(
+                    app.config['UPLOAD_FOLDER'], 'event_attachments', att.stored_name
+                )
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
+                db.session.delete(att)
+
         db.session.commit()
+
+        # ── Create Zoom Meeting if not yet linked ──────────────────────
+        if not event.zoom_webinar_id:
+            try:
+                meeting_id = create_zoom_webinar(event)
+                event.zoom_webinar_id = meeting_id
+                db.session.commit()
+                app.logger.info(f"Zoom meeting created on edit: {meeting_id}")
+            except Exception as e:
+                app.logger.error(f"Zoom meeting creation failed on edit (event {id}): {e}")
+                flash('Event saved, but Zoom meeting creation failed. '
+                      'Check your Zoom credentials.', 'warning')
+
         if request.form.get('send_notification'):
             try:
                 send_event_notification(event)
             except Exception as e:
                 app.logger.error(f"Event notification error: {e}")
+
         flash('Event updated.', 'success')
         return redirect(url_for('admin_events'))
+
     return render_template('admin/event_form.html', event=event)
 
 @app.route('/admin/event/<int:id>/delete', methods=['POST'])
@@ -2128,11 +2145,51 @@ def admin_event_delete(id):
     if not current_user.is_admin:
         abort(403)
     event = Event.query.get_or_404(id)
+
+    if event.zoom_webinar_id:
+        try:
+            delete_zoom_webinar(event.zoom_webinar_id)
+        except Exception as e:
+            app.logger.error(f"Zoom meeting deletion failed for event {id}: {e}")
+
+    for att in event.attachments:
+        path = os.path.join(
+            app.config['UPLOAD_FOLDER'], 'event_attachments', att.stored_name
+        )
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
     db.session.delete(event)
     db.session.commit()
     flash('Event deleted.', 'success')
     return redirect(url_for('admin_events'))
-    
+
+@app.route('/admin/event/<int:id>/fetch-recording', methods=['POST'])
+@login_required
+def admin_event_fetch_recording(id):
+    """Manually trigger a fetch of the Zoom cloud recording URL for a past event."""
+    if not current_user.is_admin:
+        abort(403)
+    event = Event.query.get_or_404(id)
+    if not event.zoom_webinar_id:
+        flash('This event has no Zoom meeting linked.', 'error')
+        return redirect(url_for('admin_events'))
+    try:
+        url = fetch_recording_url(event.zoom_webinar_id)
+        if url:
+            event.zoom_recording_url = url
+            db.session.commit()
+            flash('Recording URL fetched and saved successfully.', 'success')
+        else:
+            flash('No recording found yet — Zoom may still be processing it. '
+                  'Try again later.', 'warning')
+    except Exception as e:
+        app.logger.error(f"Fetch recording error for event {id}: {e}")
+        flash(f'Failed to fetch recording: {e}', 'error')
+    return redirect(url_for('admin_events'))
+
 # ===================== ADMIN MEMBERS ROUTES =====================
 
 @app.route('/admin/members')
@@ -2280,29 +2337,6 @@ def member_new_project():
         flash('Project submitted for admin approval. You will be notified when it goes live.', 'success')
         return redirect(url_for('dashboard'))
     return render_template('project_form_member.html')
-
-
-# ===================== MEMBER EVENT SUBMISSION =====================
-
-@app.route('/event/new', methods=['GET', 'POST'])
-@login_required
-def member_new_event():
-    if request.method == 'POST':
-        event = Event(
-            title=request.form.get('title'),
-            description=request.form.get('description'),
-            meeting_link=request.form.get('meeting_link'),
-            start_date=datetime.fromisoformat(request.form.get('start_date')),
-            end_date=datetime.fromisoformat(request.form.get('end_date')) if request.form.get('end_date') else None,
-            created_by=current_user.id,
-            submitted_by=current_user.id,
-            is_published=False
-        )
-        db.session.add(event)
-        db.session.commit()
-        flash('Event submitted for admin approval. You will be notified when it goes live.', 'success')
-        return redirect(url_for('dashboard'))
-    return render_template('event_form_member.html')
 
 
 # ===================== PROJECTS PUBLIC =====================

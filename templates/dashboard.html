@@ -102,40 +102,53 @@
                 </div>
             {% endif %}
 
-            <!-- ── My Submitted Events ── -->
-            <div class="d-flex justify-content-between align-items-center mt-5 mb-3">
-                <h4 class="mb-0">My Submitted Events</h4>
-                <a href="{{ url_for('member_new_event') }}" class="btn btn-primary btn-sm">
-                    <i class="bi bi-plus"></i> Submit Event
-                </a>
-            </div>
+            <!-- ── My Registered Events ── -->
+            <h4 class="mt-5 mb-3">My Event Registrations</h4>
 
-            {% if submitted_events %}
+            {% if registered_events %}
                 <div class="list-group">
-                    {% for event in submitted_events %}
+                    {% for event in registered_events %}
                         <div class="list-group-item">
-                            <div class="d-flex w-100 justify-content-between">
-                                <h6 class="mb-1">{{ event.title }}</h6>
-                                {% if event.is_published %}
-                                    <span class="badge bg-success">Published</span>
-                                {% else %}
-                                    <span class="badge bg-warning text-dark">Pending Review</span>
+                            <div class="d-flex w-100 justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="mb-1">{{ event.title }}</h6>
+                                    <small class="text-muted">
+                                        <i class="bi bi-calendar"></i>
+                                        {{ event.start_date.strftime('%b %d, %Y at %H:%M UTC') }}
+                                    </small>
+                                </div>
+                                <div class="text-end ms-2">
+                                    {% if event.start_date > now %}
+                                        <span class="badge bg-success mb-1">Upcoming</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary mb-1">Past</span>
+                                    {% endif %}
+                                    {% if event.zoom_recording_url %}
+                                    <br>
+                                    <a href="{{ event.zoom_recording_url }}" target="_blank"
+                                       class="badge bg-primary text-decoration-none">
+                                        <i class="bi bi-play-circle-fill"></i> Recording
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <a href="{{ url_for('event_detail', id=event.id) }}"
+                                   class="btn btn-sm btn-outline-primary me-1">View Details</a>
+                                {% if event.start_date > now %}
+                                <small class="text-muted">
+                                    <i class="bi bi-envelope-check"></i>
+                                    Check your email for your Zoom join link
+                                </small>
                                 {% endif %}
                             </div>
-                            <p class="mb-1 small text-muted">{{ event.description[:120] }}...</p>
-                            <small class="text-muted">
-                                Date: {{ event.start_date.strftime('%b %d, %Y at %H:%M') }} UTC
-                                {% if event.is_published %}
-                                    · <a href="{{ url_for('event_detail', id=event.id) }}">View live</a>
-                                {% endif %}
-                            </small>
                         </div>
                     {% endfor %}
                 </div>
             {% else %}
                 <div class="alert alert-light border">
-                    You haven't submitted any events yet.
-                    <a href="{{ url_for('member_new_event') }}">Propose an event</a>.
+                    You haven't registered for any events yet.
+                    <a href="{{ url_for('events') }}">Browse upcoming events</a>.
                 </div>
             {% endif %}
 
@@ -153,11 +166,11 @@
                         <a href="{{ url_for('member_new_project') }}" class="btn btn-outline-primary btn-sm">
                             <i class="bi bi-kanban"></i> Submit a Project
                         </a>
-                        <a href="{{ url_for('member_new_event') }}" class="btn btn-outline-primary btn-sm">
-                            <i class="bi bi-calendar-plus"></i> Submit an Event
-                        </a>
                         <a href="{{ url_for('new_question') }}" class="btn btn-outline-secondary btn-sm">
                             <i class="bi bi-question-circle"></i> Ask a Question
+                        </a>
+                        <a href="{{ url_for('events') }}" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-calendar-event"></i> Browse Events
                         </a>
                     </div>
                 </div>

@@ -341,35 +341,35 @@ def send_project_signup_admin_alert(admin_email, user, project, signed_up_activi
 
 
 def send_project_notification(project):
-    """Notify all approved members that a new project has been published."""
-    from app import User, app as flask_app
-    with flask_app.app_context():
-        users = User.query.filter_by(is_approved=True).all()
-        project_url = _url(f'/project/{project.id}')
-        subject = f"New Project: {project.title}"
-        html = f"""
-        <html>
-            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-                <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h2 style="color: #0066cc;">New Project on the Platform</h2>
-                    <p>A new collaborative project has been published on the AU ECED-FLN Cluster Platform:</p>
-                    <h3 style="margin: 16px 0 8px;">{project.title}</h3>
-                    <p style="color: #555;">{project.description[:300]}{'...' if len(project.description) > 300 else ''}</p>
-                    <p><strong>Deadline:</strong> {project.deadline.strftime('%B %d, %Y')}</p>
-                    <p style="text-align: center; margin: 30px 0;">
-                        <a href="{project_url}" style="display: inline-block; background: #0066cc; color: white;
-                        padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
-                            View Project &amp; Join
-                        </a>
-                    </p>
-                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                    <p style="color: #999; font-size: 0.85em;">This email was sent by the AU ECED-FLN Cluster Platform.</p>
-                </div>
-            </body>
-        </html>
-        """
-        for user in users:
-            send_email(user.email, subject, html)
+    """Notify all approved members that a new project has been published.
+    Must be called from within an active Flask request/app context."""
+    from app import User
+    users = User.query.filter_by(is_approved=True).all()
+    project_url = _url(f'/project/{project.id}')
+    subject = f"New Project: {project.title}"
+    html = f"""
+    <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h2 style="color: #0066cc;">New Project on the Platform</h2>
+                <p>A new collaborative project has been published on the AU ECED-FLN Cluster Platform:</p>
+                <h3 style="margin: 16px 0 8px;">{project.title}</h3>
+                <p style="color: #555;">{project.description[:300]}{'...' if len(project.description) > 300 else ''}</p>
+                <p><strong>Deadline:</strong> {project.deadline.strftime('%B %d, %Y')}</p>
+                <p style="text-align: center; margin: 30px 0;">
+                    <a href="{project_url}" style="display: inline-block; background: #0066cc; color: white;
+                    padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                        View Project &amp; Join
+                    </a>
+                </p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="color: #999; font-size: 0.85em;">This email was sent by the AU ECED-FLN Cluster Platform.</p>
+            </div>
+        </body>
+    </html>
+    """
+    for user in users:
+        send_email(user.email, subject, html)
 
 
 def send_project_approved_email(user, project):
@@ -428,93 +428,94 @@ def send_event_approved_email(user, event):
 
 
 def send_member_notification(subject, html):
-    """Send an email notification to all approved members."""
-    from app import User, app as flask_app
-    with flask_app.app_context():
-        users = User.query.filter_by(is_approved=True).all()
-        for user in users:
-            send_email(user.email, subject, html)
+    """Send an email notification to all approved members.
+    Must be called from within an active Flask request/app context."""
+    from app import User
+    users = User.query.filter_by(is_approved=True).all()
+    for user in users:
+        send_email(user.email, subject, html)
 
 
-def send_bulk_initiatives_digest(initiatives_data):
+def send_bulk_initiatives_digest(initiatives_data, users):
     """
     Send a single digest email to all approved members listing multiple newly
     approved initiatives.  Each item in initiatives_data is a dict with keys:
       title, short_description, url
     The title itself is hyperlinked — no separate "Read" button per item.
+
+    `users` must be passed in by the caller (already queried within the active
+    app context) — this function no longer creates its own nested app context,
+    which previously caused emails to silently fail.
     """
-    from app import User, app as flask_app
-    with flask_app.app_context():
-        users = User.query.filter_by(is_approved=True).all()
-        if not users or not initiatives_data:
-            return
+    if not users or not initiatives_data:
+        return
 
-        # Build one <li> block per initiative
-        items_html = ""
-        for item in initiatives_data:
-            desc_html = (
-                f'<p style="margin:4px 0 0;color:#555;font-size:0.95em;">'
-                f'{item["short_description"]}</p>'
-                if item.get("short_description") else ""
-            )
-            items_html += f"""
-            <li style="margin-bottom:18px;list-style:none;padding:14px 16px;
-                        background:#f8f9fa;border-left:4px solid #0066cc;border-radius:4px;">
-                <a href="{item['url']}"
-                   style="font-size:1.05em;font-weight:bold;color:#0066cc;text-decoration:none;">
-                    {item['title']}
-                </a>
-                {desc_html}
-            </li>"""
+    # Build one <li> block per initiative
+    items_html = ""
+    for item in initiatives_data:
+        desc_html = (
+            f'<p style="margin:4px 0 0;color:#555;font-size:0.95em;">'
+            f'{item["short_description"]}</p>'
+            if item.get("short_description") else ""
+        )
+        items_html += f"""
+        <li style="margin-bottom:18px;list-style:none;padding:14px 16px;
+                    background:#f8f9fa;border-left:4px solid #0066cc;border-radius:4px;">
+            <a href="{item['url']}"
+               style="font-size:1.05em;font-weight:bold;color:#0066cc;text-decoration:none;">
+                {item['title']}
+            </a>
+            {desc_html}
+        </li>"""
 
-        count = len(initiatives_data)
-        subject = f"New on the Platform: {count} Initiative{'s' if count != 1 else ''} Published"
+    count = len(initiatives_data)
+    subject = f"New on the Platform: {count} Initiative{'s' if count != 1 else ''} Published"
 
-        html = f"""
-        <html>
-            <body style="font-family:Arial,sans-serif;line-height:1.6;color:#333;">
-                <div style="max-width:600px;margin:0 auto;padding:20px;">
-                    <h2 style="color:#0066cc;">New Initiatives on the AU&nbsp;ECED-FLN Platform</h2>
-                    <p>The following {count} initiative{'s have' if count != 1 else ' has'} just been
-                    published. Click any title to read it on the platform:</p>
-                    <ul style="padding:0;margin:20px 0;">
-                        {items_html}
-                    </ul>
-                    <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
-                    <p style="color:#999;font-size:0.85em;">
-                        This email was sent by the AU ECED-FLN Cluster Platform.
-                    </p>
-                </div>
-            </body>
-        </html>
-        """
-        for user in users:
-            send_email(user.email, subject, html)
+    html = f"""
+    <html>
+        <body style="font-family:Arial,sans-serif;line-height:1.6;color:#333;">
+            <div style="max-width:600px;margin:0 auto;padding:20px;">
+                <h2 style="color:#0066cc;">New Initiatives on the AU&nbsp;ECED-FLN Platform</h2>
+                <p>The following {count} initiative{'s have' if count != 1 else ' has'} just been
+                published. Click any title to read it on the platform:</p>
+                <ul style="padding:0;margin:20px 0;">
+                    {items_html}
+                </ul>
+                <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
+                <p style="color:#999;font-size:0.85em;">
+                    This email was sent by the AU ECED-FLN Cluster Platform.
+                </p>
+            </div>
+        </body>
+    </html>
+    """
+    for user in users:
+        send_email(user.email, subject, html)
 
 
 def send_event_notification(event):
-    """Send email notification about a new event to all approved members."""
-    from app import User, app as flask_app
-    with flask_app.app_context():
-        users = User.query.filter_by(is_approved=True).all()
-        subject = f"New Event: {event.title}"
-        event_url = _url(f'/event/{event.id}')
+    """Send email notification about a new event to all approved members.
+    Must be called from within an active Flask request/app context."""
+    from app import User
+    users = User.query.filter_by(is_approved=True).all()
+    subject = f"New Event: {event.title}"
+    event_url = _url(f'/event/{event.id}')
 
-        html = f"""
-        <html>
-            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-                <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h2 style="color: #0066cc;">{event.title}</h2>
-                    <p>{event.description[:500]}</p>
-                    <p><strong>Date:</strong> {event.start_date.strftime('%B %d, %Y at %H:%M')}</p>
-                    <p><a href="{event_url}" style="display: inline-block; background: #0066cc; color: white;
-                    padding: 10px 20px; text-decoration: none; border-radius: 5px;">Register Now</a></p>
-                </div>
-            </body>
-        </html>
-        """
-        for user in users:
-            send_email(user.email, subject, html)
+    html = f"""
+    <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h2 style="color: #0066cc;">{event.title}</h2>
+                <p>{event.description[:500]}</p>
+                <p><strong>Date:</strong> {event.start_date.strftime('%B %d, %Y at %H:%M')}</p>
+                <p><a href="{event_url}" style="display: inline-block; background: #0066cc; color: white;
+                padding: 10px 20px; text-decoration: none; border-radius: 5px;">Register Now</a></p>
+            </div>
+        </body>
+    </html>
+    """
+    for user in users:
+        send_email(user.email, subject, html)
 
 
 def send_event_registration_confirmation(user, event):

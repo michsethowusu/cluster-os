@@ -12,6 +12,7 @@ import csv
 import io
 import json
 import click
+import threading
 import mistune                     # MARKDOWN CHANGE
 from config import Config
 
@@ -506,22 +507,32 @@ def register():
         db.session.add(initiative)
         db.session.commit()
 
-        # Extract and vet tags in the background (non-blocking)
-        try:
-            phrases = extract_noun_phrases(initiative_content)
-            vetted_tags = vet_tags_nvidia(phrases)
-            for tag_name in vetted_tags:
-                tag = Tag.query.filter_by(name=tag_name).first()
-                if not tag:
-                    tag = Tag(name=tag_name, is_vetted=True)
-                    db.session.add(tag)
-                    db.session.flush()
-                initiative.tags.append(tag)
-                tag.usage_count += 1
-            db.session.commit()
-            update_noun_phrase_db(initiative.id, phrases)
-        except Exception as e:
-            app.logger.error(f"Registration initiative tag processing error: {e}")
+        # Extract and vet tags in a background thread so the worker is never blocked
+        def _process_tags_async(flask_app, initiative_id, content):
+            with flask_app.app_context():
+                try:
+                    phrases = extract_noun_phrases(content)
+                    vetted_tags = vet_tags_nvidia(phrases)
+                    ini = Initiative.query.get(initiative_id)
+                    for tag_name in vetted_tags:
+                        tag = Tag.query.filter_by(name=tag_name).first()
+                        if not tag:
+                            tag = Tag(name=tag_name, is_vetted=True)
+                            db.session.add(tag)
+                            db.session.flush()
+                        ini.tags.append(tag)
+                        tag.usage_count += 1
+                    db.session.commit()
+                    update_noun_phrase_db(initiative_id, phrases)
+                except Exception as e:
+                    flask_app.logger.error(f"Registration initiative tag processing error: {e}")
+
+        t = threading.Thread(
+            target=_process_tags_async,
+            args=(app._get_current_object(), initiative.id, initiative_content),
+            daemon=True
+        )
+        t.start()
 
         flash(
             'Thank you for registering! Your application is under review. '
@@ -1372,7 +1383,8 @@ def approve_all():
     # ── 3. Send ONE digest email to all members for initiatives ───────────────
     if newly_published:
         try:
-            send_bulk_initiatives_digest(newly_published)
+            all_approved_users = User.query.filter_by(is_approved=True).all()
+            send_bulk_initiatives_digest(newly_published, all_approved_users)
         except Exception as e:
             app.logger.error(f"Bulk approve – digest email error: {e}")
 

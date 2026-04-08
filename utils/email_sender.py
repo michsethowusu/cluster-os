@@ -515,8 +515,8 @@ def send_event_notification(event):
         """
         for user in users:
             send_email(user.email, subject, html)
-            
-            
+
+
 def send_event_registration_confirmation(user, event):
     """Send confirmation email to user after registering for an event."""
     event_url = _url(f'/event/{event.id}')
@@ -526,6 +526,11 @@ def send_event_registration_confirmation(user, event):
     event_date = event.start_date.strftime('%B %d, %Y at %H:%M UTC')
     if event.end_date:
         event_date += f" - {event.end_date.strftime('%B %d, %Y at %H:%M UTC')}"
+    
+    # FIX: Build meeting link HTML separately to avoid backslash in f-string
+    meeting_link_html = ""
+    if event.meeting_link:
+        meeting_link_html = f'<p style="margin: 4px 0;"><strong>Meeting Link:</strong> <a href="{event.meeting_link}">Join here</a></p>'
     
     html = f"""
     <html>
@@ -537,7 +542,7 @@ def send_event_registration_confirmation(user, event):
                 <div style="background: #f8f9fa; padding: 16px; border-left: 4px solid #0066cc; margin: 20px 0;">
                     <h3 style="margin: 0 0 8px 0;">{event.title}</h3>
                     <p style="margin: 4px 0;"><strong>Date:</strong> {event_date}</p>
-                    {f'<p style=\"margin: 4px 0;\"><strong>Meeting Link:</strong> <a href=\"{event.meeting_link}\">Join here</a></p>' if event.meeting_link else ''}
+                    {meeting_link_html}
                 </div>
                 <p style="text-align: center; margin: 30px 0;">
                     <a href="{event_url}" style="display: inline-block; background: #0066cc; color: white;

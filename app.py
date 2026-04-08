@@ -45,6 +45,7 @@ from utils.email_sender import (
     send_project_signup_confirmation,
     send_project_signup_admin_alert,
     send_bulk_initiatives_digest,
+    send_event_registration_confirmation,
 )
 from utils.ai_services import generate_title_description, vet_tags_nvidia, rank_members_by_query, clean_tags_for_polls
 from utils.nlp import extract_noun_phrases, update_noun_phrase_db
@@ -949,10 +950,21 @@ def event_detail(id):
     event = Event.query.get_or_404(id)
     registered = False
     meeting_link = None
+    user_poll_answers = None
+    
     if current_user.is_authenticated:
-        registered = EventRegistration.query.filter_by(event_id=id, user_id=current_user.id).first() is not None
-        meeting_link = event.meeting_link  # only show to logged-in users
-    return render_template('event_detail.html', event=event, registered=registered, meeting_link=meeting_link)
+        registration = EventRegistration.query.filter_by(event_id=id, user_id=current_user.id).first()
+        registered = registration is not None
+        if registered:
+            meeting_link = event.meeting_link  # Only show meeting link to registered users
+            user_poll_answers = registration.poll_answers  # Get user's poll answers
+    
+    return render_template('event_detail.html', 
+                         event=event, 
+                         registered=registered, 
+                         meeting_link=meeting_link,
+                         user_poll_answers=user_poll_answers,
+                         now=datetime.utcnow())
 
 @app.route('/event/<int:id>/register', methods=['GET', 'POST'])
 @login_required
@@ -975,6 +987,12 @@ def event_register(id):
         db.session.add(registration)
         db.session.commit()
         award_points(current_user, 'event_registered')
+        
+        try:
+            send_event_registration_confirmation(current_user, event)
+        except Exception as e:
+            app.logger.error(f"Event registration confirmation email error: {e}")
+        
         flash('You have successfully registered for the event.', 'success')
         return redirect(url_for('event_detail', id=id))
     
@@ -1976,13 +1994,45 @@ def admin_event_edit(id):
         event.meeting_link = request.form.get('meeting_link')
         event.start_date = datetime.fromisoformat(request.form.get('start_date'))
         event.end_date = datetime.fromisoformat(request.form.get('end_date')) if request.form.get('end_date') else None
-        Poll.query.filter_by(event_id=id).delete()
+        
+        # Get existing polls
+        existing_polls = Poll.query.filter_by(event_id=id).all()
+        
+        # Handle polls (max 5) - UPDATE IN PLACE instead of delete+recreate
         for i in range(1, 6):
             poll_title = request.form.get(f'poll_title_{i}')
             poll_desc = request.form.get(f'poll_desc_{i}')
             poll_options = request.form.getlist(f'poll_options_{i}[]')
-            if poll_title and poll_options:
-                options = [{'text': opt, 'order': idx} for idx, opt in enumerate(poll_options) if opt]
+            
+            if not poll_title or not poll_options:
+                continue
+            
+            # Build options list
+            options = [{'text': opt, 'order': idx} for idx, opt in enumerate(poll_options) if opt.strip()]
+            
+            if not options:
+                continue
+            
+            if i <= len(existing_polls):
+                # Update existing poll (preserves responses!)
+                poll = existing_polls[i-1]
+                poll.title = poll_title
+                poll.description = poll_desc
+                # Only update options if they've changed (to avoid breaking existing responses)
+                if poll.options != options:
+                    poll.options = options
+                # Note: We don't delete poll tags, just re-extract them
+                PollTag.query.filter_by(poll_id=poll.id).delete()
+                db.session.flush()
+                try:
+                    tags = clean_tags_for_polls(poll_title)
+                    for tag in tags:
+                        poll_tag = PollTag(poll_id=poll.id, tag=tag)
+                        db.session.add(poll_tag)
+                except Exception as e:
+                    app.logger.error(f"Poll tag extraction error: {e}")
+            else:
+                # Create new poll
                 poll = Poll(
                     event_id=event.id,
                     title=poll_title,
@@ -1998,6 +2048,27 @@ def admin_event_edit(id):
                         db.session.add(poll_tag)
                 except Exception as e:
                     app.logger.error(f"Poll tag extraction error: {e}")
+        
+        # Only delete polls that were removed AND have no responses
+        # (Polls with responses are kept even if removed from form)
+        for i in range(5, len(existing_polls)):  # Any poll beyond the 5 we processed
+            poll = existing_polls[i]
+            # Check if this poll has any responses in EventRegistration.poll_answers
+            has_responses = False
+            registrations = EventRegistration.query.filter_by(event_id=id).all()
+            for reg in registrations:
+                if reg.poll_answers and str(poll.id) in reg.poll_answers:
+                    has_responses = True
+                    break
+            
+            if not has_responses:
+                # Safe to delete - no one has answered this poll
+                PollTag.query.filter_by(poll_id=poll.id).delete()
+                db.session.delete(poll)
+            else:
+                # Keep poll with responses but log warning
+                app.logger.warning(f"Poll {poll.id} has responses but was removed from form - keeping it")
+        
         db.session.commit()
         if request.form.get('send_notification'):
             try:

@@ -515,3 +515,41 @@ def send_event_notification(event):
         """
         for user in users:
             send_email(user.email, subject, html)
+            
+            
+def send_event_registration_confirmation(user, event):
+    """Send confirmation email to user after registering for an event."""
+    event_url = _url(f'/event/{event.id}')
+    subject = f"Registration Confirmed: {event.title} – AU ECED-FLN Platform"
+    
+    # Format date nicely
+    event_date = event.start_date.strftime('%B %d, %Y at %H:%M UTC')
+    if event.end_date:
+        event_date += f" - {event.end_date.strftime('%B %d, %Y at %H:%M UTC')}"
+    
+    html = f"""
+    <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h2 style="color: #0066cc;">Event Registration Confirmed</h2>
+                <p>Dear {user.name},</p>
+                <p>You have successfully registered for the following event:</p>
+                <div style="background: #f8f9fa; padding: 16px; border-left: 4px solid #0066cc; margin: 20px 0;">
+                    <h3 style="margin: 0 0 8px 0;">{event.title}</h3>
+                    <p style="margin: 4px 0;"><strong>Date:</strong> {event_date}</p>
+                    {f'<p style=\"margin: 4px 0;\"><strong>Meeting Link:</strong> <a href=\"{event.meeting_link}\">Join here</a></p>' if event.meeting_link else ''}
+                </div>
+                <p style="text-align: center; margin: 30px 0;">
+                    <a href="{event_url}" style="display: inline-block; background: #0066cc; color: white;
+                    padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                        View Event Details
+                    </a>
+                </p>
+                <p style="color: #666; font-size: 0.9em;">Add this event to your calendar. We'll also send you a reminder closer to the date.</p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="color: #999; font-size: 0.85em;">This email was sent by the AU ECED-FLN Cluster Platform.</p>
+            </div>
+        </body>
+    </html>
+    """
+    send_email(user.email, subject, html)

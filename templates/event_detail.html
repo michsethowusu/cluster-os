@@ -16,60 +16,92 @@
             <div class="card mb-4">
                 <div class="card-body">
                     <h3>{{ event.title }}</h3>
-                    <p class="lead">{{ event.description }}</p>
+                    <p class="lead">{{ event.description | markdown }}</p>
                     
                     <div class="alert alert-info">
                         <i class="bi bi-calendar"></i> 
-                        <strong>Start:</strong> {{ event.start_date.strftime('%B %d, %Y at %H:%M') }}
+                        <strong>Start:</strong> {{ event.start_date.strftime('%B %d, %Y at %H:%M UTC') }}
                         {% if event.end_date %}
                         <br><i class="bi bi-calendar-check"></i> 
-                        <strong>End:</strong> {{ event.end_date.strftime('%B %d, %Y at %H:%M') }}
+                        <strong>End:</strong> {{ event.end_date.strftime('%B %d, %Y at %H:%M UTC') }}
                         {% endif %}
                     </div>
 
-                    {% if meeting_link %}
+                    {# Meeting link: ONLY for registered users #}
+                    {% if registered and meeting_link %}
                     <div class="alert alert-success">
                         <i class="bi bi-link"></i> 
-                        <strong>Meeting Link:</strong> <a href="{{ meeting_link }}" target="_blank">{{ meeting_link }}</a>
+                        <strong>Meeting Link:</strong> 
+                        <a href="{{ meeting_link }}" target="_blank" class="ms-2 btn btn-sm btn-success">
+                            <i class="bi bi-box-arrow-up-right"></i> Join Meeting
+                        </a>
+                        <div class="mt-2 small text-muted">
+                            <i class="bi bi-shield-check"></i> Only visible to registered participants
+                        </div>
                     </div>
                     {% endif %}
                     
                     <div class="mt-3">
                         {% if current_user.is_authenticated %}
                             {% if registered %}
-                                <div class="alert alert-secondary">
-                                    <i class="bi bi-check-circle-fill"></i> You are registered for this event.
+                                <div class="alert alert-secondary d-flex align-items-center">
+                                    <i class="bi bi-check-circle-fill text-success me-2 fs-5"></i> 
+                                    <div>
+                                        <strong>You are registered!</strong><br>
+                                        <small class="text-muted">Check your email for confirmation details.</small>
+                                    </div>
                                 </div>
                             {% elif event.start_date < now %}
-                                <div class="alert alert-warning">This event has already passed.</div>
+                                <div class="alert alert-warning">
+                                    <i class="bi bi-clock-history"></i> This event has already passed.
+                                </div>
                             {% else %}
                                 <a href="{{ url_for('event_register', id=event.id) }}" class="btn btn-primary btn-lg">
-                                    Register for Event
+                                    <i class="bi bi-calendar-plus"></i> Register for Event
                                 </a>
+                                <p class="text-muted mt-2 small">
+                                    <i class="bi bi-info-circle"></i> Registration required to receive meeting link
+                                </p>
                             {% endif %}
                         {% else %}
-                            <a href="{{ url_for('login') }}" class="btn btn-primary">Login to Register</a>
+                            <div class="alert alert-light border">
+                                <p class="mb-2"><i class="bi bi-lock"></i> Log in to register and access the meeting link</p>
+                                <a href="{{ url_for('login') }}" class="btn btn-primary">
+                                    <i class="bi bi-box-arrow-in-right"></i> Login to Register
+                                </a>
+                            </div>
                         {% endif %}
                     </div>
                 </div>
             </div>
 
-            {% if event.polls.count() > 0 and registered %}
+            {# Polls: Show to registered users with their answers #}
+            {% if registered and event.polls.count() > 0 %}
                 <div class="card mt-4">
                     <div class="card-header bg-light">
-                        <h5 class="mb-0">Event Polls</h5>
+                        <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Event Polls</h5>
                     </div>
                     <div class="card-body">
-                        <p class="text-muted">Your answers to these polls help us tailor future events.</p>
+                        <p class="text-muted small">Thank you for completing these polls during registration.</p>
+                        
                         {% for poll in event.polls %}
-                            <div class="mb-3">
-                                <h6>{{ poll.title }}</h6>
-                                <p class="small">{{ poll.description }}</p>
-                                <ul>
-                                    {% for opt in poll.options %}
-                                    <li>{{ opt.text }}</li>
-                                    {% endfor %}
-                                </ul>
+                            <div class="mb-4 pb-3 border-bottom {% if loop.last %}border-0 mb-0 pb-0{% endif %}">
+                                <h6 class="fw-bold">{{ poll.title }}</h6>
+                                {% if poll.description %}
+                                <p class="small text-muted mb-2">{{ poll.description }}</p>
+                                {% endif %}
+                                
+                                {# Show user's answer if available #}
+                                {% if user_poll_answers and user_poll_answers.get(poll.id|string) %}
+                                    <div class="alert alert-success py-2">
+                                        <small class="fw-bold"><i class="bi bi-check-circle"></i> Your answer:</small><br>
+                                        <span class="fs-5">{{ user_poll_answers.get(poll.id|string) }}</span>
+                                    </div>
+                                {% else %}
+                                    <div class="alert alert-light py-2">
+                                        <small class="text-muted"><i class="bi bi-dash-circle"></i> No answer recorded</small>
+                                    </div>
+                                {% endif %}
                             </div>
                         {% endfor %}
                     </div>
@@ -80,13 +112,45 @@
         <div class="col-lg-4">
             <div class="card mb-3">
                 <div class="card-body">
-                    <h6>Event Details</h6>
-                    <ul class="list-unstyled">
-                        <li><i class="bi bi-people"></i> {{ event.registrations.count() }} registrations</li>
-                        <li><i class="bi bi-question-circle"></i> {{ event.polls.count() }} poll(s)</li>
+                    <h6><i class="bi bi-info-circle"></i> Event Details</h6>
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2">
+                            <i class="bi bi-people-fill text-primary"></i> 
+                            <strong>{{ event.registrations.count() }}</strong> registered
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-question-square text-secondary"></i> 
+                            <strong>{{ event.polls.count() }}</strong> poll question(s)
+                        </li>
+                        {% if registered %}
+                        <li class="mt-3 pt-2 border-top">
+                            <span class="badge bg-success"><i class="bi bi-check-lg"></i> You're attending</span>
+                        </li>
+                        {% endif %}
                     </ul>
                 </div>
             </div>
+
+            {# Admin quick actions #}
+            {% if current_user.is_admin %}
+            <div class="card border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <i class="bi bi-shield-lock"></i> Admin Actions
+                </div>
+                <div class="card-body">
+                    <a href="{{ url_for('admin_event_edit', id=event.id) }}" class="btn btn-sm btn-warning w-100 mb-2">
+                        <i class="bi bi-pencil"></i> Edit Event
+                    </a>
+                    {% if not event.is_published %}
+                    <form method="POST" action="{{ url_for('approve_item', type='event', id=event.id) }}" class="d-inline w-100">
+                        <button type="submit" class="btn btn-sm btn-success w-100">
+                            <i class="bi bi-check-lg"></i> Publish Event
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>

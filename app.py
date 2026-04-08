@@ -1838,6 +1838,7 @@ def admin_new_project():
         return redirect(url_for('admin_projects'))
     return render_template('admin/project_form.html', project=None)
 
+
 @app.route('/admin/project/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
 def admin_edit_project(id):
@@ -1848,21 +1849,47 @@ def admin_edit_project(id):
         project.title = request.form.get('title')
         project.description = request.form.get('description')
         project.deadline = datetime.fromisoformat(request.form.get('deadline'))
-        project.start_date = datetime.fromisoformat(request.form.get('start_date')) if request.form.get('start_date') else None
-        ProjectParticipation.query.filter_by(project_id=id).delete()
-        ProjectActivity.query.filter_by(project_id=id).delete()
+        project.start_date = datetime.fromisoformat(request.form.get('start_date')) if request.form.get(
+            'start_date') else None
+
+        # REMOVED: ProjectParticipation.query.filter_by(project_id=id).delete()
+
         titles = request.form.getlist('activity_title[]')
         descs = request.form.getlist('activity_desc[]')
         deadlines = request.form.getlist('activity_deadline[]')
+
+        # Get existing activities
+        existing_activities = ProjectActivity.query.filter_by(project_id=id).all()
+
+        # Update existing or create new
         for i, title in enumerate(titles):
-            if title.strip():
+            if not title.strip():
+                continue
+
+            deadline = datetime.fromisoformat(deadlines[i]) if i < len(deadlines) and deadlines[i] else None
+            description = descs[i] if i < len(descs) else ''
+
+            if i < len(existing_activities):
+                # Update existing activity (preserves signups)
+                existing_activities[i].title = title
+                existing_activities[i].description = description
+                existing_activities[i].deadline = deadline
+            else:
+                # Create new activity
                 activity = ProjectActivity(
                     project_id=project.id,
                     title=title,
-                    description=descs[i] if i < len(descs) else '',
-                    deadline=datetime.fromisoformat(deadlines[i]) if i < len(deadlines) and deadlines[i] else None
+                    description=description,
+                    deadline=deadline
                 )
                 db.session.add(activity)
+
+        # Only delete removed activities that have NO signups
+        for i in range(len(titles), len(existing_activities)):
+            if not existing_activities[i].participations:
+                db.session.delete(existing_activities[i])
+            # If it has signups, we keep it even if removed from form (to preserve data)
+
         db.session.commit()
         flash('Project updated successfully.', 'success')
         return redirect(url_for('admin_projects'))

@@ -550,24 +550,43 @@ def register():
 @login_required
 def edit_profile():
     if request.method == 'POST':
+        new_name = request.form.get('name', '').strip()
+        new_email = request.form.get('email', '').lower().strip()
+        new_organization = request.form.get('organization', '').strip()
         projects = request.form.getlist('project[]')
         projects = [p.strip() for p in projects if p.strip()]
-        
+
+        errors = []
+        if not new_name:
+            errors.append('Name is required.')
+        if not new_email:
+            errors.append('Email is required.')
+        if not new_organization:
+            errors.append('Organization is required.')
         if len(projects) == 0:
-            flash('At least one project is required.', 'error')
+            errors.append('At least one project is required.')
+
+        # Check email uniqueness (allow keeping same email)
+        if new_email and new_email != current_user.email:
+            if User.query.filter_by(email=new_email).first():
+                errors.append('That email address is already in use by another account.')
+
+        if errors:
+            for e in errors:
+                flash(e, 'error')
         else:
-            # Delete existing projects and add new ones
+            current_user.name = new_name
+            current_user.email = new_email
+            current_user.organization = new_organization
             MemberProject.query.filter_by(user_id=current_user.id).delete()
             for desc in projects:
                 proj = MemberProject(user_id=current_user.id, description=desc[:300])
                 db.session.add(proj)
             db.session.commit()
             flash('Profile updated successfully.', 'success')
-            # Redirect to dashboard or previous page
             next_page = request.args.get('next') or url_for('dashboard')
             return redirect(next_page)
-    
-    # GET: show current projects
+
     current_projects = [p.description for p in current_user.member_projects.all()]
     return render_template('profile_edit.html', projects=current_projects)
 
@@ -2175,6 +2194,47 @@ def admin_delete_member(id):
     
     flash(f'Member {email} has been deleted.', 'success')
     return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/member/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+def admin_edit_member(id):
+    if not current_user.is_admin:
+        abort(403)
+    user = User.query.get_or_404(id)
+    if request.method == 'POST':
+        new_name = request.form.get('name', '').strip()
+        new_email = request.form.get('email', '').lower().strip()
+        new_organization = request.form.get('organization', '').strip()
+        new_stakeholder_type = request.form.get('stakeholder_type', '').strip()
+        new_country = request.form.get('country', '').strip()
+
+        errors = []
+        if not new_name:
+            errors.append('Name is required.')
+        if not new_email:
+            errors.append('Email is required.')
+        if not new_organization:
+            errors.append('Organization is required.')
+        if new_email and new_email != user.email:
+            if User.query.filter_by(email=new_email).first():
+                errors.append('That email address is already in use by another account.')
+
+        if errors:
+            for e in errors:
+                flash(e, 'error')
+        else:
+            user.name = new_name
+            user.email = new_email
+            user.organization = new_organization
+            user.stakeholder_type = new_stakeholder_type
+            user.country = new_country
+            db.session.commit()
+            flash(f'Member {user.email} updated successfully.', 'success')
+            return redirect(url_for('admin_members'))
+
+    stakeholder_types = ['Government', 'NGO / Civil Society', 'Development Partner / Donor',
+                         'Academic / Research', 'UN Agency', 'Private Sector']
+    return render_template('admin/edit_member.html', user=user, stakeholder_types=stakeholder_types)
 
 # ===================== MEMBER PROJECT SUBMISSION =====================
 

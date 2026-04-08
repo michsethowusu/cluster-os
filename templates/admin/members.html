@@ -86,6 +86,9 @@
                                             </button>
                                         </form>
                                         {% endif %}
+                                        <a href="{{ url_for('admin_edit_member', id=member.id) }}" class="btn btn-outline-primary" title="Edit Member">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
                                         {% if member.id != current_user.id and not member.is_admin %}
                                         <form method="POST" action="{{ url_for('admin_delete_member', id=member.id) }}" class="d-inline" onsubmit="return confirm('Delete {{ member.name }}? This cannot be undone. Make sure they have no initiatives, questions, or recommendations first.');">
                                             <button type="submit" class="btn btn-danger" title="Delete Member">

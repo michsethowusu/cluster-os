@@ -529,7 +529,7 @@ def register():
 
         t = threading.Thread(
             target=_process_tags_async,
-            args=(app._get_current_object(), initiative.id, initiative_content),
+            args=(app, initiative.id, initiative_content),
             daemon=True
         )
         t.start()
@@ -1339,6 +1339,7 @@ def approve_all():
     # ── 1. Approve all pending users ──────────────────────────────────────────
     pending_users = User.query.filter_by(is_approved=False).all()
     approved_user_count = 0
+    newly_published = []  # collect ALL initiatives for the digest (users + members)
     for user in pending_users:
         user.is_approved = True
         approved_user_count += 1
@@ -1354,6 +1355,16 @@ def approve_all():
                 app.logger.error(f"Noun phrase error on bulk approve (user {user.id}): {e}")
             award_points(user, 'initiative_published', commit=False)
 
+            # Add this new-user initiative to the digest list now,
+            # before the commit, so step 2's filter_by(is_published=False)
+            # won't find it again (it's already True after this commit).
+            initiative_url = url_for('view_initiative', slug=reg_initiative.slug, _external=True)
+            newly_published.append({
+                'title': reg_initiative.title,
+                'short_description': reg_initiative.short_description or '',
+                'url': initiative_url,
+            })
+
         # Individual welcome email to the newly approved member
         try:
             send_approval_email(user.email, reg_initiative.slug if reg_initiative else None)
@@ -1363,8 +1374,9 @@ def approve_all():
     db.session.commit()
 
     # ── 2. Approve all remaining pending initiatives ───────────────────────────
+    # (New-user initiatives were already published in step 1 and added to
+    #  newly_published above; this step only catches standalone member initiatives.)
     pending_initiatives = Initiative.query.filter_by(is_published=False).all()
-    newly_published = []  # collect data for the digest email
 
     for initiative in pending_initiatives:
         initiative.is_published = True

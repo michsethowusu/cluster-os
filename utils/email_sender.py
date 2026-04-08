@@ -436,6 +436,62 @@ def send_member_notification(subject, html):
             send_email(user.email, subject, html)
 
 
+def send_bulk_initiatives_digest(initiatives_data):
+    """
+    Send a single digest email to all approved members listing multiple newly
+    approved initiatives.  Each item in initiatives_data is a dict with keys:
+      title, short_description, url
+    The title itself is hyperlinked — no separate "Read" button per item.
+    """
+    from app import User, app as flask_app
+    with flask_app.app_context():
+        users = User.query.filter_by(is_approved=True).all()
+        if not users or not initiatives_data:
+            return
+
+        # Build one <li> block per initiative
+        items_html = ""
+        for item in initiatives_data:
+            desc_html = (
+                f'<p style="margin:4px 0 0;color:#555;font-size:0.95em;">'
+                f'{item["short_description"]}</p>'
+                if item.get("short_description") else ""
+            )
+            items_html += f"""
+            <li style="margin-bottom:18px;list-style:none;padding:14px 16px;
+                        background:#f8f9fa;border-left:4px solid #0066cc;border-radius:4px;">
+                <a href="{item['url']}"
+                   style="font-size:1.05em;font-weight:bold;color:#0066cc;text-decoration:none;">
+                    {item['title']}
+                </a>
+                {desc_html}
+            </li>"""
+
+        count = len(initiatives_data)
+        subject = f"New on the Platform: {count} Initiative{'s' if count != 1 else ''} Published"
+
+        html = f"""
+        <html>
+            <body style="font-family:Arial,sans-serif;line-height:1.6;color:#333;">
+                <div style="max-width:600px;margin:0 auto;padding:20px;">
+                    <h2 style="color:#0066cc;">New Initiatives on the AU&nbsp;ECED-FLN Platform</h2>
+                    <p>The following {count} initiative{'s have' if count != 1 else ' has'} just been
+                    published. Click any title to read it on the platform:</p>
+                    <ul style="padding:0;margin:20px 0;">
+                        {items_html}
+                    </ul>
+                    <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
+                    <p style="color:#999;font-size:0.85em;">
+                        This email was sent by the AU ECED-FLN Cluster Platform.
+                    </p>
+                </div>
+            </body>
+        </html>
+        """
+        for user in users:
+            send_email(user.email, subject, html)
+
+
 def send_event_notification(event):
     """Send email notification about a new event to all approved members."""
     from app import User, app as flask_app

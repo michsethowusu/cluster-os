@@ -3,19 +3,30 @@
 {% block admin_title %}Pending Approvals{% endblock %}
 
 {% block admin_actions %}
-<div class="btn-group flex-wrap">
-    <a href="{{ url_for('admin_approvals', type='all') }}"
-       class="btn btn-outline-primary btn-sm {% if type_filter == 'all' %}active{% endif %}">All</a>
-    <a href="{{ url_for('admin_approvals', type='users') }}"
-       class="btn btn-outline-primary btn-sm {% if type_filter == 'users' %}active{% endif %}">Users</a>
-    <a href="{{ url_for('admin_approvals', type='initiatives') }}"
-       class="btn btn-outline-primary btn-sm {% if type_filter == 'initiatives' %}active{% endif %}">Initiatives</a>
-    <a href="{{ url_for('admin_approvals', type='questions') }}"
-       class="btn btn-outline-primary btn-sm {% if type_filter == 'questions' %}active{% endif %}">Questions</a>
-    <a href="{{ url_for('admin_approvals', type='projects') }}"
-       class="btn btn-outline-primary btn-sm {% if type_filter == 'projects' %}active{% endif %}">Projects</a>
-    <a href="{{ url_for('admin_approvals', type='events') }}"
-       class="btn btn-outline-primary btn-sm {% if type_filter == 'events' %}active{% endif %}">Events</a>
+<div class="d-flex flex-wrap gap-2 align-items-center">
+    <div class="btn-group flex-wrap">
+        <a href="{{ url_for('admin_approvals', type='all') }}"
+           class="btn btn-outline-primary btn-sm {% if type_filter == 'all' %}active{% endif %}">All</a>
+        <a href="{{ url_for('admin_approvals', type='users') }}"
+           class="btn btn-outline-primary btn-sm {% if type_filter == 'users' %}active{% endif %}">Users</a>
+        <a href="{{ url_for('admin_approvals', type='initiatives') }}"
+           class="btn btn-outline-primary btn-sm {% if type_filter == 'initiatives' %}active{% endif %}">Initiatives</a>
+        <a href="{{ url_for('admin_approvals', type='questions') }}"
+           class="btn btn-outline-primary btn-sm {% if type_filter == 'questions' %}active{% endif %}">Questions</a>
+        <a href="{{ url_for('admin_approvals', type='projects') }}"
+           class="btn btn-outline-primary btn-sm {% if type_filter == 'projects' %}active{% endif %}">Projects</a>
+        <a href="{{ url_for('admin_approvals', type='events') }}"
+           class="btn btn-outline-primary btn-sm {% if type_filter == 'events' %}active{% endif %}">Events</a>
+    </div>
+    
+    {% if items %}
+    <form method="POST" action="{{ url_for('approve_all') }}"
+          onsubmit="return confirm('Approve ALL pending users and initiatives?')">
+        <button type="submit" class="btn btn-success">
+            ✓ Approve All Pending
+        </button>
+    </form>
+    {% endif %}
 </div>
 {% endblock %}
 

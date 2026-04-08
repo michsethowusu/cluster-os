@@ -44,6 +44,7 @@ from utils.email_sender import (
     send_event_approved_email,
     send_project_signup_confirmation,
     send_project_signup_admin_alert,
+    send_bulk_initiatives_digest,
 )
 from utils.ai_services import generate_title_description, vet_tags_nvidia, rank_members_by_query, clean_tags_for_polls
 from utils.nlp import extract_noun_phrases, update_noun_phrase_db
@@ -1274,7 +1275,104 @@ def approve_item(type, id):
 
     return redirect(url_for('admin_approvals'))
 
-@app.route('/admin/unpublish/<type>/<int:id>', methods=['POST'])
+@app.route('/admin/approve-all', methods=['POST'])
+@login_required
+def approve_all():
+    """Approve every pending user registration and every pending initiative in one click.
+
+    - Each newly approved *user* gets an individual welcome / approval email.
+    - All newly approved *initiatives* are announced in a single digest email
+      sent to all members (instead of one email per initiative).
+    - Individual authors are still notified per-initiative that their work is live.
+    """
+    if not current_user.is_admin:
+        abort(403)
+
+    # ── 1. Approve all pending users ──────────────────────────────────────────
+    pending_users = User.query.filter_by(is_approved=False).all()
+    approved_user_count = 0
+    for user in pending_users:
+        user.is_approved = True
+        approved_user_count += 1
+
+        # Publish any initiative this user submitted that is still pending
+        reg_initiative = Initiative.query.filter_by(user_id=user.id, is_published=False).first()
+        if reg_initiative:
+            reg_initiative.is_published = True
+            try:
+                phrases = extract_noun_phrases(reg_initiative.content)
+                update_noun_phrase_db(reg_initiative.id, phrases)
+            except Exception as e:
+                app.logger.error(f"Noun phrase error on bulk approve (user {user.id}): {e}")
+            award_points(user, 'initiative_published', commit=False)
+
+        # Individual welcome email to the newly approved member
+        try:
+            send_approval_email(user.email, reg_initiative.slug if reg_initiative else None)
+        except Exception as e:
+            app.logger.error(f"Bulk approve – welcome email error for {user.email}: {e}")
+
+    db.session.commit()
+
+    # ── 2. Approve all remaining pending initiatives ───────────────────────────
+    pending_initiatives = Initiative.query.filter_by(is_published=False).all()
+    newly_published = []  # collect data for the digest email
+
+    for initiative in pending_initiatives:
+        initiative.is_published = True
+        author = User.query.get(initiative.user_id)
+
+        # Noun phrases
+        try:
+            phrases = extract_noun_phrases(initiative.content)
+            update_noun_phrase_db(initiative.id, phrases)
+        except Exception as e:
+            app.logger.error(f"Noun phrase error on bulk approve (initiative {initiative.id}): {e}")
+
+        # Points for the author
+        if author:
+            award_points(author, 'initiative_published', commit=False)
+
+        # Notify the author individually that their initiative is live
+        if author:
+            try:
+                send_initiative_approved_email(author, initiative.slug, initiative.title)
+            except Exception as e:
+                app.logger.error(f"Bulk approve – author email error for {author.email}: {e}")
+
+        # Collect metadata for the digest
+        initiative_url = url_for('view_initiative', slug=initiative.slug, _external=True)
+        newly_published.append({
+            'title': initiative.title,
+            'short_description': initiative.short_description or '',
+            'url': initiative_url,
+        })
+
+    db.session.commit()
+    approved_initiative_count = len(newly_published)
+
+    # ── 3. Send ONE digest email to all members for initiatives ───────────────
+    if newly_published:
+        try:
+            send_bulk_initiatives_digest(newly_published)
+        except Exception as e:
+            app.logger.error(f"Bulk approve – digest email error: {e}")
+
+    # ── 4. Flash summary ──────────────────────────────────────────────────────
+    parts = []
+    if approved_user_count:
+        parts.append(f"{approved_user_count} user{'s' if approved_user_count != 1 else ''} approved")
+    if approved_initiative_count:
+        parts.append(
+            f"{approved_initiative_count} "
+            f"initiative{'s' if approved_initiative_count != 1 else ''} published"
+        )
+    if parts:
+        flash("Approved: " + " and ".join(parts) + ". Members notified.", 'success')
+    else:
+        flash("Nothing pending — everything is already approved.", 'info')
+
+    return redirect(url_for('admin_approvals'))
 @login_required
 def unpublish_item(type, id):
     if not current_user.is_admin:

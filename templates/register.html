@@ -70,28 +70,23 @@
                         </p>
 
                         <div class="mb-3">
-                            <label class="form-label">Initiative Title *</label>
+                            <label class="form-label">Initiative Title (min 5 words) *</label>
                             <input type="text" name="initiative_title" class="form-control"
-                                   maxlength="200"
                                    placeholder="e.g., Community-Based Early Literacy Programme in Northern Ghana"
                                    required>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Short Description *
-                                <span class="text-muted fw-normal">(max 300 characters — shown in search results)</span>
+                            <label class="form-label">Short Description (min 10 words) *
+                                <span class="text-muted fw-normal">— shown in search results</span>
                             </label>
                             <textarea name="initiative_short_description" class="form-control" rows="2"
-                                      maxlength="300"
                                       placeholder="A brief summary that will appear on member cards and search results."
                                       required></textarea>
-                            <div class="form-text text-end">
-                                <span id="short-desc-count">0</span> / 300
-                            </div>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Full Initiative Description *
+                            <label class="form-label">Full Initiative Description (min 300 words) *
                                 <span class="text-muted fw-normal">(Markdown supported)</span>
                             </label>
                             <textarea name="initiative_content" class="form-control" rows="8"
@@ -122,19 +117,91 @@
 
 {% block extra_js %}
 <script>
-// Live character counter for short description
-(function () {
-    const textarea = document.querySelector('textarea[name="initiative_short_description"]');
-    const counter  = document.getElementById('short-desc-count');
-    if (!textarea || !counter) return;
+function countWords(str) {
+    return str.trim().split(/\s+/).filter(w => w.length > 0).length;
+}
 
-    function update() {
-        counter.textContent = textarea.value.length;
-        counter.classList.toggle('text-danger', textarea.value.length >= 300);
+function makeCounter(id) {
+    const el = document.createElement('div');
+    el.id = id;
+    el.className = 'form-text mt-1';
+    return el;
+}
+
+// ── Title validation ──────────────────────────────────────────────
+const titleInput = document.querySelector('input[name="initiative_title"]');
+if (titleInput) {
+    const counter = makeCounter('title-counter');
+    counter.textContent = '0 / 5 words minimum';
+    titleInput.parentNode.appendChild(counter);
+
+    function updateTitle() {
+        const words = countWords(titleInput.value);
+        const ok = words >= 5;
+        counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum 5 required');
+        counter.style.color = ok ? '#198754' : '#dc3545';
+        titleInput.classList.toggle('is-invalid', !ok && titleInput.value.length > 0);
+        titleInput.classList.toggle('is-valid', ok);
     }
-    textarea.addEventListener('input', update);
-    update();
-})();
+    titleInput.addEventListener('input', updateTitle);
+    updateTitle();
+}
+
+// ── Short Description validation ─────────────────────────────────
+const shortDescArea = document.querySelector('textarea[name="initiative_short_description"]');
+if (shortDescArea) {
+    const counter = makeCounter('short-desc-counter');
+    counter.textContent = '0 / 10 words minimum';
+    shortDescArea.parentNode.appendChild(counter);
+
+    function updateShortDesc() {
+        const words = countWords(shortDescArea.value);
+        const ok = words >= 10;
+        counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum 10 required');
+        counter.style.color = ok ? '#198754' : '#dc3545';
+        shortDescArea.classList.toggle('is-invalid', !ok && shortDescArea.value.length > 0);
+        shortDescArea.classList.toggle('is-valid', ok);
+    }
+    shortDescArea.addEventListener('input', updateShortDesc);
+    updateShortDesc();
+}
+
+// ── Content validation ────────────────────────────────────────────
+const contentArea = document.querySelector('textarea[name="initiative_content"]');
+if (contentArea) {
+    const counter = makeCounter('content-counter');
+    counter.textContent = '0 / 300 words minimum';
+    contentArea.parentNode.appendChild(counter);
+
+    function updateContent() {
+        const words = countWords(contentArea.value);
+        const ok = words >= 300;
+        counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum 300 required');
+        counter.style.color = ok ? '#198754' : '#dc3545';
+        contentArea.classList.toggle('is-invalid', !ok && contentArea.value.length > 0);
+        contentArea.classList.toggle('is-valid', ok);
+    }
+    contentArea.addEventListener('input', updateContent);
+    updateContent();
+}
+
+// ── Block form submit if invalid ──────────────────────────────────
+const form = document.querySelector('form[method="POST"]');
+if (form) {
+    form.addEventListener('submit', function (e) {
+        const titleWords = titleInput ? countWords(titleInput.value) : 5;
+        const shortDescWords = shortDescArea ? countWords(shortDescArea.value) : 10;
+        const contentWords = contentArea ? countWords(contentArea.value) : 300;
+        const errors = [];
+        if (titleWords < 5) errors.push('Initiative title must be at least 5 words (currently ' + titleWords + ').');
+        if (shortDescWords < 10) errors.push('Short description must be at least 10 words (currently ' + shortDescWords + ').');
+        if (contentWords < 300) errors.push('Full description must be at least 300 words (currently ' + contentWords + ').');
+        if (errors.length) {
+            e.preventDefault();
+            alert('Please fix the following before submitting:\n\n' + errors.join('\n'));
+        }
+    });
+}
 
 // Bootstrap client-side validation
 (function () {

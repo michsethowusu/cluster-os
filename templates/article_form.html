@@ -33,6 +33,25 @@
         updateTitle();
     }
 
+    // ── Short Description validation ─────────────────────────────────
+    const shortDescArea = document.querySelector('textarea[name="short_description"]');
+    if (shortDescArea) {
+        const counter = makeCounter('short-desc-counter', 'short description');
+        counter.textContent = '0 / 10 words minimum';
+        shortDescArea.parentNode.appendChild(counter);
+
+        function updateShortDesc() {
+            const words = countWords(shortDescArea.value);
+            const ok = words >= 10;
+            counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum 10 required');
+            counter.style.color = ok ? '#198754' : '#dc3545';
+            shortDescArea.classList.toggle('is-invalid', !ok && shortDescArea.value.length > 0);
+            shortDescArea.classList.toggle('is-valid', ok);
+        }
+        shortDescArea.addEventListener('input', updateShortDesc);
+        updateShortDesc();
+    }
+
     // ── Content validation ────────────────────────────────────────────
     const contentArea = document.querySelector('textarea[name="content"]');
     if (contentArea) {
@@ -57,9 +76,11 @@
     if (form) {
         form.addEventListener('submit', function (e) {
             const titleWords = titleInput ? countWords(titleInput.value) : 5;
+            const shortDescWords = shortDescArea ? countWords(shortDescArea.value) : 10;
             const contentWords = contentArea ? countWords(contentArea.value) : 300;
             const errors = [];
             if (titleWords < 5) errors.push('Title must be at least 5 words (currently ' + titleWords + ').');
+            if (shortDescWords < 10) errors.push('Short description must be at least 10 words (currently ' + shortDescWords + ').');
             if (contentWords < 300) errors.push('Full description must be at least 300 words (currently ' + contentWords + ').');
             if (errors.length) {
                 e.preventDefault();
@@ -155,6 +176,25 @@
         updateTitle();
     }
 
+    // ── Short Description validation ─────────────────────────────────
+    const shortDescArea = document.querySelector('textarea[name="short_description"]');
+    if (shortDescArea) {
+        const counter = makeCounter('short-desc-counter', 'short description');
+        counter.textContent = '0 / 10 words minimum';
+        shortDescArea.parentNode.appendChild(counter);
+
+        function updateShortDesc() {
+            const words = countWords(shortDescArea.value);
+            const ok = words >= 10;
+            counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum 10 required');
+            counter.style.color = ok ? '#198754' : '#dc3545';
+            shortDescArea.classList.toggle('is-invalid', !ok && shortDescArea.value.length > 0);
+            shortDescArea.classList.toggle('is-valid', ok);
+        }
+        shortDescArea.addEventListener('input', updateShortDesc);
+        updateShortDesc();
+    }
+
     // ── Content validation ────────────────────────────────────────────
     const contentArea = document.querySelector('textarea[name="content"]');
     if (contentArea) {
@@ -179,9 +219,11 @@
     if (form) {
         form.addEventListener('submit', function (e) {
             const titleWords = titleInput ? countWords(titleInput.value) : 5;
+            const shortDescWords = shortDescArea ? countWords(shortDescArea.value) : 10;
             const contentWords = contentArea ? countWords(contentArea.value) : 300;
             const errors = [];
             if (titleWords < 5) errors.push('Title must be at least 5 words (currently ' + titleWords + ').');
+            if (shortDescWords < 10) errors.push('Short description must be at least 10 words (currently ' + shortDescWords + ').');
             if (contentWords < 300) errors.push('Full description must be at least 300 words (currently ' + contentWords + ').');
             if (errors.length) {
                 e.preventDefault();

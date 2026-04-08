@@ -46,6 +46,7 @@
                         </div>
                         <div class="col-md-6 text-md-end">
                             <strong>Posted:</strong> {{ initiative.created_at | format_date }}<br>
+                            <i class="bi bi-eye"></i> {{ initiative.view_count or 0 }} view{{ '' if (initiative.view_count or 0) == 1 else 's' }}<br>
                             {% if initiative.user_id == current_user.id or current_user.is_admin %}
                                 <a href="{{ url_for('edit_initiative', id=initiative.id) }}" class="btn btn-sm btn-outline-primary mt-2">
                                     <i class="bi bi-pencil"></i> Edit

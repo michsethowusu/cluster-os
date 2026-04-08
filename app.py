@@ -116,6 +116,7 @@ class Initiative(db.Model):
     stakeholder_type = db.Column(db.String(50))
     country = db.Column(db.String(100))
     is_published = db.Column(db.Boolean, default=False)
+    view_count = db.Column(db.Integer, default=0, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -702,6 +703,10 @@ def admin_delete_initiative(id):
 @app.route('/initiative/<slug>')
 def view_initiative(slug):
     initiative = Initiative.query.filter_by(slug=slug, is_published=True).first_or_404()
+    # Increment view count, skip for the initiative's own author to avoid self-inflation
+    if not current_user.is_authenticated or current_user.id != initiative.user_id:
+        initiative.view_count = (initiative.view_count or 0) + 1
+        db.session.commit()
     return render_template('article.html', initiative=initiative)
     
 @app.route('/admin/initiatives')

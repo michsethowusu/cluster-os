@@ -41,6 +41,12 @@ with app.app_context():
             ADD COLUMN IF NOT EXISTS submitted_by INTEGER
         '''))
 
+        # Update Initiative table
+        conn.execute(db.text('''
+            ALTER TABLE initiative
+            ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0
+        '''))
+
         conn.commit()
     print('DB ready.')
 "

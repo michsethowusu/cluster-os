@@ -1,6 +1,75 @@
 {% extends "base.html" %}
 
-{% block title %}{% if initiative %}Edit{% else %}New{% endif %} Initiative - AU ECED-FLN Cluster{% endblock %}
+{% block title %}{% if initiative %}Edit{% else %}New{% endif %} Initiative - AU ECED-FLN Cluster
+<script>
+(function () {
+    function countWords(str) {
+        return str.trim().split(/\s+/).filter(w => w.length > 0).length;
+    }
+
+    function makeCounter(id, label) {
+        const el = document.createElement('div');
+        el.id = id;
+        el.className = 'form-text mt-1';
+        return el;
+    }
+
+    // ── Title validation ──────────────────────────────────────────────
+    const titleInput = document.querySelector('input[name="title"]');
+    if (titleInput) {
+        const counter = makeCounter('title-counter', 'title');
+        counter.textContent = '0 / 3 words minimum';
+        titleInput.parentNode.appendChild(counter);
+
+        function updateTitle() {
+            const words = countWords(titleInput.value);
+            const ok = words >= 3;
+            counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum 3 required');
+            counter.style.color = ok ? '#198754' : '#dc3545';
+            titleInput.classList.toggle('is-invalid', !ok && titleInput.value.length > 0);
+            titleInput.classList.toggle('is-valid', ok);
+        }
+        titleInput.addEventListener('input', updateTitle);
+        updateTitle();
+    }
+
+    // ── Content validation ────────────────────────────────────────────
+    const contentArea = document.querySelector('textarea[name="content"]');
+    if (contentArea) {
+        const counter = makeCounter('content-counter', 'content');
+        counter.textContent = '0 / 300 words minimum';
+        contentArea.parentNode.appendChild(counter);
+
+        function updateContent() {
+            const words = countWords(contentArea.value);
+            const ok = words >= 300;
+            counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum 300 required');
+            counter.style.color = ok ? '#198754' : '#dc3545';
+            contentArea.classList.toggle('is-invalid', !ok && contentArea.value.length > 0);
+            contentArea.classList.toggle('is-valid', ok);
+        }
+        contentArea.addEventListener('input', updateContent);
+        updateContent();
+    }
+
+    // ── Block form submit if invalid ──────────────────────────────────
+    const form = document.querySelector('form[method="POST"]');
+    if (form) {
+        form.addEventListener('submit', function (e) {
+            const titleWords = titleInput ? countWords(titleInput.value) : 3;
+            const contentWords = contentArea ? countWords(contentArea.value) : 300;
+            const errors = [];
+            if (titleWords < 3) errors.push('Title must be at least 3 words (currently ' + titleWords + ').');
+            if (contentWords < 300) errors.push('Full description must be at least 300 words (currently ' + contentWords + ').');
+            if (errors.length) {
+                e.preventDefault();
+                alert('Please fix the following before submitting:\n\n' + errors.join('\n'));
+            }
+        });
+    }
+})();
+</script>
+{% endblock %}
 
 {% block content %}
 <div class="container mt-5 mb-5">
@@ -53,4 +122,73 @@
         </div>
     </div>
 </div>
+
+<script>
+(function () {
+    function countWords(str) {
+        return str.trim().split(/\s+/).filter(w => w.length > 0).length;
+    }
+
+    function makeCounter(id, label) {
+        const el = document.createElement('div');
+        el.id = id;
+        el.className = 'form-text mt-1';
+        return el;
+    }
+
+    // ── Title validation ──────────────────────────────────────────────
+    const titleInput = document.querySelector('input[name="title"]');
+    if (titleInput) {
+        const counter = makeCounter('title-counter', 'title');
+        counter.textContent = '0 / 3 words minimum';
+        titleInput.parentNode.appendChild(counter);
+
+        function updateTitle() {
+            const words = countWords(titleInput.value);
+            const ok = words >= 3;
+            counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum 3 required');
+            counter.style.color = ok ? '#198754' : '#dc3545';
+            titleInput.classList.toggle('is-invalid', !ok && titleInput.value.length > 0);
+            titleInput.classList.toggle('is-valid', ok);
+        }
+        titleInput.addEventListener('input', updateTitle);
+        updateTitle();
+    }
+
+    // ── Content validation ────────────────────────────────────────────
+    const contentArea = document.querySelector('textarea[name="content"]');
+    if (contentArea) {
+        const counter = makeCounter('content-counter', 'content');
+        counter.textContent = '0 / 300 words minimum';
+        contentArea.parentNode.appendChild(counter);
+
+        function updateContent() {
+            const words = countWords(contentArea.value);
+            const ok = words >= 300;
+            counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum 300 required');
+            counter.style.color = ok ? '#198754' : '#dc3545';
+            contentArea.classList.toggle('is-invalid', !ok && contentArea.value.length > 0);
+            contentArea.classList.toggle('is-valid', ok);
+        }
+        contentArea.addEventListener('input', updateContent);
+        updateContent();
+    }
+
+    // ── Block form submit if invalid ──────────────────────────────────
+    const form = document.querySelector('form[method="POST"]');
+    if (form) {
+        form.addEventListener('submit', function (e) {
+            const titleWords = titleInput ? countWords(titleInput.value) : 3;
+            const contentWords = contentArea ? countWords(contentArea.value) : 300;
+            const errors = [];
+            if (titleWords < 3) errors.push('Title must be at least 3 words (currently ' + titleWords + ').');
+            if (contentWords < 300) errors.push('Full description must be at least 300 words (currently ' + contentWords + ').');
+            if (errors.length) {
+                e.preventDefault();
+                alert('Please fix the following before submitting:\n\n' + errors.join('\n'));
+            }
+        });
+    }
+})();
+</script>
 {% endblock %}

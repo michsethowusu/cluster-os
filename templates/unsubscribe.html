@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Unsubscribe – AU ECED-FLN Platform{% endblock %}
+
+{% block content %}
+<div style="max-width:500px;margin:80px auto;padding:20px;font-family:Arial,sans-serif;text-align:center;">
+
+    {% if confirmed %}
+        {# ── State: successfully unsubscribed ── #}
+        <div style="background:#f8f9fa;border-radius:8px;padding:40px 32px;">
+            <div style="font-size:48px;margin-bottom:16px;">✅</div>
+            <h2 style="color:#333;margin-bottom:12px;">You've been unsubscribed</h2>
+            <p style="color:#555;line-height:1.6;">
+                <strong>{{ email }}</strong> has been removed from the
+                AU&nbsp;ECED-FLN Cluster Platform mailing list.<br>
+                You will no longer receive digest notifications or event announcements.
+            </p>
+            <p style="color:#888;font-size:0.9em;margin-top:24px;">
+                Changed your mind? You can re-subscribe at any time from your
+                <a href="{{ url_for('profile') }}" style="color:#0066cc;">profile page</a>.
+            </p>
+            <a href="{{ url_for('index') }}"
+               style="display:inline-block;margin-top:24px;background:#0066cc;color:white;
+                      padding:10px 28px;text-decoration:none;border-radius:5px;font-weight:bold;">
+                Back to Platform
+            </a>
+        </div>
+
+    {% elif error %}
+        {# ── State: invalid or missing token/email ── #}
+        <div style="background:#fff3cd;border-radius:8px;padding:40px 32px;">
+            <div style="font-size:48px;margin-bottom:16px;">⚠️</div>
+            <h2 style="color:#333;margin-bottom:12px;">Invalid unsubscribe link</h2>
+            <p style="color:#555;">
+                This link is invalid or has already been used.
+                If you still wish to unsubscribe, please
+                <a href="{{ url_for('contact') }}" style="color:#0066cc;">contact us</a>.
+            </p>
+        </div>
+
+    {% else %}
+        {# ── State: confirmation prompt ── #}
+        <div style="background:#f8f9fa;border-radius:8px;padding:40px 32px;">
+            <div style="font-size:48px;margin-bottom:16px;">📧</div>
+            <h2 style="color:#333;margin-bottom:12px;">Unsubscribe from notifications</h2>
+            <p style="color:#555;line-height:1.6;">
+                You are about to unsubscribe <strong>{{ email }}</strong> from all
+                AU&nbsp;ECED-FLN Cluster Platform email notifications (digest updates, event
+                announcements, etc.).<br><br>
+                You will still be able to log in and use the platform.
+            </p>
+            <form method="POST" action="{{ url_for('unsubscribe') }}">
+                <input type="hidden" name="email" value="{{ email }}">
+                <input type="hidden" name="token" value="{{ token }}">
+                <button type="submit"
+                        style="display:inline-block;margin-top:20px;background:#dc3545;color:white;
+                               border:none;padding:12px 32px;border-radius:5px;font-size:1em;
+                               font-weight:bold;cursor:pointer;">
+                    Confirm Unsubscribe
+                </button>
+            </form>
+            <p style="margin-top:20px;">
+                <a href="{{ url_for('index') }}" style="color:#888;font-size:0.9em;">
+                    No thanks, take me back
+                </a>
+            </p>
+        </div>
+    {% endif %}
+
+</div>
+{% endblock %}

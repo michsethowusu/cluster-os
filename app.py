@@ -43,8 +43,9 @@ from utils.email_sender import (
     send_project_signup_admin_alert,
     send_bulk_initiatives_digest,
     send_event_registration_confirmation,
+    send_custom_bulk_email,
 )
-from utils.ai_services import generate_title_description, vet_tags_nvidia, rank_members_by_query, clean_tags_for_polls
+from utils.ai_services import generate_title_description, vet_tags_nvidia, rank_members_by_query, clean_tags_for_polls, score_initiative_quality
 from utils.nlp import extract_noun_phrases, update_noun_phrase_db
 from utils.translation import translate_text
 from utils.zoom_api import (
@@ -70,7 +71,8 @@ class User(db.Model):
     otp_expiry = db.Column(db.DateTime, nullable=True)
     password_hash = db.Column(db.String(256), nullable=True)
     points = db.Column(db.Integer, default=0, nullable=False)
-    
+    is_subscribed = db.Column(db.Boolean, default=True, nullable=False)
+
     # Relationships
     initiatives = db.relationship('Initiative', backref='author', lazy=True)
     recommendations = db.relationship('Recommendation', backref='author', lazy=True)
@@ -122,6 +124,7 @@ class Initiative(db.Model):
     country = db.Column(db.String(100))
     is_published = db.Column(db.Boolean, default=False)
     view_count = db.Column(db.Integer, default=0, nullable=False)
+    quality_score = db.Column(db.Integer, nullable=True)  # 1-5, admin-only, scored by AI
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -727,7 +730,27 @@ def new_initiative():
         
         db.session.add(initiative)
         db.session.commit()
-        
+
+        # Score content quality in background (used to filter digest notifications)
+        def _score_async(flask_app, initiative_id, title, content, short_desc):
+            with flask_app.app_context():
+                try:
+                    from utils.ai_services import score_initiative_quality
+                    score = score_initiative_quality(title, content, short_desc or "")
+                    if score is not None:
+                        ini = Initiative.query.get(initiative_id)
+                        if ini:
+                            ini.quality_score = score
+                            db.session.commit()
+                except Exception as e:
+                    flask_app.logger.error(f"Quality scoring error (initiative {initiative_id}): {e}")
+
+        threading.Thread(
+            target=_score_async,
+            args=(app, initiative.id, title, content, short_description),
+            daemon=True
+        ).start()
+
         # Process tags (extract noun phrases and vet with AI)
         try:
             phrases = extract_noun_phrases(content)
@@ -1245,6 +1268,27 @@ def approve_item(type, id):
         if submitter:
             award_points(submitter, 'initiative_approved')
         db.session.commit()
+
+        # Notify author
+        if submitter:
+            try:
+                send_initiative_approved_email(submitter, item.slug, item.title)
+            except Exception as e:
+                app.logger.error(f"Initiative approved email error: {e}")
+
+        # Send digest notification only if quality score >= 4 (or not yet scored)
+        if item.quality_score is None or item.quality_score >= 4:
+            try:
+                initiative_url = url_for('view_initiative', slug=item.slug, _external=True)
+                subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
+                send_bulk_initiatives_digest([{
+                    'title': item.title,
+                    'short_description': item.short_description or '',
+                    'url': initiative_url,
+                }], subscribed_users)
+            except Exception as e:
+                app.logger.error(f"Initiative approval digest email error: {e}")
+
         flash('Initiative published.', 'success')
 
     elif type == 'project':
@@ -1309,15 +1353,15 @@ def approve_all():
                 app.logger.error(f"Noun phrase error on bulk approve (user {user.id}): {e}")
             award_points(user, 'initiative_published', commit=False)
 
-            # Add this new-user initiative to the digest list now,
-            # before the commit, so step 2's filter_by(is_published=False)
-            # won't find it again (it's already True after this commit).
-            initiative_url = url_for('view_initiative', slug=reg_initiative.slug, _external=True)
-            newly_published.append({
-                'title': reg_initiative.title,
-                'short_description': reg_initiative.short_description or '',
-                'url': initiative_url,
-            })
+            # Add this new-user initiative to the digest list only if quality score >= 4
+            # (score None = not yet scored, include by default to avoid missing content)
+            if reg_initiative.quality_score is None or reg_initiative.quality_score >= 4:
+                initiative_url = url_for('view_initiative', slug=reg_initiative.slug, _external=True)
+                newly_published.append({
+                    'title': reg_initiative.title,
+                    'short_description': reg_initiative.short_description or '',
+                    'url': initiative_url,
+                })
 
         # Individual welcome email to the newly approved member
         try:
@@ -1354,13 +1398,14 @@ def approve_all():
             except Exception as e:
                 app.logger.error(f"Bulk approve – author email error for {author.email}: {e}")
 
-        # Collect metadata for the digest
-        initiative_url = url_for('view_initiative', slug=initiative.slug, _external=True)
-        newly_published.append({
-            'title': initiative.title,
-            'short_description': initiative.short_description or '',
-            'url': initiative_url,
-        })
+        # Collect metadata for the digest — only quality score >= 4 (None = unscored, include)
+        if initiative.quality_score is None or initiative.quality_score >= 4:
+            initiative_url = url_for('view_initiative', slug=initiative.slug, _external=True)
+            newly_published.append({
+                'title': initiative.title,
+                'short_description': initiative.short_description or '',
+                'url': initiative_url,
+            })
 
     db.session.commit()
     approved_initiative_count = len(newly_published)
@@ -1368,7 +1413,7 @@ def approve_all():
     # ── 3. Send ONE digest email to all members for initiatives ───────────────
     if newly_published:
         try:
-            all_approved_users = User.query.filter_by(is_approved=True).all()
+            all_approved_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
             send_bulk_initiatives_digest(newly_published, all_approved_users)
         except Exception as e:
             app.logger.error(f"Bulk approve – digest email error: {e}")
@@ -1510,6 +1555,9 @@ def admin_import_members():
             return redirect(request.url)
         # Read the invite_only checkbox — present means checked
         invite_only = request.form.get('invite_only') == 'on'
+        custom_message_mode = request.form.get('custom_message_mode') == 'on'
+        custom_subject = request.form.get('custom_subject', '').strip()
+        custom_body = request.form.get('custom_body', '').strip()
         if file and file.filename.endswith('.csv'):
             try:
                 stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
@@ -1525,6 +1573,18 @@ def admin_import_members():
                         continue
                     email = row['email'].lower().strip()
                     name = row['name'].strip()
+                    # ── CUSTOM MESSAGE MODE ───────────────────────────────────
+                    if custom_message_mode:
+                        if not custom_subject or not custom_body:
+                            flash('Custom subject and message body are required in Custom Message mode.', 'error')
+                            return redirect(request.url)
+                        try:
+                            send_custom_bulk_email(email, name, custom_subject, custom_body)
+                            invited += 1
+                        except Exception as e:
+                            app.logger.error(f"Custom message email error for {email}: {e}")
+                            errors.append(f"Row {row_num}: Failed to send message to {email}")
+                        continue
                     # ── INVITE-ONLY MODE ──────────────────────────────────────
                     if invite_only:
                         if User.query.filter_by(email=email).first():
@@ -1567,7 +1627,9 @@ def admin_import_members():
                         app.logger.error(f"Import welcome email error for {user.email}: {e}")
                     imported += 1
                 db.session.commit()
-                if invite_only:
+                if custom_message_mode:
+                    flash(f'Sent {invited} custom message(s). Errors: {len(errors)}', 'info' if errors else 'success')
+                elif invite_only:
                     flash(f'Sent {invited} invitation(s). Errors: {len(errors)}', 'info' if errors else 'success')
                 else:
                     flash(f'Imported {imported} members. Errors: {len(errors)}', 'info' if errors else 'success')
@@ -2441,6 +2503,33 @@ def participate_project(id):
         app.logger.error(f"Project signup admin alert email error: {e}")
 
     return redirect(url_for('dashboard'))
+
+@app.route('/unsubscribe', methods=['GET', 'POST'])
+def unsubscribe():
+    """Token-based unsubscribe page. Token = hex(email) for simplicity."""
+    import hmac, hashlib
+
+    def _make_token(email):
+        secret = app.config.get('SECRET_KEY', 'fallback-secret')
+        return hmac.new(secret.encode(), email.lower().encode(), hashlib.sha256).hexdigest()
+
+    if request.method == 'POST':
+        email = request.form.get('email', '').lower().strip()
+        token = request.form.get('token', '')
+        if not email or not token or not hmac.compare_digest(token, _make_token(email)):
+            return render_template('unsubscribe.html', error=True, email=email, confirmed=False)
+        user = User.query.filter_by(email=email).first()
+        if user:
+            user.is_subscribed = False
+            db.session.commit()
+        return render_template('unsubscribe.html', confirmed=True, email=email, error=False)
+
+    email = request.args.get('email', '').lower().strip()
+    token = request.args.get('token', '')
+    if not email or not token or not hmac.compare_digest(token, _make_token(email)):
+        return render_template('unsubscribe.html', error=True, email='', confirmed=False)
+    return render_template('unsubscribe.html', confirmed=False, error=False, email=email, token=token)
+
 
 # ===================== API ROUTES =====================
 

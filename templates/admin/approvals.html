@@ -46,6 +46,15 @@
 
                         {% elif item.__class__.__name__ == 'Initiative' %}
                             <span class="badge bg-info text-dark mb-1">Initiative</span>
+                            {% if item.quality_score is not none %}
+                                {% if item.quality_score >= 4 %}
+                                    <span class="badge bg-success mb-1" title="Quality score — high quality, will be sent as notification">⭐ Quality {{ item.quality_score }}/5</span>
+                                {% else %}
+                                    <span class="badge bg-secondary mb-1" title="Quality score — below threshold, will NOT be sent as notification">Quality {{ item.quality_score }}/5</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge bg-light text-muted mb-1" title="Not yet scored by AI">Scoring…</span>
+                            {% endif %}
                             <h5 class="mb-1"><i class="bi bi-file-text"></i> {{ item.title }}</h5>
                             <p class="mb-1">By {{ item.author.name }} ({{ item.author.organization }})</p>
                             <small class="text-muted">{{ item.content[:150] }}...</small>

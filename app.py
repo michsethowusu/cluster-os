@@ -1166,9 +1166,12 @@ def polls():
     # For each poll, compute quick stats
     poll_stats = []
     for poll in polls:
+        # Fetch all registrations that have poll_answers and filter in Python
+        # to avoid the JSON LIKE operator incompatibility in PostgreSQL.
         registrations = EventRegistration.query.filter(
-            EventRegistration.poll_answers.contains({str(poll.id): None})
+            EventRegistration.poll_answers.isnot(None)
         ).all()
+        registrations = [r for r in registrations if r.poll_answers and str(poll.id) in r.poll_answers]
         answers = []
         for reg in registrations:
             if reg.poll_answers and str(poll.id) in reg.poll_answers:
@@ -1545,6 +1548,13 @@ def trigger_nlp():
 def admin_import_members():
     if not current_user.is_admin:
         abort(403)
+    now = datetime.utcnow()
+    # Fetch upcoming/current events for the event-invite dropdown
+    upcoming_events = Event.query.filter(
+        Event.start_date >= now,
+        Event.is_published == True
+    ).order_by(Event.start_date.asc()).all()
+
     if request.method == 'POST':
         if 'file' not in request.files:
             flash('No file selected', 'error')
@@ -1553,26 +1563,56 @@ def admin_import_members():
         if file.filename == '':
             flash('No file selected', 'error')
             return redirect(request.url)
-        # Read the invite_only checkbox — present means checked
-        invite_only = request.form.get('invite_only') == 'on'
+        # Read mode checkboxes
+        invite_only         = request.form.get('invite_only') == 'on'
         custom_message_mode = request.form.get('custom_message_mode') == 'on'
-        custom_subject = request.form.get('custom_subject', '').strip()
-        custom_body = request.form.get('custom_body', '').strip()
+        event_invite_mode   = request.form.get('event_invite_mode') == 'on'
+        custom_subject      = request.form.get('custom_subject', '').strip()
+        custom_body         = request.form.get('custom_body', '').strip()
+        event_invite_id     = request.form.get('event_invite_id', '').strip()
+
+        # Resolve selected event for event-invite mode
+        selected_event = None
+        event_invite_url = None
+        if event_invite_mode and event_invite_id:
+            selected_event = Event.query.get(int(event_invite_id))
+            if selected_event:
+                event_invite_url = url_for('event_detail', id=selected_event.id, _external=True)
+
         if file and file.filename.endswith('.csv'):
             try:
                 stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
                 csv_reader = csv.DictReader(stream)
                 imported = 0
-                invited = 0
-                errors = []
+                invited  = 0
+                errors   = []
                 for row_num, row in enumerate(csv_reader, start=2):
-                    required = ['email', 'name', 'organization', 'stakeholder_type', 'country']
+                    # In non-import modes only email+name are required
+                    if custom_message_mode or invite_only or event_invite_mode:
+                        required = ['email', 'name']
+                    else:
+                        required = ['email', 'name', 'organization', 'stakeholder_type', 'country']
                     missing = [f for f in required if not row.get(f) or not row.get(f).strip()]
                     if missing:
                         errors.append(f"Row {row_num}: Missing fields {missing}")
                         continue
                     email = row['email'].lower().strip()
-                    name = row['name'].strip()
+                    name  = row['name'].strip()
+
+                    # ── EVENT INVITE MODE ─────────────────────────────────────
+                    if event_invite_mode:
+                        if not selected_event:
+                            flash('Please select an event for event invitation mode.', 'error')
+                            return redirect(request.url)
+                        try:
+                            from utils.email_sender import send_event_invitation_email
+                            send_event_invitation_email(email, name, selected_event, event_invite_url)
+                            invited += 1
+                        except Exception as e:
+                            app.logger.error(f"Event invite email error for {email}: {e}")
+                            errors.append(f"Row {row_num}: Failed to send event invite to {email}")
+                        continue
+
                     # ── CUSTOM MESSAGE MODE ───────────────────────────────────
                     if custom_message_mode:
                         if not custom_subject or not custom_body:
@@ -1585,11 +1625,10 @@ def admin_import_members():
                             app.logger.error(f"Custom message email error for {email}: {e}")
                             errors.append(f"Row {row_num}: Failed to send message to {email}")
                         continue
+
                     # ── INVITE-ONLY MODE ──────────────────────────────────────
                     if invite_only:
-                        if User.query.filter_by(email=email).first():
-                            errors.append(f"Row {row_num}: {email} already has an account — skipped")
-                            continue
+                        # No skip for existing members — send to everyone
                         try:
                             send_invitation_email(email, name)
                             invited += 1
@@ -1597,6 +1636,7 @@ def admin_import_members():
                             app.logger.error(f"Invitation email error for {email}: {e}")
                             errors.append(f"Row {row_num}: Failed to send invitation to {email}")
                         continue
+
                     # ── NORMAL IMPORT MODE ────────────────────────────────────
                     # Check duplicate
                     if User.query.filter_by(email=email).first():
@@ -1627,7 +1667,9 @@ def admin_import_members():
                         app.logger.error(f"Import welcome email error for {user.email}: {e}")
                     imported += 1
                 db.session.commit()
-                if custom_message_mode:
+                if event_invite_mode:
+                    flash(f'Sent {invited} event invitation(s). Errors: {len(errors)}', 'info' if errors else 'success')
+                elif custom_message_mode:
                     flash(f'Sent {invited} custom message(s). Errors: {len(errors)}', 'info' if errors else 'success')
                 elif invite_only:
                     flash(f'Sent {invited} invitation(s). Errors: {len(errors)}', 'info' if errors else 'success')
@@ -1640,7 +1682,7 @@ def admin_import_members():
             except Exception as e:
                 flash(f'Error processing file: {str(e)}', 'error')
                 return redirect(request.url)
-    return render_template('admin/import_members.html')
+    return render_template('admin/import_members.html', upcoming_events=upcoming_events)
 
 @app.route('/admin/import-members-template')
 @login_required

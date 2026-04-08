@@ -31,7 +31,6 @@
                     <ul class="mb-0">
                         <li>No accounts are created</li>
                         <li>Each person receives an email inviting them to register on the platform</li>
-                        <li>People who already have an account are skipped</li>
                         <li>Only <strong>email</strong> and <strong>name</strong> columns are required in invite mode</li>
                     </ul>
                 </div>
@@ -41,6 +40,15 @@
                         <li>No accounts are created</li>
                         <li>Each person receives your custom email using the platform notification template</li>
                         <li>An unsubscribe link is automatically appended</li>
+                        <li>Only <strong>email</strong> and <strong>name</strong> columns are required</li>
+                    </ul>
+                </div>
+                <div class="alert alert-success d-none" id="info-event-invite">
+                    <h6><i class="bi bi-calendar-event"></i> Event invitation mode — sends an event-specific invitation:</h6>
+                    <ul class="mb-0">
+                        <li>No accounts are created</li>
+                        <li>Each person receives an email with the event details and a link to register</li>
+                        <li>Emails are sent to everyone on the list regardless of membership status</li>
                         <li>Only <strong>email</strong> and <strong>name</strong> columns are required</li>
                     </ul>
                 </div>
@@ -78,6 +86,34 @@
                             When checked, each person in the CSV receives a custom email using the platform's
                             notification template. No accounts are created. Only <strong>email</strong> and
                             <strong>name</strong> columns are required.
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="event_invite_mode"
+                                   id="event_invite_mode" role="switch">
+                            <label class="form-check-label fw-semibold" for="event_invite_mode">
+                                Event invitation — send invitations for a specific upcoming event
+                            </label>
+                        </div>
+                        <div class="form-text ms-4">
+                            When checked, each person receives an email with the event details and a link to
+                            register. Sent to everyone on the list regardless of membership status.
+                            Only <strong>email</strong> and <strong>name</strong> columns are required.
+                        </div>
+                    </div>
+
+                    <div id="event-invite-fields" class="d-none mb-4 p-3 border rounded bg-light">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Select Event *</label>
+                            <select name="event_invite_id" id="event_invite_id" class="form-select">
+                                <option value="">— Choose an upcoming event —</option>
+                                {% for ev in upcoming_events %}
+                                <option value="{{ ev.id }}">{{ ev.title }} ({{ ev.start_date.strftime('%b %d, %Y') }})</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">Only published, upcoming events are shown.</div>
                         </div>
                     </div>
 
@@ -142,43 +178,51 @@ john@unicef.org,John Doe,UNICEF Ghana,UN Agency,Ghana</pre>
 
 <script>
 (function () {
-    const inviteCheck  = document.getElementById('invite_only');
-    const customCheck  = document.getElementById('custom_message_mode');
-    const infoImport   = document.getElementById('info-import');
-    const infoInvite   = document.getElementById('info-invite');
-    const infoCustom   = document.getElementById('info-custom');
-    const customFields = document.getElementById('custom-message-fields');
-    const submitBtn    = document.getElementById('submit-btn');
-    const inviteNote   = document.getElementById('invite-note');
-    const orgRequired  = document.getElementById('org-required');
-    const stypeRequired= document.getElementById('stype-required');
-    const countryRequired = document.getElementById('country-required');
+    const inviteCheck      = document.getElementById('invite_only');
+    const customCheck      = document.getElementById('custom_message_mode');
+    const eventInviteCheck = document.getElementById('event_invite_mode');
+    const infoImport       = document.getElementById('info-import');
+    const infoInvite       = document.getElementById('info-invite');
+    const infoCustom       = document.getElementById('info-custom');
+    const infoEventInvite  = document.getElementById('info-event-invite');
+    const customFields     = document.getElementById('custom-message-fields');
+    const eventInviteFields= document.getElementById('event-invite-fields');
+    const submitBtn        = document.getElementById('submit-btn');
+    const inviteNote       = document.getElementById('invite-note');
+    const orgRequired      = document.getElementById('org-required');
+    const stypeRequired    = document.getElementById('stype-required');
+    const countryRequired  = document.getElementById('country-required');
 
     function update() {
-        const inviting = inviteCheck.checked;
-        const customMode = customCheck.checked;
-
-        // Mutual exclusivity: clicking one unchecks the other
-        if (inviting && customMode) {
-            if (this === inviteCheck) customCheck.checked = false;
-            else inviteCheck.checked = false;
+        // Mutual exclusivity among the three special modes
+        const checks = [inviteCheck, customCheck, eventInviteCheck];
+        const clicked = this;
+        if (clicked && clicked.checked) {
+            checks.forEach(c => { if (c !== clicked) c.checked = false; });
         }
 
-        const finalInvite = inviteCheck.checked;
-        const finalCustom = customCheck.checked;
+        const finalInvite      = inviteCheck.checked;
+        const finalCustom      = customCheck.checked;
+        const finalEventInvite = eventInviteCheck.checked;
+        const anySpecial       = finalInvite || finalCustom || finalEventInvite;
 
-        infoImport.classList.toggle('d-none', finalInvite || finalCustom);
+        infoImport.classList.toggle('d-none', anySpecial);
         infoInvite.classList.toggle('d-none', !finalInvite);
         infoCustom.classList.toggle('d-none', !finalCustom);
+        infoEventInvite.classList.toggle('d-none', !finalEventInvite);
         customFields.classList.toggle('d-none', !finalCustom);
+        eventInviteFields.classList.toggle('d-none', !finalEventInvite);
 
-        const optLabel = (finalInvite || finalCustom) ? 'Optional' : 'Yes';
-        orgRequired.textContent = optLabel;
-        stypeRequired.textContent = optLabel;
+        const optLabel = anySpecial ? 'Optional' : 'Yes';
+        orgRequired.textContent     = optLabel;
+        stypeRequired.textContent   = optLabel;
         countryRequired.textContent = optLabel;
-        inviteNote.style.display = (finalInvite || finalCustom) ? '' : 'none';
+        inviteNote.style.display    = anySpecial ? '' : 'none';
 
-        if (finalCustom) {
+        if (finalEventInvite) {
+            submitBtn.innerHTML = '<i class="bi bi-calendar-check"></i> Send Event Invitations';
+            submitBtn.className = 'btn btn-success';
+        } else if (finalCustom) {
             submitBtn.innerHTML = '<i class="bi bi-envelope-fill"></i> Send Custom Messages';
             submitBtn.className = 'btn btn-info';
         } else if (finalInvite) {
@@ -192,6 +236,7 @@ john@unicef.org,John Doe,UNICEF Ghana,UN Agency,Ghana</pre>
 
     inviteCheck.addEventListener('change', update);
     customCheck.addEventListener('change', update);
+    eventInviteCheck.addEventListener('change', update);
     update();
 })();
 </script>

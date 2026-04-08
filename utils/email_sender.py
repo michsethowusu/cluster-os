@@ -247,6 +247,41 @@ def send_invitation_email(email, name):
     send_email(email, subject, html)
 
 
+def send_event_invitation_email(email, name, event, event_url):
+    """Send an invitation email for a specific event to someone (member or non-member)."""
+    event_date = event.start_date.strftime('%B %d, %Y at %H:%M UTC')
+    if event.end_date:
+        event_date += f" – {event.end_date.strftime('%B %d, %Y at %H:%M UTC')}"
+    subject = f"You're invited: {event.title} – AU ECED-FLN Platform"
+    html = f"""
+    <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h2 style="color: #0066cc;">You're Invited to an Event</h2>
+                <p>Dear {name},</p>
+                <p>You have been invited to attend the following event on the
+                <strong>AU ECED-FLN Cluster Platform</strong>:</p>
+                <div style="background:#f8f9fa;padding:16px;border-left:4px solid #0066cc;margin:20px 0;">
+                    <h3 style="margin:0 0 8px 0;">{event.title}</h3>
+                    <p style="margin:4px 0;"><strong>Date:</strong> {event_date}</p>
+                    <p style="margin:4px 0;">{event.description[:300]}{'...' if len(event.description) > 300 else ''}</p>
+                </div>
+                <p style="text-align: center; margin: 30px 0;">
+                    <a href="{event_url}" style="display: inline-block; background: #0066cc; color: white;
+                    padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                        View Event &amp; Register
+                    </a>
+                </p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="color: #999; font-size: 0.85em;">This invitation was sent by the AU ECED-FLN Cluster Platform.
+                If you believe you received this in error, please ignore it.</p>
+            </div>
+        </body>
+    </html>
+    """
+    send_email(email, subject, html)
+
+
 def send_project_signup_confirmation(user, project, signed_up_activities):
     """
     Confirm to a member that they have successfully joined a project.

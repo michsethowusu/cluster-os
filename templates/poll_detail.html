@@ -41,7 +41,7 @@
                             {% for country in countries %}
                             <td class="text-center">{{ row[country] }}</td>
                             {% endfor %}
-                            <td class="text-center">{{ row|sum(attribute=country) }}</td>
+                            {% set ns = namespace(total=0) %}{% for country in countries %}{% set ns.total = ns.total + row[country] %}{% endfor %}<td class="text-center">{{ ns.total }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>

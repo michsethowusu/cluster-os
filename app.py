@@ -1373,6 +1373,8 @@ def approve_all():
         flash("Nothing pending — everything is already approved.", 'info')
 
     return redirect(url_for('admin_approvals'))
+
+@app.route('/admin/unpublish/<type>/<int:id>', methods=['POST'])
 @login_required
 def unpublish_item(type, id):
     if not current_user.is_admin:
@@ -1847,6 +1849,7 @@ def admin_edit_project(id):
         project.description = request.form.get('description')
         project.deadline = datetime.fromisoformat(request.form.get('deadline'))
         project.start_date = datetime.fromisoformat(request.form.get('start_date')) if request.form.get('start_date') else None
+        ProjectParticipation.query.filter_by(project_id=id).delete()
         ProjectActivity.query.filter_by(project_id=id).delete()
         titles = request.form.getlist('activity_title[]')
         descs = request.form.getlist('activity_desc[]')

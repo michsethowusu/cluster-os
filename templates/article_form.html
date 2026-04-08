@@ -18,13 +18,13 @@
     const titleInput = document.querySelector('input[name="title"]');
     if (titleInput) {
         const counter = makeCounter('title-counter', 'title');
-        counter.textContent = '0 / 3 words minimum';
+        counter.textContent = '0 / 5 words minimum';
         titleInput.parentNode.appendChild(counter);
 
         function updateTitle() {
             const words = countWords(titleInput.value);
-            const ok = words >= 3;
-            counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum 3 required');
+            const ok = words >= 5;
+            counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum 5 required');
             counter.style.color = ok ? '#198754' : '#dc3545';
             titleInput.classList.toggle('is-invalid', !ok && titleInput.value.length > 0);
             titleInput.classList.toggle('is-valid', ok);
@@ -56,10 +56,10 @@
     const form = document.querySelector('form[method="POST"]');
     if (form) {
         form.addEventListener('submit', function (e) {
-            const titleWords = titleInput ? countWords(titleInput.value) : 3;
+            const titleWords = titleInput ? countWords(titleInput.value) : 5;
             const contentWords = contentArea ? countWords(contentArea.value) : 300;
             const errors = [];
-            if (titleWords < 3) errors.push('Title must be at least 3 words (currently ' + titleWords + ').');
+            if (titleWords < 5) errors.push('Title must be at least 5 words (currently ' + titleWords + ').');
             if (contentWords < 300) errors.push('Full description must be at least 300 words (currently ' + contentWords + ').');
             if (errors.length) {
                 e.preventDefault();
@@ -140,13 +140,13 @@
     const titleInput = document.querySelector('input[name="title"]');
     if (titleInput) {
         const counter = makeCounter('title-counter', 'title');
-        counter.textContent = '0 / 3 words minimum';
+        counter.textContent = '0 / 5 words minimum';
         titleInput.parentNode.appendChild(counter);
 
         function updateTitle() {
             const words = countWords(titleInput.value);
-            const ok = words >= 3;
-            counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum 3 required');
+            const ok = words >= 5;
+            counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum 5 required');
             counter.style.color = ok ? '#198754' : '#dc3545';
             titleInput.classList.toggle('is-invalid', !ok && titleInput.value.length > 0);
             titleInput.classList.toggle('is-valid', ok);
@@ -178,10 +178,10 @@
     const form = document.querySelector('form[method="POST"]');
     if (form) {
         form.addEventListener('submit', function (e) {
-            const titleWords = titleInput ? countWords(titleInput.value) : 3;
+            const titleWords = titleInput ? countWords(titleInput.value) : 5;
             const contentWords = contentArea ? countWords(contentArea.value) : 300;
             const errors = [];
-            if (titleWords < 3) errors.push('Title must be at least 3 words (currently ' + titleWords + ').');
+            if (titleWords < 5) errors.push('Title must be at least 5 words (currently ' + titleWords + ').');
             if (contentWords < 300) errors.push('Full description must be at least 300 words (currently ' + contentWords + ').');
             if (errors.length) {
                 e.preventDefault();

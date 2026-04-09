@@ -817,6 +817,19 @@ def admin_delete_initiative(id):
     flash(f'Initiative "{title}" has been deleted.', 'success')
     return redirect(url_for('admin_approvals', type='initiatives'))
 
+@app.route('/admin/project/<int:id>/delete', methods=['POST'])
+@login_required
+def admin_delete_project(id):
+    if not current_user.is_admin:
+        abort(403)
+    project = Project.query.get_or_404(id)
+    title = project.title
+    # Cascade handles activities and participations via the relationship
+    db.session.delete(project)
+    db.session.commit()
+    flash(f'Project "{title}" has been deleted.', 'success')
+    return redirect(url_for('admin_approvals', type='projects'))
+
 @app.route('/initiative/<slug>')
 def view_initiative(slug):
     initiative = Initiative.query.filter_by(slug=slug, is_published=True).first_or_404()
@@ -1481,10 +1494,6 @@ def approve_all():
     if not current_user.is_admin:
         abort(403)
 
-    # If the admin ticked "Don't notify members", skip the member digest.
-    # Authors' personal approval emails and new-user welcome emails are always sent.
-    suppress_member_notifications = bool(request.form.get('suppress_member_notifications'))
-
     # ── 1. Approve all pending users ──────────────────────────────────────────
     pending_users = User.query.filter_by(is_approved=False).all()
     approved_user_count = 0
@@ -1562,7 +1571,7 @@ def approve_all():
     approved_initiative_count = len(newly_published)
 
     # ── 3. Send ONE digest email to all members for initiatives ───────────────
-    if newly_published and not suppress_member_notifications:
+    if newly_published:
         try:
             all_approved_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
             send_bulk_initiatives_digest(newly_published, all_approved_users)
@@ -1579,8 +1588,7 @@ def approve_all():
             f"initiative{'s' if approved_initiative_count != 1 else ''} published"
         )
     if parts:
-        notif_note = " Members NOT notified of new initiatives." if suppress_member_notifications else " Members notified."
-        flash("Approved: " + " and ".join(parts) + "." + notif_note, 'success')
+        flash("Approved: " + " and ".join(parts) + ". Members notified.", 'success')
     else:
         flash("Nothing pending — everything is already approved.", 'info')
 

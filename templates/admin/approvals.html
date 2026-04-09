@@ -21,17 +21,10 @@
     
     {% if items %}
     <form method="POST" action="{{ url_for('approve_all') }}"
-          onsubmit="return confirm('Approve ALL pending users and initiatives?')"
-          class="d-flex align-items-center gap-2 flex-wrap">
+          onsubmit="return confirm('Approve ALL pending users and initiatives?')">
         <button type="submit" class="btn btn-success">
             ✓ Approve All Pending
         </button>
-        <div class="form-check mb-0 ms-1" title="Authors and newly registered users will still receive their personal confirmation emails">
-            <input class="form-check-input" type="checkbox" name="suppress_member_notifications" id="suppressNotif" value="1">
-            <label class="form-check-label text-muted small" for="suppressNotif">
-                Don't notify members of new initiatives
-            </label>
-        </div>
     </form>
     {% endif %}
 </div>
@@ -127,6 +120,17 @@
                               action="{{ url_for('admin_delete_initiative', id=item.id) }}"
                               class="d-inline"
                               onsubmit="return confirm('Permanently delete this initiative? This cannot be undone.');">
+                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete permanently">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                        {% endif %}
+
+                        {% if item.__class__.__name__ == 'Project' %}
+                        <form method="POST"
+                              action="{{ url_for('admin_delete_project', id=item.id) }}"
+                              class="d-inline"
+                              onsubmit="return confirm('Permanently delete this project? This cannot be undone.');">
                             <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete permanently">
                                 <i class="bi bi-trash"></i>
                             </button>

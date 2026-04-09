@@ -200,9 +200,7 @@ def send_import_welcome_email(user):
                 </p>
                 <p style="color: #666; font-size: 0.9em;">Your registered email address is: {user.email}<br>
                 Use this to log in — you will receive a one-time password (OTP) to your email each time you sign in.</p>
-                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                <p style="color: #999; font-size: 0.85em;">This email was sent by the AU ECED-FLN Cluster Platform.
-                If you believe you received this in error, please ignore it.</p>
+                {_unsubscribe_footer(user.email)}
             </div>
         </body>
     </html>
@@ -237,9 +235,7 @@ def send_invitation_email(email, name):
                         Register Now
                     </a>
                 </p>
-                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                <p style="color: #999; font-size: 0.85em;">This invitation was sent by the AU ECED-FLN Cluster Platform.
-                If you believe you received this in error, please ignore it.</p>
+                {_unsubscribe_footer(email)}
             </div>
         </body>
     </html>
@@ -252,7 +248,7 @@ def send_event_invitation_email(email, name, event, event_url):
     event_date = event.start_date.strftime('%B %d, %Y at %H:%M UTC')
     if event.end_date:
         event_date += f" – {event.end_date.strftime('%B %d, %Y at %H:%M UTC')}"
-    subject = f"You're invited: {event.title} – AU ECED-FLN Platform"
+    subject = f"Invitation to {event.title}"
     html = f"""
     <html>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
@@ -272,9 +268,7 @@ def send_event_invitation_email(email, name, event, event_url):
                         View Event &amp; Register
                     </a>
                 </p>
-                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                <p style="color: #999; font-size: 0.85em;">This invitation was sent by the AU ECED-FLN Cluster Platform.
-                If you believe you received this in error, please ignore it.</p>
+                {_unsubscribe_footer(email)}
             </div>
         </body>
     </html>

@@ -293,6 +293,14 @@ class EventAttachment(db.Model):
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class BlockedEmail(db.Model):
+    """Emails that have unsubscribed and are NOT in our member DB.
+    Future member imports will skip sending notifications to these addresses."""
+    id         = db.Column(db.Integer, primary_key=True)
+    email      = db.Column(db.String(120), unique=True, nullable=False)
+    blocked_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 # ===================== HELPER FUNCTIONS =====================
 
 def get_setting(key, default=None):
@@ -1108,7 +1116,6 @@ def event_register(id):
                 app.logger.info(
                     f"Zoom meeting registration OK: user={current_user.id} join_url={join_url}"
                 )
-                # Zoom's email IS the confirmation — no duplicate platform email needed.
             except Exception as e:
                 app.logger.error(
                     f"Zoom meeting registration failed: user={current_user.id} event={id}: {e}"
@@ -1136,6 +1143,98 @@ def event_register(id):
         return redirect(url_for('event_detail', id=id))
 
     return render_template('event_register.html', event=event)
+
+
+@app.route('/event/<int:id>/register-email', methods=['POST'])
+def event_register_by_email(id):
+    """Public registration endpoint: user provides their email, no login required.
+    Registers them if their email is in the members database, then redirects to
+    an optional polls page. If email is not found, shows a sign-up prompt."""
+    event = Event.query.get_or_404(id)
+
+    if event.start_date < datetime.utcnow():
+        flash('This event has already passed.', 'error')
+        return redirect(url_for('event_detail', id=id))
+
+    email = request.form.get('email', '').lower().strip()
+    if not email:
+        flash('Please enter your email address.', 'error')
+        return redirect(url_for('event_detail', id=id))
+
+    user = User.query.filter_by(email=email, is_approved=True).first()
+    if not user:
+        # Email not in member database — prompt to sign up
+        return render_template('event_detail.html',
+            event=event,
+            registered=False,
+            user_poll_answers=None,
+            attachments=EventAttachment.query.filter_by(event_id=id).all(),
+            now=datetime.utcnow(),
+            email_not_found=email,
+        )
+
+    existing = EventRegistration.query.filter_by(event_id=id, user_id=user.id).first()
+    if existing:
+        flash('This email is already registered for the event.', 'info')
+        return redirect(url_for('event_polls', id=id, user_id=user.id))
+
+    # Create registration (poll answers saved later on polls page)
+    registration = EventRegistration(
+        user_id=user.id,
+        event_id=id,
+        poll_answers={},
+    )
+    db.session.add(registration)
+    db.session.commit()
+    award_points(user, 'event_registered')
+
+    # Send Zoom / confirmation email
+    if event.zoom_webinar_id:
+        try:
+            register_user_for_webinar(event.zoom_webinar_id, user)
+        except Exception as e:
+            app.logger.error(f"Zoom registration failed for {email} event {id}: {e}")
+            try:
+                send_event_registration_confirmation(user, event)
+            except Exception as email_err:
+                app.logger.error(f"Fallback confirmation email error: {email_err}")
+    else:
+        try:
+            send_event_registration_confirmation(user, event)
+        except Exception as e:
+            app.logger.error(f"Confirmation email error: {e}")
+
+    # Redirect to polls page so user can optionally answer polls
+    return redirect(url_for('event_polls', id=id, user_id=user.id))
+
+
+@app.route('/event/<int:id>/polls/<int:user_id>', methods=['GET', 'POST'])
+def event_polls(id, user_id):
+    """Optional post-registration poll page. Shows polls for the event and
+    lets the registrant answer them. Accessible without login."""
+    event = Event.query.get_or_404(id)
+    registration = EventRegistration.query.filter_by(
+        event_id=id, user_id=user_id
+    ).first_or_404()
+
+    if request.method == 'POST':
+        poll_answers = registration.poll_answers or {}
+        for poll in event.polls:
+            selected = request.form.get(f'poll_{poll.id}')
+            if selected:
+                poll_answers[str(poll.id)] = selected
+        registration.poll_answers = poll_answers
+        db.session.commit()
+        flash('Thank you! Your responses have been saved.', 'success')
+        return redirect(url_for('event_detail', id=id))
+
+    polls = list(event.polls)
+    return render_template(
+        'event_polls.html',
+        event=event,
+        polls=polls,
+        registration=registration,
+    )
 
 @app.route('/event/attachment/<int:att_id>')
 def download_attachment(att_id):
@@ -1604,6 +1703,10 @@ def admin_import_members():
                         if not selected_event:
                             flash('Please select an event for event invitation mode.', 'error')
                             return redirect(request.url)
+                        # Skip if email is on the blocked list
+                        if BlockedEmail.query.filter_by(email=email).first():
+                            errors.append(f"Row {row_num}: {email} has unsubscribed — skipped")
+                            continue
                         try:
                             from utils.email_sender import send_event_invitation_email
                             send_event_invitation_email(email, name, selected_event, event_invite_url)
@@ -1618,6 +1721,10 @@ def admin_import_members():
                         if not custom_subject or not custom_body:
                             flash('Custom subject and message body are required in Custom Message mode.', 'error')
                             return redirect(request.url)
+                        # Skip if email is on the blocked list
+                        if BlockedEmail.query.filter_by(email=email).first():
+                            errors.append(f"Row {row_num}: {email} has unsubscribed — skipped")
+                            continue
                         try:
                             send_custom_bulk_email(email, name, custom_subject, custom_body)
                             invited += 1
@@ -1628,7 +1735,10 @@ def admin_import_members():
 
                     # ── INVITE-ONLY MODE ──────────────────────────────────────
                     if invite_only:
-                        # No skip for existing members — send to everyone
+                        # Skip if email is on the blocked list
+                        if BlockedEmail.query.filter_by(email=email).first():
+                            errors.append(f"Row {row_num}: {email} has unsubscribed — skipped")
+                            continue
                         try:
                             send_invitation_email(email, name)
                             invited += 1
@@ -1660,11 +1770,12 @@ def admin_import_members():
                     )
                     db.session.add(user)
                     db.session.flush()
-                    # Always send welcome email to imported members
-                    try:
-                        send_import_welcome_email(user)
-                    except Exception as e:
-                        app.logger.error(f"Import welcome email error for {user.email}: {e}")
+                    # Always send welcome email to imported members (unless blocked)
+                    if not BlockedEmail.query.filter_by(email=email).first():
+                        try:
+                            send_import_welcome_email(user)
+                        except Exception as e:
+                            app.logger.error(f"Import welcome email error for {user.email}: {e}")
                     imported += 1
                 db.session.commit()
                 if event_invite_mode:
@@ -2548,7 +2659,10 @@ def participate_project(id):
 
 @app.route('/unsubscribe', methods=['GET', 'POST'])
 def unsubscribe():
-    """Token-based unsubscribe page. Token = hex(email) for simplicity."""
+    """Token-based unsubscribe page.
+    - Known members: set is_subscribed=False on their User record.
+    - Unknown emails: added to BlockedEmail so future import emails skip them.
+    """
     import hmac, hashlib
 
     def _make_token(email):
@@ -2564,6 +2678,11 @@ def unsubscribe():
         if user:
             user.is_subscribed = False
             db.session.commit()
+        else:
+            # Not a member — add to blocked list so import notifications are suppressed
+            if not BlockedEmail.query.filter_by(email=email).first():
+                db.session.add(BlockedEmail(email=email))
+                db.session.commit()
         return render_template('unsubscribe.html', confirmed=True, email=email, error=False)
 
     email = request.args.get('email', '').lower().strip()

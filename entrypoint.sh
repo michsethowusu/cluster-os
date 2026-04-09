@@ -63,6 +63,15 @@ with app.app_context():
             ADD COLUMN IF NOT EXISTS zoom_recording_url VARCHAR(500)
         '''))
 
+        # Add blocked_email table (for unsubscribed non-members from import system)
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS blocked_email (
+                id SERIAL PRIMARY KEY,
+                email VARCHAR(120) UNIQUE NOT NULL,
+                blocked_at TIMESTAMP DEFAULT NOW()
+            )
+        '''))
+
         conn.commit()
     print('DB ready.')
 "

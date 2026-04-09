@@ -61,9 +61,6 @@
                         <div class="card-body">
                             <p class="text-muted small mb-3">
                                 Download the materials below.
-                                {% if not current_user.is_authenticated %}
-                                <a href="{{ url_for('login') }}">Login</a> to download.
-                                {% endif %}
                             </p>
                             <div class="list-group">
                                 {% for att in attachments %}
@@ -72,16 +69,10 @@
                                         <i class="bi bi-file-earmark-arrow-down text-primary me-2"></i>
                                         {{ att.label or att.filename }}
                                     </span>
-                                    {% if current_user.is_authenticated %}
                                     <a href="{{ url_for('download_attachment', att_id=att.id) }}"
                                        class="btn btn-sm btn-outline-primary">
                                         <i class="bi bi-download"></i> Download
                                     </a>
-                                    {% else %}
-                                    <a href="{{ url_for('login') }}" class="btn btn-sm btn-outline-secondary">
-                                        <i class="bi bi-lock"></i> Login to download
-                                    </a>
-                                    {% endif %}
                                 </div>
                                 {% endfor %}
                             </div>

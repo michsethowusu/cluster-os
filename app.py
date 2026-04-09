@@ -1286,10 +1286,7 @@ def event_polls(id, user_id):
 
 @app.route('/event/attachment/<int:att_id>')
 def download_attachment(att_id):
-    """Serve an event attachment file. Login required."""
-    if not current_user.is_authenticated:
-        flash('Please log in to download attachments.', 'error')
-        return redirect(url_for('login'))
+    """Serve an event attachment file. Publicly accessible."""
     att    = EventAttachment.query.get_or_404(att_id)
     folder = os.path.join(app.config['UPLOAD_FOLDER'], 'event_attachments')
     return send_from_directory(

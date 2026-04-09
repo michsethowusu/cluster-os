@@ -72,6 +72,14 @@
                                        class="btn btn-sm btn-outline-secondary" target="_blank">
                                         <i class="bi bi-eye"></i> View
                                     </a>
+                                    <form method="POST"
+                                          action="{{ url_for('admin_delete_project', id=project.id) }}"
+                                          class="d-inline"
+                                          onsubmit="return confirm('Permanently delete \"{{ project.title }}\"? This cannot be undone.');">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete permanently">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
                                 </td>
                             </tr>
 

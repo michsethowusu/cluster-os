@@ -28,6 +28,6 @@ class Config:
     # Admin
     ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL') or 'admin@au-eced-fln.org'
     
-    # Uploads
-    UPLOAD_FOLDER = 'static/uploads'
+    # Uploads — absolute path so it works regardless of working directory
+    UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024

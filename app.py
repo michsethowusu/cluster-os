@@ -552,8 +552,8 @@ def register():
         db.session.add(initiative)
         db.session.commit()
 
-        # Extract and vet tags in a background thread so the worker is never blocked
-        def _process_tags_async(flask_app, initiative_id, content):
+        # Extract and vet tags + score quality in a background thread
+        def _process_tags_async(flask_app, initiative_id, content, title, short_desc):
             with flask_app.app_context():
                 try:
                     phrases = extract_noun_phrases(content)
@@ -571,10 +571,21 @@ def register():
                     update_noun_phrase_db(initiative_id, phrases)
                 except Exception as e:
                     flask_app.logger.error(f"Registration initiative tag processing error: {e}")
+                # Score quality (separate try so a tag error doesn't skip scoring)
+                try:
+                    from utils.ai_services import score_initiative_quality
+                    score = score_initiative_quality(title, content, short_desc or "")
+                    if score is not None:
+                        ini = Initiative.query.get(initiative_id)
+                        if ini:
+                            ini.quality_score = score
+                            db.session.commit()
+                except Exception as e:
+                    flask_app.logger.error(f"Registration initiative quality scoring error: {e}")
 
         t = threading.Thread(
             target=_process_tags_async,
-            args=(app, initiative.id, initiative_content),
+            args=(app, initiative.id, initiative_content, initiative_title, initiative_short_desc),
             daemon=True
         )
         t.start()
@@ -822,19 +833,56 @@ def admin_initiatives():
         abort(403)
     
     filter_type = request.args.get('filter', 'all')
-    
+    score_filter = request.args.get('score', '')
+
     query = Initiative.query
-    
+
     if filter_type == 'published':
         query = query.filter_by(is_published=True)
     elif filter_type == 'pending':
         query = query.filter_by(is_published=False)
-    
+
+    if score_filter == 'unscored':
+        query = query.filter(Initiative.quality_score == None)
+    elif score_filter and score_filter.isdigit():
+        query = query.filter(Initiative.quality_score == int(score_filter))
+
     initiatives = query.order_by(Initiative.created_at.desc()).all()
-    
-    return render_template('admin/initiatives.html', 
-                         initiatives=initiatives, 
-                         current_filter=filter_type)
+
+    return render_template('admin/initiatives.html',
+                         initiatives=initiatives,
+                         current_filter=filter_type,
+                         score_filter=score_filter)
+
+
+@app.route('/admin/initiative/<int:id>/rescore', methods=['POST'])
+@login_required
+def admin_rescore_initiative(id):
+    """Trigger a fresh AI quality score for a single initiative."""
+    if not current_user.is_admin:
+        abort(403)
+    initiative = Initiative.query.get_or_404(id)
+
+    def _rescore(flask_app, initiative_id, title, content, short_desc):
+        with flask_app.app_context():
+            try:
+                score = score_initiative_quality(title, content, short_desc or "")
+                if score is not None:
+                    ini = Initiative.query.get(initiative_id)
+                    if ini:
+                        ini.quality_score = score
+                        db.session.commit()
+            except Exception as e:
+                flask_app.logger.error(f"Manual rescore error (initiative {initiative_id}): {e}")
+
+    threading.Thread(
+        target=_rescore,
+        args=(app, initiative.id, initiative.title, initiative.content, initiative.short_description),
+        daemon=True
+    ).start()
+
+    flash(f'Re-scoring "{initiative.title}" in the background — refresh in a moment.', 'info')
+    return redirect(request.referrer or url_for('admin_initiatives'))
 
 @app.route('/initiative/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -1922,6 +1970,32 @@ def admin_import_initiatives():
 
         # Commit everything first — only send emails once data is safely persisted.
         db.session.commit()
+
+        # Score imported initiatives in background threads (after commit so IDs are stable)
+        def _score_imported(flask_app, initiative_id, title, content, short_desc):
+            with flask_app.app_context():
+                try:
+                    score = score_initiative_quality(title, content, short_desc or "")
+                    if score is not None:
+                        ini = Initiative.query.get(initiative_id)
+                        if ini:
+                            ini.quality_score = score
+                            db.session.commit()
+                except Exception as e:
+                    flask_app.logger.error(f"CSV import quality scoring error (initiative {initiative_id}): {e}")
+
+        # Re-query the batch we just imported to get their IDs
+        for pending_user, pending_title in pending_pending_emails:
+            ini = Initiative.query.filter_by(
+                user_id=User.query.filter_by(email=pending_user.email).first().id,
+                title=pending_title
+            ).order_by(Initiative.created_at.desc()).first()
+            if ini and ini.quality_score is None:
+                threading.Thread(
+                    target=_score_imported,
+                    args=(app, ini.id, ini.title, ini.content, ini.short_description),
+                    daemon=True
+                ).start()
 
         # Send welcome emails for newly created members
         for welcome_user in pending_welcome_emails:

@@ -28,36 +28,89 @@ def call_nvidia_api(prompt, max_tokens=300, temperature=0.7):
 
 def score_initiative_quality(title, content, short_description=""):
     """
-    Score an initiative's content quality from 1 to 5.
-    Only initiatives scoring 4 or 5 will be sent as digest notifications.
+    Score an initiative on two dimensions, each 1–5, then return the average
+    rounded to the nearest integer (1–5 overall).
 
+    Dimension A — Writing quality & clarity
+        How well-written, structured, and detailed the submission is.
+
+    Dimension B — Implementation alignment
+        Whether this describes an ECED-FLN initiative that is ACTUALLY BEING
+        IMPLEMENTED (or has been), NOT a proposal, plan, or aspiration.
+        Strong evidence: named locations, beneficiary counts, partner orgs,
+        results, timelines that have already passed, lessons learned, etc.
+
+    Only initiatives scoring 4 or 5 overall are sent as digest notifications.
     Returns an int between 1 and 5, or None on failure.
     """
-    combined = f"Title: {title}\n\nShort description: {short_description}\n\nContent:\n{content[:3000]}"
+    combined = (
+        f"Title: {title}\n\n"
+        f"Short description: {short_description}\n\n"
+        f"Content:\n{content[:3000]}"
+    )
     prompt = f"""
-You are a content quality reviewer for an educational platform focused on early childhood education
-and foundational learning (ECED-FLN). Evaluate the following initiative submission and assign a
-quality score from 1 to 5 based on these criteria:
+You are a senior reviewer for the African Union ECED-FLN (Early Childhood Education and
+Development & Foundational Learning) Cluster Platform. Your job is to evaluate member-submitted
+initiative descriptions on two independent dimensions.
 
-5 - Excellent: Clear, detailed, well-structured, specific goals, credible evidence or context,
-    highly relevant to ECED/FLN, actionable and informative.
-4 - Good: Solid content with clear purpose, mostly well-written, relevant and useful.
-3 - Average: Adequate but vague, missing detail, or only partially relevant.
-2 - Below average: Poorly written, very thin on detail, or marginally relevant.
-1 - Poor: Very little substance, unclear, off-topic, or placeholder text.
+=== DIMENSION A: Writing Quality & Clarity (1–5) ===
+Score how well-written, structured, and informative the text is.
 
-Respond ONLY with a JSON object like: {{"score": 4, "reason": "brief one-sentence reason"}}
+5 – Excellent: Well-structured, specific, rich detail, clear purpose, evidence or data cited.
+4 – Good: Clear and informative, minor gaps in detail or structure.
+3 – Average: Readable but vague, lacks specifics or supporting context.
+2 – Weak: Poorly organised, thin content, hard to understand the initiative.
+1 – Very poor: Placeholder text, incoherent, or almost no substance.
 
-Initiative:
+=== DIMENSION B: Implementation Evidence (1–5) ===
+Score how clearly this describes an initiative that is ACTUALLY BEING IMPLEMENTED or
+HAS BEEN IMPLEMENTED — NOT a proposal, concept note, or future plan.
+
+Strong positive signals (push score UP):
+  • Named geography / country / region / district where it runs
+  • Specific beneficiary counts (children, teachers, schools reached)
+  • Named partner organisations or funders
+  • Activities described in past or present tense ("we trained", "the programme reaches")
+  • Measurable outcomes, results, or lessons learned
+  • Dates or timeframes that have already occurred
+
+Strong negative signals (push score DOWN):
+  • Language like "we propose", "we plan to", "this initiative will", "our goal is to"
+  • No named location, no beneficiaries, no partners
+  • Entirely future-tense or aspirational
+  • Generic description with no operational detail
+
+5 – Clear, concrete evidence of active/completed implementation with specifics.
+4 – Mostly implemented, a few specifics present, minor aspirational language.
+3 – Mixed — some implementation evidence but also significant proposal language.
+2 – Mostly a proposal or plan, little evidence of actual activity.
+1 – Purely aspirational / conceptual, no implementation at all.
+
+=== OUTPUT FORMAT ===
+Respond ONLY with a valid JSON object — no markdown, no explanation outside the JSON:
+{{
+  "quality_score": <int 1-5>,
+  "implementation_score": <int 1-5>,
+  "quality_reason": "<one sentence>",
+  "implementation_reason": "<one sentence>"
+}}
+
+=== INITIATIVE TO EVALUATE ===
 {combined}
 """
     try:
-        response = call_nvidia_api(prompt, max_tokens=100, temperature=0.2)
+        response = call_nvidia_api(prompt, max_tokens=200, temperature=0.1)
         clean = response.strip().replace('```json', '').replace('```', '').strip()
         result = json.loads(clean)
-        score = int(result.get("score", 3))
-        score = max(1, min(5, score))  # clamp to 1-5
-        return score
+        q = max(1, min(5, int(result.get("quality_score", 3))))
+        i = max(1, min(5, int(result.get("implementation_score", 3))))
+        overall = round((q + i) / 2)
+        # Store the sub-scores in the result for optional logging
+        print(
+            f"[score_initiative_quality] quality={q} ({result.get('quality_reason','')}) | "
+            f"implementation={i} ({result.get('implementation_reason','')}) | overall={overall}"
+        )
+        return overall
     except Exception as e:
         print(f"Initiative quality scoring error: {e}")
         return None

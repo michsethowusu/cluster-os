@@ -10,14 +10,27 @@
 
 {% block admin_content %}
 <div class="row mb-3">
-    <div class="col-12">
+    <div class="col-12 d-flex flex-wrap gap-2 align-items-center">
         <div class="btn-group">
-            <a href="{{ url_for('admin_initiatives', filter='all') }}" 
+            <a href="{{ url_for('admin_initiatives', filter='all', score=score_filter) }}" 
                class="btn btn-outline-primary btn-sm {% if current_filter == 'all' %}active{% endif %}">All</a>
-            <a href="{{ url_for('admin_initiatives', filter='published') }}" 
+            <a href="{{ url_for('admin_initiatives', filter='published', score=score_filter) }}" 
                class="btn btn-outline-primary btn-sm {% if current_filter == 'published' %}active{% endif %}">Published</a>
-            <a href="{{ url_for('admin_initiatives', filter='pending') }}" 
+            <a href="{{ url_for('admin_initiatives', filter='pending', score=score_filter) }}" 
                class="btn btn-outline-primary btn-sm {% if current_filter == 'pending' %}active{% endif %}">Pending</a>
+        </div>
+        <div class="btn-group">
+            <a href="{{ url_for('admin_initiatives', filter=current_filter, score='') }}"
+               class="btn btn-outline-secondary btn-sm {% if not score_filter %}active{% endif %}">Any score</a>
+            <a href="{{ url_for('admin_initiatives', filter=current_filter, score='unscored') }}"
+               class="btn btn-outline-secondary btn-sm {% if score_filter == 'unscored' %}active{% endif %}">Unscored</a>
+            {% for s in [5, 4, 3, 2, 1] %}
+            <a href="{{ url_for('admin_initiatives', filter=current_filter, score=s) }}"
+               class="btn btn-sm {% if score_filter == s|string %}active{% endif %}
+                      {% if s >= 4 %}btn-outline-success{% elif s == 3 %}btn-outline-warning{% else %}btn-outline-danger{% endif %}">
+                {{ s }}★
+            </a>
+            {% endfor %}
         </div>
     </div>
 </div>
@@ -33,6 +46,7 @@
                                 <th>Title</th>
                                 <th>Author</th>
                                 <th>Status</th>
+                                <th>Score</th>
                                 <th>Created</th>
                                 <th>Tags</th>
                                 <th>Actions</th>
@@ -56,6 +70,27 @@
                                     <span class="badge bg-success">Published</span>
                                     {% else %}
                                     <span class="badge bg-warning text-dark">Pending</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ initiative.created_at.strftime('%b %d, %Y') }}</td>
+                                <td>
+                                    {# ── Quality score badge ── #}
+                                    {% if initiative.quality_score is none %}
+                                        <span class="badge bg-light text-muted border" title="Not yet scored">
+                                            <i class="bi bi-hourglass-split"></i> –
+                                        </span>
+                                    {% elif initiative.quality_score >= 4 %}
+                                        <span class="badge bg-success fs-6" title="Quality score {{ initiative.quality_score }}/5">
+                                            {{ initiative.quality_score }}★
+                                        </span>
+                                    {% elif initiative.quality_score == 3 %}
+                                        <span class="badge bg-warning text-dark fs-6" title="Quality score {{ initiative.quality_score }}/5">
+                                            {{ initiative.quality_score }}★
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-danger fs-6" title="Quality score {{ initiative.quality_score }}/5">
+                                            {{ initiative.quality_score }}★
+                                        </span>
                                     {% endif %}
                                 </td>
                                 <td>{{ initiative.created_at.strftime('%b %d, %Y') }}</td>
@@ -102,12 +137,19 @@
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
+                                        <form method="POST"
+                                              action="{{ url_for('admin_rescore_initiative', id=initiative.id) }}"
+                                              class="d-inline">
+                                            <button type="submit" class="btn btn-outline-info" title="Re-score with AI">
+                                                <i class="bi bi-stars"></i>
+                                            </button>
+                                        </form>
                                     </div>
                                 </td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="6" class="text-center text-muted py-4">No initiatives found.</td>
+                                <td colspan="7" class="text-center text-muted py-4">No initiatives found.</td>
                             </tr>
                             {% endfor %}
                         </tbody>

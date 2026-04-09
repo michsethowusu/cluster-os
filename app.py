@@ -1481,6 +1481,10 @@ def approve_all():
     if not current_user.is_admin:
         abort(403)
 
+    # If the admin ticked "Don't notify members", skip the member digest.
+    # Authors' personal approval emails and new-user welcome emails are always sent.
+    suppress_member_notifications = bool(request.form.get('suppress_member_notifications'))
+
     # ── 1. Approve all pending users ──────────────────────────────────────────
     pending_users = User.query.filter_by(is_approved=False).all()
     approved_user_count = 0
@@ -1558,7 +1562,7 @@ def approve_all():
     approved_initiative_count = len(newly_published)
 
     # ── 3. Send ONE digest email to all members for initiatives ───────────────
-    if newly_published:
+    if newly_published and not suppress_member_notifications:
         try:
             all_approved_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
             send_bulk_initiatives_digest(newly_published, all_approved_users)
@@ -1575,7 +1579,8 @@ def approve_all():
             f"initiative{'s' if approved_initiative_count != 1 else ''} published"
         )
     if parts:
-        flash("Approved: " + " and ".join(parts) + ". Members notified.", 'success')
+        notif_note = " Members NOT notified of new initiatives." if suppress_member_notifications else " Members notified."
+        flash("Approved: " + " and ".join(parts) + "." + notif_note, 'success')
     else:
         flash("Nothing pending — everything is already approved.", 'info')
 

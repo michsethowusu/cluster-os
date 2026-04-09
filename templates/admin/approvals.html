@@ -21,10 +21,17 @@
     
     {% if items %}
     <form method="POST" action="{{ url_for('approve_all') }}"
-          onsubmit="return confirm('Approve ALL pending users and initiatives?')">
+          onsubmit="return confirm('Approve ALL pending users and initiatives?')"
+          class="d-flex align-items-center gap-2 flex-wrap">
         <button type="submit" class="btn btn-success">
             ✓ Approve All Pending
         </button>
+        <div class="form-check mb-0 ms-1" title="Authors and newly registered users will still receive their personal confirmation emails">
+            <input class="form-check-input" type="checkbox" name="suppress_member_notifications" id="suppressNotif" value="1">
+            <label class="form-check-label text-muted small" for="suppressNotif">
+                Don't notify members of new initiatives
+            </label>
+        </div>
     </form>
     {% endif %}
 </div>

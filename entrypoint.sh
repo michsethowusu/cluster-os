@@ -63,6 +63,16 @@ with app.app_context():
             ADD COLUMN IF NOT EXISTS zoom_recording_url VARCHAR(500)
         '''))
 
+        # Initiative send queue table
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS initiative_send_queue (
+                id SERIAL PRIMARY KEY,
+                initiative_id INTEGER UNIQUE NOT NULL REFERENCES initiative(id) ON DELETE CASCADE,
+                queued_at TIMESTAMP DEFAULT NOW(),
+                sent_at TIMESTAMP
+            )
+        '''))
+
         # Add blocked_email table (for unsubscribed non-members from import system)
         conn.execute(db.text('''
             CREATE TABLE IF NOT EXISTS blocked_email (

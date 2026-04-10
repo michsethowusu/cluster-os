@@ -1,0 +1,98 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}Send Queue{% endblock %}
+
+{% block admin_actions %}
+{% if unsent %}
+<form method="POST" action="{{ url_for('send_queue_all') }}"
+      onsubmit="return confirm('Send ALL {{ unsent|length }} unsent initiative(s) as a single digest email to all subscribed members?')">
+    <button type="submit" class="btn btn-success">
+        <i class="bi bi-send"></i> Send All as Digest ({{ unsent|length }})
+    </button>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block admin_content %}
+
+<p class="text-muted mb-4">
+    Initiatives with a quality score of 4–5 that have been published are held here.
+    You can send them to all subscribed members individually or all at once as a digest email.
+</p>
+
+{% if unsent %}
+<h5 class="mb-3">Unsent ({{ unsent|length }})</h5>
+<div class="list-group mb-5">
+    {% for entry in unsent %}
+    {% set ini = entry.initiative %}
+    <div class="approval-item">
+        <div class="d-flex w-100 justify-content-between align-items-start">
+            <div class="flex-grow-1 me-3">
+                {% if ini.quality_score %}
+                    <span class="badge bg-success mb-1">⭐ Quality {{ ini.quality_score }}/5</span>
+                {% else %}
+                    <span class="badge bg-secondary mb-1">Unscored</span>
+                {% endif %}
+                <h5 class="mb-1">
+                    <a href="{{ url_for('view_initiative', slug=ini.slug) }}" target="_blank" class="text-decoration-none">
+                        {{ ini.title }}
+                    </a>
+                </h5>
+                <p class="mb-1 text-muted">By {{ ini.author.name }} ({{ ini.author.organization }})</p>
+                {% if ini.short_description %}
+                <small class="text-muted">{{ ini.short_description[:200] }}</small>
+                {% endif %}
+                <div class="mt-2">
+                    <small class="text-muted">Queued {{ entry.queued_at | format_date }}</small>
+                </div>
+            </div>
+            <div class="d-flex flex-column gap-2">
+                <form method="POST" action="{{ url_for('send_queue_item', queue_id=entry.id) }}"
+                      onsubmit="return confirm('Send this initiative to all subscribed members now?')">
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="bi bi-send"></i> Send Now
+                    </button>
+                </form>
+                <form method="POST" action="{{ url_for('remove_queue_item', queue_id=entry.id) }}"
+                      onsubmit="return confirm('Remove from queue without sending?')">
+                    <button type="submit" class="btn btn-outline-danger btn-sm">
+                        <i class="bi bi-x-lg"></i> Remove
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-success mb-5">
+    <i class="bi bi-check-circle"></i> Send queue is empty — no initiatives waiting to be sent.
+</div>
+{% endif %}
+
+{% if sent %}
+<h5 class="mb-3 text-muted">Recently Sent (last 20)</h5>
+<div class="list-group">
+    {% for entry in sent %}
+    {% set ini = entry.initiative %}
+    <div class="approval-item" style="opacity:0.7;">
+        <div class="d-flex w-100 justify-content-between align-items-start">
+            <div class="flex-grow-1">
+                <span class="badge bg-secondary mb-1">Sent</span>
+                {% if ini.quality_score %}
+                <span class="badge bg-success mb-1">⭐ Quality {{ ini.quality_score }}/5</span>
+                {% endif %}
+                <h5 class="mb-1">
+                    <a href="{{ url_for('view_initiative', slug=ini.slug) }}" target="_blank" class="text-decoration-none text-muted">
+                        {{ ini.title }}
+                    </a>
+                </h5>
+                <small class="text-muted">Sent {{ entry.sent_at | format_date }}</small>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% endblock %}

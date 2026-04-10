@@ -301,6 +301,17 @@ class BlockedEmail(db.Model):
     blocked_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class InitiativeSendQueue(db.Model):
+    """Holds auto-approved initiatives with quality score >= 4 that are ready
+    to be broadcast to members. Admin can send them individually or all at once."""
+    id             = db.Column(db.Integer, primary_key=True)
+    initiative_id  = db.Column(db.Integer, db.ForeignKey('initiative.id'), nullable=False, unique=True)
+    queued_at      = db.Column(db.DateTime, default=datetime.utcnow)
+    sent_at        = db.Column(db.DateTime, nullable=True)
+
+    initiative = db.relationship('Initiative', backref='send_queue_entry')
+
+
 # ===================== HELPER FUNCTIONS =====================
 
 def get_setting(key, default=None):
@@ -315,6 +326,21 @@ def set_setting(key, value):
         setting = Setting(key=key, value=value)
         db.session.add(setting)
     db.session.commit()
+
+
+def _enqueue_initiative(flask_app_or_none, initiative_id):
+    """Add an initiative to the send queue if not already there and not already sent.
+    Safe to call both inside and outside an app context (pass flask_app for bg threads)."""
+    try:
+        existing = InitiativeSendQueue.query.filter_by(initiative_id=initiative_id).first()
+        if not existing:
+            db.session.add(InitiativeSendQueue(initiative_id=initiative_id))
+            db.session.commit()
+    except Exception as e:
+        if flask_app_or_none:
+            flask_app_or_none.logger.error(f"_enqueue_initiative error: {e}")
+        else:
+            app.logger.error(f"_enqueue_initiative error: {e}")
 
 ALLOWED_ATTACHMENT_EXTENSIONS = {
     'pdf', 'doc', 'docx', 'xls', 'xlsx',
@@ -517,15 +543,14 @@ def register():
             flash('Please provide initiative content.', 'error')
             return redirect(url_for('register'))
 
-        # New registrations always go through approval — initiative gives the admin
-        # something meaningful to review before granting access.
+        # Auto-approve new registrations immediately
         user = User(
             email=email,
             name=request.form.get('name'),
             organization=request.form.get('organization'),
             stakeholder_type=request.form.get('stakeholder_type'),
             country=request.form.get('country'),
-            is_approved=False,
+            is_approved=True,
             is_admin=False
         )
         db.session.add(user)
@@ -547,12 +572,57 @@ def register():
             user_id=user.id,
             stakeholder_type=user.stakeholder_type,
             country=user.country,
-            is_published=False   # Published only when the user is approved
+            is_published=True   # Auto-published on registration
         )
         db.session.add(initiative)
         db.session.commit()
 
+        # Award points for the published initiative
+        award_points(user, 'initiative_published')
+
+        # Send welcome/approval email
+        try:
+            send_approval_email(user.email, initiative.slug)
+        except Exception as e:
+            app.logger.error(f"Registration welcome email error: {e}")
+
+        # Auto-register new member for the next upcoming published event (if any)
+        now = datetime.utcnow()
+        next_event = Event.query.filter(
+            Event.start_date >= now,
+            Event.is_published == True
+        ).order_by(Event.start_date).first()
+
+        if next_event:
+            existing_reg = EventRegistration.query.filter_by(
+                event_id=next_event.id, user_id=user.id
+            ).first()
+            if not existing_reg:
+                reg = EventRegistration(
+                    user_id=user.id,
+                    event_id=next_event.id,
+                    poll_answers={},
+                )
+                db.session.add(reg)
+                db.session.commit()
+                award_points(user, 'event_registered')
+                # Register on Zoom if applicable
+                if next_event.zoom_webinar_id:
+                    try:
+                        register_user_for_webinar(next_event.zoom_webinar_id, user)
+                    except Exception as e:
+                        app.logger.error(f"Auto event Zoom registration error for new user {user.id}: {e}")
+                # Send confirmation email
+                try:
+                    send_event_registration_confirmation(user, next_event)
+                except Exception as e:
+                    app.logger.error(f"Auto event confirmation email error for new user {user.id}: {e}")
+                # Store event info in session so dashboard can show the flash
+                session['new_member_event_title'] = next_event.title
+                session['new_member_event_id'] = next_event.id
+
         # Extract and vet tags + score quality in a background thread
+        # Also adds to send queue if score >= 4 once scored
         def _process_tags_async(flask_app, initiative_id, content, title, short_desc):
             with flask_app.app_context():
                 try:
@@ -571,7 +641,7 @@ def register():
                     update_noun_phrase_db(initiative_id, phrases)
                 except Exception as e:
                     flask_app.logger.error(f"Registration initiative tag processing error: {e}")
-                # Score quality (separate try so a tag error doesn't skip scoring)
+                # Score quality; if >= 4 add to send queue
                 try:
                     from utils.ai_services import score_initiative_quality
                     score = score_initiative_quality(title, content, short_desc or "")
@@ -580,6 +650,8 @@ def register():
                         if ini:
                             ini.quality_score = score
                             db.session.commit()
+                            if score >= 4:
+                                _enqueue_initiative(flask_app, initiative_id)
                 except Exception as e:
                     flask_app.logger.error(f"Registration initiative quality scoring error: {e}")
 
@@ -591,11 +663,10 @@ def register():
         t.start()
 
         flash(
-            'Thank you for registering! Your application is under review. '
-            'You will receive an email once your account is approved.',
+            'Welcome! Your account has been created and you can now log in.',
             'success'
         )
-        return redirect(url_for('index'))
+        return redirect(url_for('login'))
     
     stakeholder_types = ['Government', 'NGO / Civil Society', 'Development Partner / Donor', 
                         'Academic / Research', 'UN Agency', 'Private Sector']
@@ -719,6 +790,8 @@ def dashboard():
         submitted_projects=submitted_projects,
         registered_events=registered_events,
         now=datetime.utcnow(),
+        new_event_title=session.pop('new_member_event_title', None),
+        new_event_id=session.pop('new_member_event_id', None),
     )
 
 @app.route('/initiative/new', methods=['GET', 'POST'])
@@ -744,13 +817,16 @@ def new_initiative():
             user_id=current_user.id,
             stakeholder_type=current_user.stakeholder_type,
             country=current_user.country,
-            is_published=False
+            is_published=True   # Auto-published for existing approved members
         )
         
         db.session.add(initiative)
         db.session.commit()
 
-        # Score content quality in background (used to filter digest notifications)
+        # Award points immediately since it's auto-published
+        award_points(current_user, 'initiative_published')
+
+        # Score content quality in background; if >= 4, add to send queue
         def _score_async(flask_app, initiative_id, title, content, short_desc):
             with flask_app.app_context():
                 try:
@@ -761,6 +837,8 @@ def new_initiative():
                         if ini:
                             ini.quality_score = score
                             db.session.commit()
+                            if score >= 4:
+                                _enqueue_initiative(flask_app, initiative_id)
                 except Exception as e:
                     flask_app.logger.error(f"Quality scoring error (initiative {initiative_id}): {e}")
 
@@ -790,7 +868,7 @@ def new_initiative():
         except Exception as e:
             app.logger.error(f"Tag processing error: {e}")
         
-        flash('Initiative submitted for approval.', 'success')
+        flash('Initiative published successfully.', 'success')
         return redirect(url_for('dashboard'))
     
     return render_template('article_form.html', initiative=None)
@@ -1383,12 +1461,14 @@ def admin_dashboard():
     pending_questions = Question.query.filter_by(is_published=False).count()
     pending_projects = Project.query.filter_by(is_published=False).count()
     pending_events = Event.query.filter_by(is_published=False).count()
+    queue_count = InitiativeSendQueue.query.filter_by(sent_at=None).count()
     return render_template('admin/dashboard.html',
                          pending_users=pending_users,
                          pending_initiatives=pending_initiatives,
                          pending_questions=pending_questions,
                          pending_projects=pending_projects,
-                         pending_events=pending_events)
+                         pending_events=pending_events,
+                         queue_count=queue_count)
 
 @app.route('/admin/approvals')
 @login_required
@@ -1436,20 +1516,11 @@ def approve_item(type, id):
             except Exception as e:
                 app.logger.error(f"Initiative approved email error: {e}")
 
-        # Send digest notification only if quality score >= 4 (or not yet scored)
+        # Add to send queue if quality score >= 4 (or unscored) — admin sends manually
         if item.quality_score is None or item.quality_score >= 4:
-            try:
-                initiative_url = url_for('view_initiative', slug=item.slug, _external=True)
-                subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
-                send_bulk_initiatives_digest([{
-                    'title': item.title,
-                    'short_description': item.short_description or '',
-                    'url': initiative_url,
-                }], subscribed_users)
-            except Exception as e:
-                app.logger.error(f"Initiative approval digest email error: {e}")
+            _enqueue_initiative(None, item.id)
 
-        flash('Initiative published.', 'success')
+        flash('Initiative published and added to send queue (if score ≥ 4).', 'success')
 
     elif type == 'project':
         item = Project.query.get_or_404(id)
@@ -1499,7 +1570,7 @@ def approve_all():
     # ── 1. Approve all pending users ──────────────────────────────────────────
     pending_users = User.query.filter_by(is_approved=False).all()
     approved_user_count = 0
-    newly_published = []  # collect ALL initiatives for the digest (users + members)
+    published_initiative_count = 0
     for user in pending_users:
         user.is_approved = True
         approved_user_count += 1
@@ -1508,6 +1579,7 @@ def approve_all():
         reg_initiative = Initiative.query.filter_by(user_id=user.id, is_published=False).first()
         if reg_initiative:
             reg_initiative.is_published = True
+            published_initiative_count += 1
             try:
                 phrases = extract_noun_phrases(reg_initiative.content)
                 update_noun_phrase_db(reg_initiative.id, phrases)
@@ -1515,15 +1587,14 @@ def approve_all():
                 app.logger.error(f"Noun phrase error on bulk approve (user {user.id}): {e}")
             award_points(user, 'initiative_published', commit=False)
 
-            # Add this new-user initiative to the digest list only if quality score >= 4
-            # (score None = not yet scored, include by default to avoid missing content)
+            # Add to send queue if quality score >= 4 (or unscored)
             if reg_initiative.quality_score is None or reg_initiative.quality_score >= 4:
-                initiative_url = url_for('view_initiative', slug=reg_initiative.slug, _external=True)
-                newly_published.append({
-                    'title': reg_initiative.title,
-                    'short_description': reg_initiative.short_description or '',
-                    'url': initiative_url,
-                })
+                try:
+                    existing = InitiativeSendQueue.query.filter_by(initiative_id=reg_initiative.id).first()
+                    if not existing:
+                        db.session.add(InitiativeSendQueue(initiative_id=reg_initiative.id))
+                except Exception as e:
+                    app.logger.error(f"Queue error on bulk approve (initiative {reg_initiative.id}): {e}")
 
         # Individual welcome email to the newly approved member
         try:
@@ -1534,12 +1605,11 @@ def approve_all():
     db.session.commit()
 
     # ── 2. Approve all remaining pending initiatives ───────────────────────────
-    # (New-user initiatives were already published in step 1 and added to
-    #  newly_published above; this step only catches standalone member initiatives.)
     pending_initiatives = Initiative.query.filter_by(is_published=False).all()
 
     for initiative in pending_initiatives:
         initiative.is_published = True
+        published_initiative_count += 1
         author = User.query.get(initiative.user_id)
 
         # Noun phrases
@@ -1560,38 +1630,28 @@ def approve_all():
             except Exception as e:
                 app.logger.error(f"Bulk approve – author email error for {author.email}: {e}")
 
-        # Collect metadata for the digest — only quality score >= 4 (None = unscored, include)
+        # Add to send queue if quality score >= 4 (or unscored)
         if initiative.quality_score is None or initiative.quality_score >= 4:
-            initiative_url = url_for('view_initiative', slug=initiative.slug, _external=True)
-            newly_published.append({
-                'title': initiative.title,
-                'short_description': initiative.short_description or '',
-                'url': initiative_url,
-            })
+            try:
+                existing = InitiativeSendQueue.query.filter_by(initiative_id=initiative.id).first()
+                if not existing:
+                    db.session.add(InitiativeSendQueue(initiative_id=initiative.id))
+            except Exception as e:
+                app.logger.error(f"Queue error on bulk approve (initiative {initiative.id}): {e}")
 
     db.session.commit()
-    approved_initiative_count = len(newly_published)
 
-    # ── 3. Send ONE digest email to all members for initiatives ───────────────
-    if newly_published and not suppress_member_notifications:
-        try:
-            all_approved_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
-            send_bulk_initiatives_digest(newly_published, all_approved_users)
-        except Exception as e:
-            app.logger.error(f"Bulk approve – digest email error: {e}")
-
-    # ── 4. Flash summary ──────────────────────────────────────────────────────
+    # ── 3. Flash summary ──────────────────────────────────────────────────────
     parts = []
     if approved_user_count:
         parts.append(f"{approved_user_count} user{'s' if approved_user_count != 1 else ''} approved")
-    if approved_initiative_count:
+    if published_initiative_count:
         parts.append(
-            f"{approved_initiative_count} "
-            f"initiative{'s' if approved_initiative_count != 1 else ''} published"
+            f"{published_initiative_count} "
+            f"initiative{'s' if published_initiative_count != 1 else ''} published"
         )
     if parts:
-        member_notice = " Members NOT notified of new initiatives." if suppress_member_notifications else " Members notified."
-        flash("Approved: " + " and ".join(parts) + "." + member_notice, 'success')
+        flash("Approved: " + " and ".join(parts) + ". High-quality initiatives added to the Send Queue.", 'success')
     else:
         flash("Nothing pending — everything is already approved.", 'info')
 
@@ -1617,6 +1677,102 @@ def unpublish_item(type, id):
     db.session.commit()
     flash('Item unpublished.', 'success')
     return redirect(url_for('admin_approvals'))
+
+
+# ===================== SEND QUEUE ROUTES =====================
+
+@app.route('/admin/send-queue')
+@login_required
+def admin_send_queue():
+    """View of all approved initiatives waiting to be sent to members."""
+    if not current_user.is_admin:
+        abort(403)
+    unsent = (InitiativeSendQueue.query
+              .filter_by(sent_at=None)
+              .order_by(InitiativeSendQueue.queued_at.desc())
+              .all())
+    sent = (InitiativeSendQueue.query
+            .filter(InitiativeSendQueue.sent_at.isnot(None))
+            .order_by(InitiativeSendQueue.sent_at.desc())
+            .limit(20).all())
+    return render_template('admin/send_queue.html', unsent=unsent, sent=sent)
+
+
+@app.route('/admin/send-queue/send/<int:queue_id>', methods=['POST'])
+@login_required
+def send_queue_item(queue_id):
+    """Send a single initiative from the queue to all subscribed members."""
+    if not current_user.is_admin:
+        abort(403)
+    entry = InitiativeSendQueue.query.get_or_404(queue_id)
+    if entry.sent_at:
+        flash('This initiative has already been sent.', 'warning')
+        return redirect(url_for('admin_send_queue'))
+    initiative = entry.initiative
+    try:
+        initiative_url = url_for('view_initiative', slug=initiative.slug, _external=True)
+        subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
+        send_bulk_initiatives_digest([{
+            'title': initiative.title,
+            'short_description': initiative.short_description or '',
+            'url': initiative_url,
+        }], subscribed_users)
+        entry.sent_at = datetime.utcnow()
+        db.session.commit()
+        flash(f'"{initiative.title}" sent to {len(subscribed_users)} member(s).', 'success')
+    except Exception as e:
+        app.logger.error(f"Send queue item error: {e}")
+        flash('Failed to send. Check logs.', 'error')
+    return redirect(url_for('admin_send_queue'))
+
+
+@app.route('/admin/send-queue/send-all', methods=['POST'])
+@login_required
+def send_queue_all():
+    """Send ALL unsent initiatives in the queue as a single digest email."""
+    if not current_user.is_admin:
+        abort(403)
+    unsent = InitiativeSendQueue.query.filter_by(sent_at=None).all()
+    if not unsent:
+        flash('No unsent initiatives in the queue.', 'info')
+        return redirect(url_for('admin_send_queue'))
+    initiatives_data = []
+    for entry in unsent:
+        initiative = entry.initiative
+        initiative_url = url_for('view_initiative', slug=initiative.slug, _external=True)
+        initiatives_data.append({
+            'title': initiative.title,
+            'short_description': initiative.short_description or '',
+            'url': initiative_url,
+        })
+    try:
+        subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
+        send_bulk_initiatives_digest(initiatives_data, subscribed_users)
+        now = datetime.utcnow()
+        for entry in unsent:
+            entry.sent_at = now
+        db.session.commit()
+        flash(
+            f'{len(unsent)} initiative(s) sent to {len(subscribed_users)} member(s) as a digest.',
+            'success'
+        )
+    except Exception as e:
+        app.logger.error(f"Send all queue error: {e}")
+        flash('Failed to send digest. Check logs.', 'error')
+    return redirect(url_for('admin_send_queue'))
+
+
+@app.route('/admin/send-queue/remove/<int:queue_id>', methods=['POST'])
+@login_required
+def remove_queue_item(queue_id):
+    """Remove an initiative from the send queue without sending."""
+    if not current_user.is_admin:
+        abort(403)
+    entry = InitiativeSendQueue.query.get_or_404(queue_id)
+    db.session.delete(entry)
+    db.session.commit()
+    flash('Initiative removed from send queue.', 'success')
+    return redirect(url_for('admin_send_queue'))
 
 @app.route('/admin/settings', methods=['GET', 'POST'])
 @login_required

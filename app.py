@@ -15,7 +15,7 @@ import json
 import click
 import threading
 import uuid
-import mistune                     # MARKDOWN CHANGE
+import mistune
 from config import Config
 
 app = Flask(__name__)
@@ -2960,6 +2960,24 @@ def api_stats():
         'organizations': db.session.query(User.organization).distinct().count()
     }
     return jsonify(stats)
+
+
+@app.route('/api/organisations')
+def api_organisations():
+    """Return distinct organisation names matching the query (3+ chars). Used by the
+    registration form autocomplete so users can select an existing organisation."""
+    q = request.args.get('q', '').strip()
+    if len(q) < 3:
+        return jsonify([])
+    results = (
+        db.session.query(User.organization)
+        .filter(User.organization.ilike(f'%{q}%'))
+        .distinct()
+        .order_by(User.organization)
+        .limit(10)
+        .all()
+    )
+    return jsonify([r[0] for r in results if r[0]])
 
 # ===================== TEMPLATE FILTER =====================
 

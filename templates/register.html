@@ -28,11 +28,73 @@
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Organization *</label>
-                                <input type="text" name="organization" class="form-control" required>
+                                <input type="text" name="organization" id="orgInput" class="form-control" required autocomplete="off" placeholder="Start typing your organisation…">
+                                <ul id="orgSuggestions" class="list-group position-absolute z-3 w-100" style="display:none; max-height:220px; overflow-y:auto;"></ul>
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Country *</label>
-                                <input type="text" name="country" class="form-control" required>
+                                <select name="country" class="form-select" required>
+                                    <option value="">Select Country</option>
+                                    <optgroup label="African Countries">
+                                        <option>Algeria</option>
+                                        <option>Angola</option>
+                                        <option>Benin</option>
+                                        <option>Botswana</option>
+                                        <option>Burkina Faso</option>
+                                        <option>Burundi</option>
+                                        <option>Cabo Verde</option>
+                                        <option>Cameroon</option>
+                                        <option>Central African Republic</option>
+                                        <option>Chad</option>
+                                        <option>Comoros</option>
+                                        <option>Congo (Brazzaville)</option>
+                                        <option>Congo (DRC)</option>
+                                        <option>Djibouti</option>
+                                        <option>Egypt</option>
+                                        <option>Equatorial Guinea</option>
+                                        <option>Eritrea</option>
+                                        <option>Eswatini</option>
+                                        <option>Ethiopia</option>
+                                        <option>Gabon</option>
+                                        <option>Gambia</option>
+                                        <option>Ghana</option>
+                                        <option>Guinea</option>
+                                        <option>Guinea-Bissau</option>
+                                        <option>Ivory Coast</option>
+                                        <option>Kenya</option>
+                                        <option>Lesotho</option>
+                                        <option>Liberia</option>
+                                        <option>Libya</option>
+                                        <option>Madagascar</option>
+                                        <option>Malawi</option>
+                                        <option>Mali</option>
+                                        <option>Mauritania</option>
+                                        <option>Mauritius</option>
+                                        <option>Morocco</option>
+                                        <option>Mozambique</option>
+                                        <option>Namibia</option>
+                                        <option>Niger</option>
+                                        <option>Nigeria</option>
+                                        <option>Rwanda</option>
+                                        <option>São Tomé and Príncipe</option>
+                                        <option>Senegal</option>
+                                        <option>Seychelles</option>
+                                        <option>Sierra Leone</option>
+                                        <option>Somalia</option>
+                                        <option>South Africa</option>
+                                        <option>South Sudan</option>
+                                        <option>Sudan</option>
+                                        <option>Tanzania</option>
+                                        <option>Togo</option>
+                                        <option>Tunisia</option>
+                                        <option>Uganda</option>
+                                        <option>Zambia</option>
+                                        <option>Zimbabwe</option>
+                                    </optgroup>
+                                    <optgroup label="Other">
+                                        <option value="Other">Other (outside Africa)</option>
+                                    </optgroup>
+                                </select>
                             </div>
                         </div>
 
@@ -214,6 +276,79 @@ if (form) {
             }
             form.classList.add('was-validated');
         }, false);
+    });
+})();
+
+// ── Organisation autocomplete ─────────────────────────────────────
+(function () {
+    const orgInput = document.getElementById('orgInput');
+    const suggBox  = document.getElementById('orgSuggestions');
+    if (!orgInput || !suggBox) return;
+
+    // Make the parent col position:relative so the dropdown anchors to it
+    orgInput.parentElement.style.position = 'relative';
+
+    let debounceTimer = null;
+
+    orgInput.addEventListener('input', function () {
+        clearTimeout(debounceTimer);
+        const q = this.value.trim();
+        if (q.length < 3) { suggBox.style.display = 'none'; suggBox.innerHTML = ''; return; }
+        debounceTimer = setTimeout(() => fetchOrgs(q), 250);
+    });
+
+    function fetchOrgs(query) {
+        fetch('/api/organisations?q=' + encodeURIComponent(query))
+            .then(r => r.json())
+            .then(data => {
+                suggBox.innerHTML = '';
+                if (!data.length) { suggBox.style.display = 'none'; return; }
+                data.forEach(function (org) {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item list-group-item-action py-2 px-3';
+                    li.style.cursor = 'pointer';
+                    li.textContent = org;
+                    li.addEventListener('mousedown', function (e) {
+                        e.preventDefault(); // prevent blur firing first
+                        orgInput.value = org;
+                        suggBox.style.display = 'none';
+                        suggBox.innerHTML = '';
+                    });
+                    suggBox.appendChild(li);
+                });
+                suggBox.style.display = 'block';
+            })
+            .catch(() => { suggBox.style.display = 'none'; });
+    }
+
+    orgInput.addEventListener('blur', function () {
+        setTimeout(() => { suggBox.style.display = 'none'; }, 150);
+    });
+    orgInput.addEventListener('focus', function () {
+        if (suggBox.children.length) suggBox.style.display = 'block';
+    });
+
+    // Keyboard navigation
+    orgInput.addEventListener('keydown', function (e) {
+        const items = suggBox.querySelectorAll('li');
+        if (!items.length) return;
+        let active = suggBox.querySelector('li.active');
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (active) { active.classList.remove('active'); const next = active.nextElementSibling; if (next) next.classList.add('active'); else items[0].classList.add('active'); }
+            else items[0].classList.add('active');
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (active) { active.classList.remove('active'); const prev = active.previousElementSibling; if (prev) prev.classList.add('active'); else items[items.length-1].classList.add('active'); }
+            else items[items.length-1].classList.add('active');
+        } else if (e.key === 'Enter' && active) {
+            e.preventDefault();
+            orgInput.value = active.textContent;
+            suggBox.style.display = 'none';
+            suggBox.innerHTML = '';
+        } else if (e.key === 'Escape') {
+            suggBox.style.display = 'none';
+        }
     });
 })();
 </script>

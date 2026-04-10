@@ -458,7 +458,7 @@ def login():
             flash('Email not found or account pending approval.', 'error')
             return redirect(url_for('login'))
             
-        # Admin uses password login
+        # Admin uses password + OTP
         if user.is_admin:
             from werkzeug.security import check_password_hash
             password = request.form.get('password')
@@ -467,15 +467,16 @@ def login():
             if not user.password_hash or not check_password_hash(user.password_hash, password):
                 flash('Invalid password.', 'error')
                 return redirect(url_for('login'))
-            
-            # Reset OTP fields just in case
-            user.otp = None
-            user.otp_expiry = None
+
+            # Password correct — now send OTP like regular users
+            otp = ''.join(random.choices(string.digits, k=6))
+            user.otp = otp
+            user.otp_expiry = datetime.utcnow() + timedelta(minutes=10)
             db.session.commit()
-            
-            login_user(user)
-            flash('Welcome back!', 'success')
-            return redirect(url_for('admin_dashboard'))
+
+            send_otp_email(user.email, otp)
+            flash('Password accepted. OTP sent to your email.', 'info')
+            return redirect(url_for('verify_otp', email=email))
         
         # Regular users get OTP
         otp = ''.join(random.choices(string.digits, k=6))

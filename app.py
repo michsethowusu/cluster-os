@@ -468,14 +468,18 @@ def login():
                 flash('Invalid password.', 'error')
                 return redirect(url_for('login'))
 
-            # Password correct — now send OTP like regular users
+            # Password correct — send OTP to ADMIN_OTP_EMAIL if configured,
+            # otherwise fall back to the admin's own email.
+            # ADMIN_OTP_EMAIL avoids the Brevo self-send block when the admin
+            # address matches the platform sender address.
             otp = ''.join(random.choices(string.digits, k=6))
             user.otp = otp
             user.otp_expiry = datetime.utcnow() + timedelta(minutes=10)
             db.session.commit()
 
-            send_otp_email(user.email, otp)
-            flash('Password accepted. OTP sent to your email.', 'info')
+            otp_dest = app.config.get('ADMIN_OTP_EMAIL') or user.email
+            send_otp_email(otp_dest, otp)
+            flash(f'Password accepted. OTP sent to {otp_dest}.', 'info')
             return redirect(url_for('verify_otp', email=email))
         
         # Regular users get OTP
@@ -1857,6 +1861,111 @@ def trigger_nlp():
     except Exception as e:
         flash(f'Error: {str(e)}', 'error')
     return redirect(url_for('admin_dashboard'))
+
+
+# ===================== BULK SCORING =====================
+# In-memory job state — survives for the lifetime of the process.
+# Only one bulk-score job can run at a time.
+_bulk_score_job = {
+    'running': False,
+    'total': 0,
+    'done': 0,
+    'errors': 0,
+    'last_title': '',
+}
+_bulk_score_lock = threading.Lock()
+
+
+def _run_bulk_scoring(flask_app):
+    """Background thread: score every unscored initiative one by one."""
+    with flask_app.app_context():
+        unscored = Initiative.query.filter(
+            Initiative.quality_score.is_(None)
+        ).all()
+
+        with _bulk_score_lock:
+            _bulk_score_job['total'] = len(unscored)
+            _bulk_score_job['done'] = 0
+            _bulk_score_job['errors'] = 0
+            _bulk_score_job['last_title'] = ''
+
+        for ini in unscored:
+            try:
+                score = score_initiative_quality(
+                    ini.title, ini.content, ini.short_description or ""
+                )
+                if score is not None:
+                    obj = Initiative.query.get(ini.id)
+                    if obj:
+                        obj.quality_score = score
+                        db.session.commit()
+                        if score >= 4:
+                            _enqueue_initiative(flask_app, ini.id)
+            except Exception as e:
+                flask_app.logger.error(
+                    f"Bulk scoring error (initiative {ini.id}): {e}"
+                )
+                with _bulk_score_lock:
+                    _bulk_score_job['errors'] += 1
+
+            with _bulk_score_lock:
+                _bulk_score_job['done'] += 1
+                _bulk_score_job['last_title'] = ini.title
+
+        with _bulk_score_lock:
+            _bulk_score_job['running'] = False
+
+
+@app.route('/admin/bulk-score', methods=['POST'])
+@login_required
+def admin_bulk_score():
+    """Start a background job that scores all unscored initiatives."""
+    if not current_user.is_admin:
+        abort(403)
+
+    with _bulk_score_lock:
+        if _bulk_score_job['running']:
+            flash('A scoring job is already running — check progress on the dashboard.', 'warning')
+            return redirect(url_for('admin_dashboard'))
+
+        unscored_count = Initiative.query.filter(
+            Initiative.quality_score.is_(None)
+        ).count()
+
+        if unscored_count == 0:
+            flash('All initiatives already have quality scores.', 'info')
+            return redirect(url_for('admin_dashboard'))
+
+        _bulk_score_job['running'] = True
+        _bulk_score_job['total'] = unscored_count
+        _bulk_score_job['done'] = 0
+        _bulk_score_job['errors'] = 0
+        _bulk_score_job['last_title'] = ''
+
+    threading.Thread(
+        target=_run_bulk_scoring,
+        args=(app,),
+        daemon=True
+    ).start()
+
+    flash(
+        f'Scoring {unscored_count} unscored initiative(s) in the background. '
+        f'Progress is shown below.',
+        'info'
+    )
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/bulk-score/progress')
+@login_required
+def admin_bulk_score_progress():
+    """JSON endpoint polled by the dashboard to show live scoring progress."""
+    if not current_user.is_admin:
+        abort(403)
+    with _bulk_score_lock:
+        data = dict(_bulk_score_job)
+    return jsonify(data)
+
 
 # ===================== ADMIN IMPORT MEMBERS =====================
 

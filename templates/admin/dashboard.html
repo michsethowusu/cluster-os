@@ -63,11 +63,98 @@
 <div class="card mt-2">
     <div class="card-body">
         <h5>Maintenance Actions</h5>
-        <form action="{{ url_for('trigger_nlp') }}" method="POST" class="d-inline">
-            <button type="submit" class="btn btn-outline-primary">
-                <i class="bi bi-arrow-clockwise"></i> Update Noun Phrase Database
-            </button>
-        </form>
+        <div class="d-flex flex-wrap gap-2">
+            <form action="{{ url_for('trigger_nlp') }}" method="POST" class="d-inline">
+                <button type="submit" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-clockwise"></i> Update Noun Phrase Database
+                </button>
+            </form>
+            <form action="{{ url_for('admin_bulk_score') }}" method="POST" class="d-inline"
+                  id="bulk-score-form">
+                <button type="submit" class="btn btn-outline-warning" id="bulk-score-btn">
+                    <i class="bi bi-stars"></i> Score Unscored Initiatives
+                </button>
+            </form>
+        </div>
+
+        <!-- Live progress panel — hidden until a job is running or just finished -->
+        <div id="bulk-score-progress" class="mt-3" style="display:none;">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <small class="text-muted">
+                    AI scoring progress — <span id="bsp-done">0</span> / <span id="bsp-total">0</span>
+                    &nbsp;(<span id="bsp-errors">0</span> error(s))
+                </small>
+                <small class="text-muted" id="bsp-status">Running…</small>
+            </div>
+            <div class="progress" style="height:10px;">
+                <div id="bsp-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-warning"
+                     role="progressbar" style="width:0%"></div>
+            </div>
+            <small class="text-muted mt-1 d-block" id="bsp-last"></small>
+        </div>
     </div>
 </div>
+
+<script>
+(function () {
+    const panel   = document.getElementById('bulk-score-progress');
+    const bar     = document.getElementById('bsp-bar');
+    const done    = document.getElementById('bsp-done');
+    const total   = document.getElementById('bsp-total');
+    const errors  = document.getElementById('bsp-errors');
+    const status  = document.getElementById('bsp-status');
+    const last    = document.getElementById('bsp-last');
+    const btn     = document.getElementById('bulk-score-btn');
+    let   timer   = null;
+
+    function updateUI(data) {
+        panel.style.display = 'block';
+        done.textContent    = data.done;
+        total.textContent   = data.total;
+        errors.textContent  = data.errors;
+        const pct = data.total > 0 ? Math.round((data.done / data.total) * 100) : 0;
+        bar.style.width     = pct + '%';
+        bar.setAttribute('aria-valuenow', pct);
+        if (data.last_title) {
+            last.textContent = 'Last scored: ' + data.last_title;
+        }
+        if (data.running) {
+            status.textContent  = 'Running…';
+            bar.classList.add('progress-bar-animated');
+            btn.disabled = true;
+        } else if (data.total > 0) {
+            status.textContent  = 'Complete ✓';
+            bar.classList.remove('progress-bar-animated');
+            bar.classList.replace('bg-warning', 'bg-success');
+            btn.disabled = false;
+            clearInterval(timer);
+            timer = null;
+        }
+    }
+
+    function poll() {
+        fetch('{{ url_for("admin_bulk_score_progress") }}')
+            .then(r => r.json())
+            .then(data => {
+                updateUI(data);
+                if (!data.running && timer) {
+                    clearInterval(timer);
+                    timer = null;
+                }
+            })
+            .catch(() => {});
+    }
+
+    // Auto-start polling if a job is already running when the page loads
+    poll();
+    timer = setInterval(poll, 2000);
+
+    // Also start polling immediately when the form is submitted
+    document.getElementById('bulk-score-form').addEventListener('submit', function () {
+        setTimeout(function () {
+            if (!timer) timer = setInterval(poll, 2000);
+        }, 800);
+    });
+})();
+</script>
 {% endblock %}

@@ -1362,10 +1362,11 @@ def register_event(id):
 
 @app.route('/polls')
 def polls():
-    upcoming_events = Event.query.filter(
+    all_events = Event.query.filter(
         Event.is_published == True
-    ).order_by(Event.start_date.desc()).all()
-    return render_template('polls.html', events=upcoming_events)
+    ).order_by(Event.start_date.asc()).all()
+    events_with_polls = [e for e in all_events if e.polls.count() > 0]
+    return render_template('polls.html', events=events_with_polls)
 
 # ===================== ADMIN ROUTES =====================
 

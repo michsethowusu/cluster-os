@@ -1315,7 +1315,7 @@ def event_detail(id):
             user_id=current_user.id, event_id=id
         ).first() is not None
     
-    return render_template('event_detail.html', event=event, is_registered=is_registered)
+    return render_template('event_detail.html', event=event, is_registered=is_registered, now=datetime.utcnow())
 
 @app.route('/event/<int:id>/register', methods=['POST'])
 @login_required
@@ -1366,7 +1366,7 @@ def polls():
         Event.is_published == True
     ).order_by(Event.start_date.asc()).all()
     events_with_polls = [e for e in all_events if e.polls.count() > 0]
-    return render_template('polls.html', events=events_with_polls)
+    return render_template('polls.html', events=events_with_polls, now=datetime.utcnow())
 
 # ===================== ADMIN ROUTES =====================
 
@@ -2167,12 +2167,11 @@ def projects():
     active_projects = Project.query.filter(
         Project.is_published == True,
         Project.is_active == True,
-        Project.deadline >= now
     ).order_by(Project.deadline).all()
     
     past_projects = Project.query.filter(
         Project.is_published == True,
-        db.or_(Project.is_active == False, Project.deadline < now)
+        Project.is_active == False,
     ).order_by(Project.deadline.desc()).all()
 
     stats = {

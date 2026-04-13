@@ -263,6 +263,7 @@ class Event(db.Model):
     submitted_by       = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     zoom_webinar_id    = db.Column(db.String(100), nullable=True)
     zoom_recording_url = db.Column(db.String(500), nullable=True)
+    meeting_link       = db.Column(db.String(500), nullable=True)
 
     polls         = db.relationship('Poll',              backref='event', lazy='dynamic', cascade='all, delete-orphan')
     registrations = db.relationship('EventRegistration', backref='event', lazy='dynamic', cascade='all, delete-orphan')
@@ -609,10 +610,11 @@ def register():
                         register_user_for_webinar(next_event.zoom_webinar_id, user)
                     except Exception as e:
                         app.logger.error(f"Auto event Zoom registration error for new user {user.id}: {e}")
-                try:
-                    send_event_registration_confirmation(user, next_event)
-                except Exception as e:
-                    app.logger.error(f"Auto event confirmation email error for new user {user.id}: {e}")
+                else:
+                    try:
+                        send_event_registration_confirmation(user, next_event)
+                    except Exception as e:
+                        app.logger.error(f"Auto event confirmation email error for new user {user.id}: {e}")
                 session['new_member_event_title'] = next_event.title
                 session['new_member_event_id'] = next_event.id
 
@@ -1349,11 +1351,11 @@ def register_event(id):
             register_user_for_webinar(event.zoom_webinar_id, current_user)
         except Exception as e:
             app.logger.error(f"Zoom registration error for user {current_user.id}: {e}")
-
-    try:
-        send_event_registration_confirmation(current_user, event)
-    except Exception as e:
-        app.logger.error(f"Event registration confirmation email error: {e}")
+    else:
+        try:
+            send_event_registration_confirmation(current_user, event)
+        except Exception as e:
+            app.logger.error(f"Event registration confirmation email error: {e}")
 
     flash('Successfully registered for the event!', 'success')
     return redirect(url_for('event_detail', id=id))

@@ -62,6 +62,10 @@ with app.app_context():
             ALTER TABLE event
             ADD COLUMN IF NOT EXISTS zoom_recording_url VARCHAR(500)
         '''))
+        conn.execute(db.text('''
+            ALTER TABLE event
+            ADD COLUMN IF NOT EXISTS meeting_link VARCHAR(500)
+        '''))
 
         # Initiative send queue table
         conn.execute(db.text('''

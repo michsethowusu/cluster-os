@@ -2174,10 +2174,17 @@ def projects():
         Project.is_published == True,
         db.or_(Project.is_active == False, Project.deadline < now)
     ).order_by(Project.deadline.desc()).all()
+
+    stats = {
+        'total_projects': Project.query.filter_by(is_published=True).count(),
+        'active_projects': len(active_projects),
+        'past_projects': len(past_projects),
+    }
     
     return render_template('projects.html',
                          active_projects=active_projects,
                          past_projects=past_projects,
+                         stats=stats,
                          now=now)
 
 

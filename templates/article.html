@@ -27,7 +27,6 @@
                 {% endif %}
                 
                 <div class="content">
-                    {# Always use markdown filter - it handles both Markdown and HTML safely #}
                     {{ initiative.content | markdown }}
                 </div>
                 
@@ -47,7 +46,7 @@
                         <div class="col-md-6 text-md-end">
                             <strong>Posted:</strong> {{ initiative.created_at | format_date }}<br>
                             <i class="bi bi-eye"></i> {{ initiative.view_count or 0 }} view{{ '' if (initiative.view_count or 0) == 1 else 's' }}<br>
-                            {% if initiative.user_id == current_user.id or current_user.is_admin %}
+                            {% if current_user.is_authenticated and (initiative.user_id == current_user.id or current_user.is_admin) %}
                                 <a href="{{ url_for('edit_initiative', id=initiative.id) }}" class="btn btn-sm btn-outline-primary mt-2">
                                     <i class="bi bi-pencil"></i> Edit
                                 </a>
@@ -56,21 +55,154 @@
                     </div>
                 </div>
             </article>
+
+            <!-- ===== COMMENTS SECTION ===== -->
+            <div id="comments" class="mt-4">
+                <h5 class="fw-bold mb-3">
+                    <i class="bi bi-chat-dots"></i>
+                    Discussion
+                    {% if comments %}
+                        <span class="badge bg-secondary ms-1" style="font-size:0.75rem;">{{ comments|length }}</span>
+                    {% endif %}
+                </h5>
+
+                {% if comments %}
+                    {% for comment in comments %}
+                    <div class="d-flex gap-3 mb-3">
+                        <div class="flex-shrink-0">
+                            <div style="
+                                width: 38px; height: 38px; border-radius: 50%;
+                                background: linear-gradient(135deg, #0066cc, #004499);
+                                display: flex; align-items: center; justify-content: center;
+                                color: white; font-weight: 700; font-size: 0.85rem;">
+                                {{ comment.author.name[0].upper() }}
+                            </div>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="bg-white rounded p-3 shadow-sm">
+                                <div class="d-flex justify-content-between align-items-start mb-1">
+                                    <div>
+                                        <span class="fw-semibold" style="font-size:0.92rem;">{{ comment.author.name }}</span>
+                                        <span class="text-muted ms-2" style="font-size:0.8rem;">{{ comment.author.organization }}</span>
+                                    </div>
+                                    <span class="text-muted" style="font-size:0.78rem;">{{ comment.created_at | format_date }}</span>
+                                </div>
+                                <p class="mb-0" style="font-size:0.92rem; color:#333; line-height:1.6;">
+                                    {{ comment.content }}
+                                </p>
+                            </div>
+                            {% if current_user.is_authenticated and current_user.is_admin %}
+                            <div class="mt-1">
+                                <form method="POST" action="{{ url_for('admin_delete_comment', id=comment.id) }}" 
+                                      class="d-inline"
+                                      onsubmit="return confirm('Delete this comment?')">
+                                    <button type="submit" class="btn btn-link btn-sm text-danger p-0" style="font-size:0.78rem;">
+                                        <i class="bi bi-trash"></i> Delete
+                                    </button>
+                                </form>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-4 text-muted" style="font-size:0.9rem;">
+                        <i class="bi bi-chat" style="font-size:1.8rem; display:block; margin-bottom:8px; opacity:0.4;"></i>
+                        No comments yet — be the first to start the discussion!
+                    </div>
+                {% endif %}
+
+                <!-- Comment form -->
+                <div class="mt-4 bg-white rounded p-3 shadow-sm">
+                    {% if current_user.is_authenticated %}
+                    <h6 class="fw-semibold mb-3">Leave a Comment</h6>
+                    <form method="POST" action="{{ url_for('post_comment', slug=initiative.slug) }}">
+                        <div class="d-flex gap-3">
+                            <div class="flex-shrink-0">
+                                <div style="
+                                    width: 38px; height: 38px; border-radius: 50%;
+                                    background: linear-gradient(135deg, #0066cc, #004499);
+                                    display: flex; align-items: center; justify-content: center;
+                                    color: white; font-weight: 700; font-size: 0.85rem;">
+                                    {{ current_user.name[0].upper() }}
+                                </div>
+                            </div>
+                            <div class="flex-grow-1">
+                                <textarea name="content" class="form-control" rows="3"
+                                          placeholder="Share your thoughts, ask a question, or provide feedback on this initiative…"
+                                          maxlength="2000" required
+                                          style="font-size:0.92rem; resize:vertical;"></textarea>
+                                <div class="d-flex justify-content-between align-items-center mt-2">
+                                    <small class="text-muted">
+                                        <i class="bi bi-shield-check"></i> Comments are reviewed before appearing publicly.
+                                    </small>
+                                    <button type="submit" class="btn btn-primary btn-sm">
+                                        <i class="bi bi-send"></i> Submit Comment
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                    {% else %}
+                    <div class="text-center py-3">
+                        <i class="bi bi-lock text-muted" style="font-size:1.4rem;"></i>
+                        <p class="mt-2 mb-2 text-muted" style="font-size:0.9rem;">
+                            Members can comment on initiatives and engage in discussion.
+                        </p>
+                        <a href="{{ url_for('login') }}" class="btn btn-primary btn-sm me-2">Log In</a>
+                        <a href="{{ url_for('register') }}" class="btn btn-outline-primary btn-sm">Join Cluster</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            <!-- END COMMENTS -->
         </div>
         
+        <!-- Sidebar -->
         <div class="col-lg-4">
-            <div class="card mb-3">
+            <div class="card mb-3 border-0 shadow-sm">
                 <div class="card-body">
-                    <h6>Organization</h6>
+                    <h6 class="fw-bold">Organization</h6>
                     <p class="mb-0"><strong>{{ initiative.author.organization }}</strong></p>
                     <small class="text-muted">{{ initiative.author.stakeholder_type }}</small>
                 </div>
             </div>
+
+            <!-- Discussion quick-link -->
+            <div class="card mb-3 border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <i class="bi bi-chat-dots text-primary" style="font-size:1.5rem;"></i>
+                    <p class="mt-1 mb-2 text-muted small">Join the cluster-wide discussion feed</p>
+                    <a href="{{ url_for('discussions') }}" class="btn btn-outline-primary btn-sm w-100">
+                        View Discussions
+                    </a>
+                </div>
+            </div>
             
-            <div class="card">
+            <!-- Related Initiatives -->
+            <div class="card border-0 shadow-sm">
                 <div class="card-body">
-                    <h6>Related Initiatives</h6>
-                    <p class="text-muted small">Explore similar initiatives by tags</p>
+                    <h6 class="fw-bold mb-3">Related Initiatives</h6>
+                    {% if related %}
+                        {% for rel in related %}
+                        <div class="mb-3 {% if not loop.last %}border-bottom pb-3{% endif %}">
+                            <a href="{{ url_for('view_initiative', slug=rel.slug) }}" 
+                               class="text-decoration-none text-dark fw-semibold d-block mb-1"
+                               style="font-size:0.88rem; line-height:1.4;">
+                                {{ rel.ai_title or rel.title }}
+                            </a>
+                            <small class="text-muted d-block mb-1">{{ rel.author.organization }}</small>
+                            {% for tag in rel.tags[:2] %}
+                                <a href="{{ url_for('tag_view', tag_name=tag.name) }}" 
+                                   class="tag-badge" style="font-size:0.72rem; padding:2px 8px;">
+                                    {{ tag.name }}
+                                </a>
+                            {% endfor %}
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted small mb-0">No related initiatives found.</p>
+                    {% endif %}
                 </div>
             </div>
         </div>

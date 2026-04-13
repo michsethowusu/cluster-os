@@ -87,9 +87,15 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'admin_approvals' and not request.args.get('type') or request.args.get('type') == 'all' %}active{% endif %}" 
+                        <a class="nav-link {% if request.endpoint == 'admin_approvals' and (not request.args.get('type') or request.args.get('type') == 'all') %}active{% endif %}" 
                            href="{{ url_for('admin_approvals') }}">
                             <i class="bi bi-check2-square"></i> Approvals
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_approvals' and request.args.get('type') == 'comments' %}active{% endif %}" 
+                           href="{{ url_for('admin_approvals', type='comments') }}">
+                            <i class="bi bi-chat-left-text"></i> Comments
                         </a>
                     </li>
                     <li class="nav-item">
@@ -108,12 +114,6 @@
                         <a class="nav-link {% if request.endpoint == 'admin_send_queue' %}active{% endif %}" 
                            href="{{ url_for('admin_send_queue') }}">
                             <i class="bi bi-send"></i> Send Queue
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'admin_approvals' and request.args.get('type') == 'questions' %}active{% endif %}" 
-                           href="{{ url_for('admin_approvals', type='questions') }}">
-                            <i class="bi bi-question-circle"></i> Q&amp;A Questions
                         </a>
                     </li>
                     <li class="nav-item">

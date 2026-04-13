@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}Discussions – AU ECED-FLN Cluster{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <!-- Feed column -->
+        <div class="col-lg-8">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2 class="fw-bold mb-1">Discussions</h2>
+                    <p class="text-muted mb-0">Engage with ECED initiatives shared by cluster members</p>
+                </div>
+                {% if current_user.is_authenticated %}
+                <a href="{{ url_for('new_initiative') }}" class="btn btn-primary">
+                    <i class="bi bi-plus-lg"></i> Share Initiative
+                </a>
+                {% endif %}
+            </div>
+
+            {% for item in feed_items %}
+            {% set ini = item.initiative %}
+            <div class="feed-card">
+                <!-- Post header -->
+                <div class="feed-header d-flex align-items-start gap-3 pb-2 pt-3 px-3">
+                    <!-- Avatar -->
+                    <div class="flex-shrink-0">
+                        <div style="
+                            width: 44px; height: 44px; border-radius: 50%;
+                            background: linear-gradient(135deg, #0066cc, #004499);
+                            display: flex; align-items: center; justify-content: center;
+                            color: white; font-weight: 700; font-size: 1rem;">
+                            {{ ini.author.name[0].upper() }}
+                        </div>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="fw-semibold" style="font-size:0.95rem;">{{ ini.author.name }}</div>
+                        <div class="text-muted" style="font-size:0.82rem;">
+                            {{ ini.author.organization }}
+                            <span class="mx-1">·</span>
+                            {{ ini.created_at | format_date }}
+                        </div>
+                    </div>
+                    <span class="badge bg-secondary align-self-start">{{ ini.stakeholder_type }}</span>
+                </div>
+
+                <!-- Post body -->
+                <div class="feed-body px-3 py-2">
+                    <a href="{{ url_for('view_initiative', slug=ini.slug) }}" 
+                       class="text-decoration-none text-dark">
+                        <h5 class="fw-bold mb-2" style="font-size:1.05rem; line-height:1.4;">
+                            {{ ini.ai_title or ini.title }}
+                        </h5>
+                    </a>
+
+                    {% set preview = ini.short_description or ini.content %}
+                    <p class="text-muted mb-2" style="font-size:0.92rem; line-height:1.6;">
+                        {{ preview[:280] }}{% if preview|length > 280 %}…{% endif %}
+                    </p>
+
+                    {% if ini.tags %}
+                    <div class="mb-2">
+                        {% for tag in ini.tags[:4] %}
+                            <a href="{{ url_for('tag_view', tag_name=tag.name) }}" 
+                               class="tag-badge" style="font-size:0.78rem; padding:3px 10px;">
+                                {{ tag.name }}
+                            </a>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <a href="{{ url_for('view_initiative', slug=ini.slug) }}" 
+                       class="btn btn-sm btn-outline-primary mt-1" style="font-size:0.83rem;">
+                        Read Full Initiative →
+                    </a>
+                </div>
+
+                <!-- Stats bar -->
+                <div class="px-3 py-2 d-flex gap-3 border-top" style="font-size:0.83rem; color:#666;">
+                    <span><i class="bi bi-eye"></i> {{ ini.view_count or 0 }} view{{ '' if (ini.view_count or 0) == 1 else 's' }}</span>
+                    <span><i class="bi bi-chat"></i> {{ item.comment_count }} comment{{ '' if item.comment_count == 1 else 's' }}</span>
+                    {% if ini.country %}<span><i class="bi bi-geo-alt"></i> {{ ini.country }}</span>{% endif %}
+                </div>
+
+                <!-- Comment thread preview -->
+                {% if item.comments %}
+                <div class="px-3 py-2 border-top" style="background:#fafbfc;">
+                    {% for comment in item.comments %}
+                    <div class="comment-bubble">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <span class="comment-author">{{ comment.author.name }}</span>
+                            <span class="comment-meta">{{ comment.created_at | format_date }}</span>
+                        </div>
+                        <p class="comment-text mb-0">
+                            {{ comment.content[:200] }}{% if comment.content|length > 200 %}…{% endif %}
+                        </p>
+                    </div>
+                    {% endfor %}
+                    {% if item.comment_count > 3 %}
+                    <a href="{{ url_for('view_initiative', slug=ini.slug) }}#comments" 
+                       class="text-primary" style="font-size:0.83rem;">
+                        View all {{ item.comment_count }} comments →
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- Comment input (logged-in members only) -->
+                <div class="feed-footer">
+                    {% if current_user.is_authenticated %}
+                    <form method="POST" action="{{ url_for('post_comment', slug=ini.slug) }}" 
+                          class="d-flex gap-2 align-items-start">
+                        <div class="flex-shrink-0">
+                            <div style="
+                                width: 32px; height: 32px; border-radius: 50%;
+                                background: linear-gradient(135deg, #0066cc, #004499);
+                                display: flex; align-items: center; justify-content: center;
+                                color: white; font-weight: 700; font-size: 0.8rem; margin-top:2px;">
+                                {{ current_user.name[0].upper() }}
+                            </div>
+                        </div>
+                        <div class="flex-grow-1">
+                            <input type="text" name="content" 
+                                   class="form-control form-control-sm" 
+                                   placeholder="Write a comment…"
+                                   style="border-radius: 20px; font-size:0.87rem;"
+                                   maxlength="2000" required>
+                        </div>
+                        <button type="submit" class="btn btn-sm btn-primary" 
+                                style="border-radius:20px; font-size:0.83rem; padding:5px 14px;">
+                            Post
+                        </button>
+                    </form>
+                    {% else %}
+                    <p class="text-muted mb-0" style="font-size:0.85rem;">
+                        <a href="{{ url_for('login') }}">Log in</a> to join the discussion.
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+
+            {% if not feed_items %}
+            <div class="text-center py-5">
+                <i class="bi bi-chat-dots" style="font-size:3rem; color:#ccc;"></i>
+                <h5 class="mt-3 text-muted">No initiatives yet</h5>
+                <p class="text-muted">Be the first to share an ECED initiative with the cluster.</p>
+                {% if current_user.is_authenticated %}
+                <a href="{{ url_for('new_initiative') }}" class="btn btn-primary mt-2">Share Initiative</a>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Pagination -->
+            {% if pagination and pagination.pages > 1 %}
+            <nav class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if pagination.has_prev %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('discussions', page=pagination.prev_num) }}">← Newer</a>
+                    </li>
+                    {% endif %}
+                    <li class="page-item disabled">
+                        <span class="page-link">Page {{ pagination.page }} of {{ pagination.pages }}</span>
+                    </li>
+                    {% if pagination.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('discussions', page=pagination.next_num) }}">Older →</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <div class="card mb-4 border-0 shadow-sm">
+                <div class="card-body">
+                    <h6 class="fw-bold mb-3"><i class="bi bi-info-circle text-primary"></i> About Discussions</h6>
+                    <p class="text-muted small mb-2">
+                        This feed shows all published ECED initiatives from cluster members. 
+                        You can read, comment, and engage with content shared by experts across Africa.
+                    </p>
+                    <p class="text-muted small mb-0">
+                        Comments are reviewed by the admin team before they appear publicly.
+                    </p>
+                </div>
+            </div>
+
+            {% if current_user.is_authenticated %}
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body text-center">
+                    <i class="bi bi-pencil-square text-primary" style="font-size:1.8rem;"></i>
+                    <h6 class="mt-2 fw-bold">Share Your Work</h6>
+                    <p class="text-muted small">Post an initiative to start a discussion with the cluster.</p>
+                    <a href="{{ url_for('new_initiative') }}" class="btn btn-primary btn-sm w-100">
+                        + New Initiative
+                    </a>
+                </div>
+            </div>
+            {% else %}
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body text-center">
+                    <i class="bi bi-people text-primary" style="font-size:1.8rem;"></i>
+                    <h6 class="mt-2 fw-bold">Join the Cluster</h6>
+                    <p class="text-muted small">Become a member to comment and share initiatives.</p>
+                    <a href="{{ url_for('register') }}" class="btn btn-primary btn-sm w-100">Request Access</a>
+                    <a href="{{ url_for('login') }}" class="btn btn-outline-secondary btn-sm w-100 mt-2">Log In</a>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h6 class="fw-bold mb-3"><i class="bi bi-link-45deg text-primary"></i> Quick Links</h6>
+                    <ul class="list-unstyled mb-0" style="font-size:0.9rem;">
+                        <li class="mb-2"><a href="{{ url_for('search') }}" class="text-decoration-none text-primary">Browse All Initiatives →</a></li>
+                        <li class="mb-2"><a href="{{ url_for('members') }}" class="text-decoration-none text-primary">View Members →</a></li>
+                        <li><a href="{{ url_for('events') }}" class="text-decoration-none text-primary">Upcoming Events →</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

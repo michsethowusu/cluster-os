@@ -82,6 +82,18 @@ with app.app_context():
             )
         '''))
 
+        # Comments table — member comments on initiatives, require admin approval
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS comment (
+                id SERIAL PRIMARY KEY,
+                initiative_id INTEGER NOT NULL REFERENCES initiative(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES \"user\"(id) ON DELETE CASCADE,
+                content TEXT NOT NULL,
+                is_approved BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        '''))
+
         conn.commit()
     print('DB ready.')
 "

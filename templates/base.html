@@ -135,6 +135,53 @@
             from { opacity: 0; }
             to { opacity: 1; }
         }
+
+        /* Feed / Discussion styles */
+        .feed-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+            margin-bottom: 20px;
+            overflow: hidden;
+            transition: box-shadow 0.2s;
+        }
+        .feed-card:hover {
+            box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+        }
+        .feed-card .feed-header {
+            padding: 16px 20px 0;
+        }
+        .feed-card .feed-body {
+            padding: 0 20px 16px;
+        }
+        .feed-card .feed-footer {
+            background: #f8f9fa;
+            padding: 12px 20px;
+            border-top: 1px solid #e9ecef;
+        }
+        .comment-bubble {
+            background: #f0f4f8;
+            border-radius: 10px;
+            padding: 10px 14px;
+            margin-bottom: 8px;
+        }
+        .comment-bubble:last-child {
+            margin-bottom: 0;
+        }
+        .comment-author {
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #333;
+        }
+        .comment-text {
+            font-size: 0.9rem;
+            color: #555;
+            margin: 2px 0 0;
+        }
+        .comment-meta {
+            font-size: 0.78rem;
+            color: #999;
+        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -156,6 +203,9 @@
                         <a class="nav-link" href="{{ url_for('search') }}">Initiatives</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('discussions') }}">Discussions</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('projects') }}">Projects</a>
                     </li>
                     <li class="nav-item">
@@ -165,10 +215,8 @@
                         <a class="nav-link" href="{{ url_for('polls') }}">Polls</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('forum') }}">Q&A</a>
-                    </li>
-                    <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('members') }}">Members</a>
+                    </li>
                 </ul>
                 <ul class="navbar-nav">
                     {% if current_user.is_authenticated %}

@@ -480,53 +480,175 @@ def _unsubscribe_footer(email):
         </p>"""
 
 
+def send_single_initiative_notification(initiative_data, users):
+    """
+    Send a single-initiative notification email to all subscribed members.
+    initiative_data is a dict with keys: title, short_description, url
+
+    Used when sending one initiative directly from the send queue.
+    `users` must be passed in by the caller within an active app context.
+    """
+    if not users or not initiative_data:
+        return
+
+    title = initiative_data['title']
+    url = initiative_data['url']
+    desc = initiative_data.get('short_description', '')
+    subject = f"New Initiative Published – AU ECED-FLN Platform"
+
+    desc_block = (
+        f'<p style="color:#555;font-size:0.95em;line-height:1.6;margin:10px 0 0;">{desc}</p>'
+        if desc else ""
+    )
+
+    for user in users:
+        html = f"""
+        <html>
+            <body style="font-family:Arial,sans-serif;line-height:1.6;color:#333;background:#f4f6f8;">
+                <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:6px;
+                            overflow:hidden;border:1px solid #e0e0e0;">
+
+                    <!-- Header -->
+                    <div style="background:#0066cc;padding:24px 30px;">
+                        <p style="margin:0;color:rgba(255,255,255,0.85);font-size:0.8em;
+                                  letter-spacing:1px;text-transform:uppercase;font-weight:bold;">
+                            AU ECED-FLN Cluster Platform
+                        </p>
+                        <h1 style="margin:8px 0 0;color:#ffffff;font-size:1.4em;font-weight:bold;">
+                            New Initiative Published
+                        </h1>
+                    </div>
+
+                    <!-- Body -->
+                    <div style="padding:28px 30px;">
+                        <p style="margin:0 0 20px;">A new initiative has just been published on the platform:</p>
+
+                        <div style="background:#f0f6ff;border-left:4px solid #0066cc;
+                                    border-radius:4px;padding:18px 20px;margin:0 0 28px;">
+                            <p style="margin:0;font-size:1.05em;font-weight:bold;color:#003d99;
+                                      line-height:1.5;">{title}</p>
+                            {desc_block}
+                        </div>
+
+                        <p style="text-align:center;margin:0 0 28px;">
+                            <a href="{url}"
+                               style="display:inline-block;background:#0066cc;color:#ffffff;
+                                      padding:13px 32px;text-decoration:none;border-radius:5px;
+                                      font-weight:bold;font-size:0.95em;">
+                                Read Initiative →
+                            </a>
+                        </p>
+
+                        <p style="color:#666;font-size:0.88em;margin:0;">
+                            You are receiving this because you are a member of the
+                            AU&nbsp;ECED-FLN Cluster Platform.
+                        </p>
+                    </div>
+
+                    <!-- Footer -->
+                    <div style="background:#f8f9fa;padding:16px 30px;border-top:1px solid #e8e8e8;">
+                        <p style="margin:0;color:#aaa;font-size:0.78em;text-align:center;">
+                            <a href="{_unsubscribe_url(user.email)}" style="color:#aaa;">
+                                Unsubscribe from notifications
+                            </a>
+                        </p>
+                    </div>
+
+                </div>
+            </body>
+        </html>
+        """
+        send_email(user.email, subject, html)
+
+
+def _unsubscribe_url(email):
+    """Return just the unsubscribe URL for a given email (no HTML wrapping)."""
+    import hmac, hashlib
+    secret = os.environ.get('SECRET_KEY', 'fallback-secret')
+    token = hmac.new(secret.encode(), email.lower().encode(), hashlib.sha256).hexdigest()
+    base = os.environ.get('APP_URL', '').rstrip('/')
+    return f"{base}/unsubscribe?email={email}&token={token}"
+
+
 def send_bulk_initiatives_digest(initiatives_data, users):
     """
-    Send a single digest email to all approved, subscribed members listing multiple newly
-    approved initiatives.  Each item in initiatives_data is a dict with keys:
-      title, short_description, url
-    The title itself is hyperlinked — no separate "Read" button per item.
+    Send a digest email listing multiple newly published initiatives to all subscribed members.
+    Each item in initiatives_data is a dict with keys: title, short_description, url
 
-    `users` must be passed in by the caller (already queried within the active
-    app context) — this function no longer creates its own nested app context,
-    which previously caused emails to silently fail.
+    `users` must be passed in by the caller within an active app context.
     """
     if not users or not initiatives_data:
         return
 
     count = len(initiatives_data)
-    subject = f"New on the Platform: {count} Initiative{'s' if count != 1 else ''} Published"
+    subject = f"{count} New Initiative{'s' if count != 1 else ''} on the AU ECED-FLN Platform"
 
     for user in users:
-        # Build one <li> block per initiative
         items_html = ""
-        for item in initiatives_data:
-            desc_html = (
-                f'<p style="margin:4px 0 0;color:#555;font-size:0.95em;">'
+        for i, item in enumerate(initiatives_data):
+            desc_block = (
+                f'<p style="margin:6px 0 0;color:#555;font-size:0.9em;line-height:1.5;">'
                 f'{item["short_description"]}</p>'
                 if item.get("short_description") else ""
             )
             items_html += f"""
-            <li style="margin-bottom:18px;list-style:none;padding:14px 16px;
-                        background:#f8f9fa;border-left:4px solid #0066cc;border-radius:4px;">
+            <div style="margin-bottom:14px;padding:16px 18px;background:#f8f9fa;
+                        border-left:4px solid #0066cc;border-radius:4px;">
                 <a href="{item['url']}"
-                   style="font-size:1.05em;font-weight:bold;color:#0066cc;text-decoration:none;">
+                   style="font-size:1em;font-weight:bold;color:#0066cc;text-decoration:none;
+                          line-height:1.4;">
                     {item['title']}
                 </a>
-                {desc_html}
-            </li>"""
+                {desc_block}
+                <p style="margin:10px 0 0;">
+                    <a href="{item['url']}"
+                       style="font-size:0.85em;color:#0066cc;text-decoration:none;font-weight:bold;">
+                        Read more →
+                    </a>
+                </p>
+            </div>"""
 
         html = f"""
         <html>
-            <body style="font-family:Arial,sans-serif;line-height:1.6;color:#333;">
-                <div style="max-width:600px;margin:0 auto;padding:20px;">
-                    <h2 style="color:#0066cc;">New Initiatives on the AU&nbsp;ECED-FLN Platform</h2>
-                    <p>The following {count} initiative{'s have' if count != 1 else ' has'} just been
-                    published. Click any title to read it on the platform:</p>
-                    <ul style="padding:0;margin:20px 0;">
+            <body style="font-family:Arial,sans-serif;line-height:1.6;color:#333;background:#f4f6f8;">
+                <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:6px;
+                            overflow:hidden;border:1px solid #e0e0e0;">
+
+                    <!-- Header -->
+                    <div style="background:#0066cc;padding:24px 30px;">
+                        <p style="margin:0;color:rgba(255,255,255,0.85);font-size:0.8em;
+                                  letter-spacing:1px;text-transform:uppercase;font-weight:bold;">
+                            AU ECED-FLN Cluster Platform
+                        </p>
+                        <h1 style="margin:8px 0 0;color:#ffffff;font-size:1.4em;font-weight:bold;">
+                            {count} New Initiative{'s' if count != 1 else ''} Published
+                        </h1>
+                    </div>
+
+                    <!-- Body -->
+                    <div style="padding:28px 30px;">
+                        <p style="margin:0 0 20px;">
+                            The following initiative{'s have' if count != 1 else ' has'} just been
+                            published on the AU&nbsp;ECED-FLN Cluster Platform:
+                        </p>
+
                         {items_html}
-                    </ul>
-                    {_unsubscribe_footer(user.email)}
+
+                        <p style="color:#666;font-size:0.88em;margin:20px 0 0;">
+                            You are receiving this because you are a member of the
+                            AU&nbsp;ECED-FLN Cluster Platform.
+                        </p>
+                    </div>
+
+                    <!-- Footer -->
+                    <div style="background:#f8f9fa;padding:16px 30px;border-top:1px solid #e8e8e8;">
+                        <p style="margin:0;color:#aaa;font-size:0.78em;text-align:center;">
+                            <a href="{_unsubscribe_url(user.email)}" style="color:#aaa;">
+                                Unsubscribe from notifications
+                            </a>
+                        </p>
+                    </div>
+
                 </div>
             </body>
         </html>

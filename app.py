@@ -820,6 +820,15 @@ def new_initiative():
         title = request.form.get('title')
         short_description = request.form.get('short_description')
         content = request.form.get('content')                     # MARKDOWN CHANGE: raw content
+
+        # Duplicate guard: same title by the same user already exists
+        existing = Initiative.query.filter(
+            Initiative.user_id == current_user.id,
+            db.func.lower(Initiative.title) == title.lower().strip()
+        ).first()
+        if existing:
+            flash('You have already submitted an initiative with this title. Please use a different title or edit your existing one.', 'warning')
+            return render_template('article_form.html', initiative=None)
         
         slug = re.sub(r'[^\w]+', '-', title.lower()).strip('-')
         base_slug = slug
@@ -899,18 +908,21 @@ def admin_delete_initiative(id):
         abort(403)
     initiative = Initiative.query.get_or_404(id)
     title = initiative.title
-    
+
     # Remove tag associations first
     initiative.tags = []
-    db.session.commit()
-    
+    db.session.flush()
+
+    # Delete send queue entry (NOT NULL FK — must go before the initiative row)
+    InitiativeSendQueue.query.filter_by(initiative_id=id).delete()
+
     # Delete related noun phrases
     NounPhrase.query.filter_by(initiative_id=id).delete()
-    
+
     # Delete the initiative
     db.session.delete(initiative)
     db.session.commit()
-    
+
     flash(f'Initiative "{title}" has been deleted.', 'success')
     return redirect(url_for('admin_approvals', type='initiatives'))
 

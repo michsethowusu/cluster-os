@@ -2,7 +2,11 @@
 
 {% block admin_title %}Dashboard{% endblock %}
 
-{% block admin_content %}
+{% block admin_actions %}
+<a href="{{ url_for('admin_export_members') }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-download"></i> Export Members
+</a>
+{% endblock %}
 <div class="row">
     <div class="col-md-4 mb-4">
         <div class="card text-white bg-warning">

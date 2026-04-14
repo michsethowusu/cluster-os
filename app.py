@@ -2177,14 +2177,6 @@ def admin_import_members():
             if selected_event:
                 event_invite_url = url_for('event_detail', id=selected_event.id, _external=True)
 
-        # Pre-loop validation for modes that require extra fields
-        if custom_message_mode and (not custom_subject or not custom_body):
-            flash('Custom subject and message body are required in Custom Message mode.', 'error')
-            return redirect(request.url)
-        if event_invite_mode and not selected_event:
-            flash('Please select an event for event invitation mode.', 'error')
-            return redirect(request.url)
-
         if file and file.filename.endswith('.csv'):
             try:
                 stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
@@ -2207,6 +2199,9 @@ def admin_import_members():
 
                     # ── EVENT INVITE MODE ─────────────────────────────────────
                     if event_invite_mode:
+                        if not selected_event:
+                            flash('Please select an event for event invitation mode.', 'error')
+                            return redirect(request.url)
                         # Skip if email is on the blocked list
                         if BlockedEmail.query.filter_by(email=email).first():
                             errors.append(f"Row {row_num}: {email} has unsubscribed — skipped")
@@ -2222,6 +2217,9 @@ def admin_import_members():
 
                     # ── CUSTOM MESSAGE MODE ───────────────────────────────────
                     if custom_message_mode:
+                        if not custom_subject or not custom_body:
+                            flash('Custom subject and message body are required in Custom Message mode.', 'error')
+                            return redirect(request.url)
                         # Skip if email is on the blocked list
                         if BlockedEmail.query.filter_by(email=email).first():
                             errors.append(f"Row {row_num}: {email} has unsubscribed — skipped")
@@ -2311,6 +2309,60 @@ def admin_import_members_template():
         mimetype='text/csv',
         headers={'Content-Disposition': 'attachment; filename=member_import_template.csv'}
     )
+
+# ===================== ADMIN EXPORT MEMBERS =====================
+
+@app.route('/admin/export-members')
+@login_required
+def admin_export_members():
+    if not current_user.is_admin:
+        abort(403)
+
+    members = User.query.filter_by(is_admin=False).order_by(User.created_at.asc()).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Header
+    writer.writerow([
+        'id', 'email', 'name', 'organization', 'stakeholder_type', 'country',
+        'is_approved', 'is_subscribed', 'points', 'created_at',
+        'initiatives_published', 'initiatives_total',
+        'event_registrations', 'project_participations',
+    ])
+
+    for user in members:
+        initiatives_published = Initiative.query.filter_by(user_id=user.id, is_published=True).count()
+        initiatives_total     = Initiative.query.filter_by(user_id=user.id).count()
+        event_regs            = EventRegistration.query.filter_by(user_id=user.id).count()
+        project_parts         = ProjectParticipation.query.filter_by(user_id=user.id).count()
+
+        writer.writerow([
+            user.id,
+            user.email,
+            user.name,
+            user.organization,
+            user.stakeholder_type,
+            user.country,
+            user.is_approved,
+            user.is_subscribed,
+            user.points,
+            user.created_at.strftime('%Y-%m-%d %H:%M:%S') if user.created_at else '',
+            initiatives_published,
+            initiatives_total,
+            event_regs,
+            project_parts,
+        ])
+
+    output.seek(0)
+    from datetime import date
+    filename = f"members_export_{date.today().isoformat()}.csv"
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename={filename}'}
+    )
+
 
 # ===================== ADMIN IMPORT INITIATIVES =====================
 

@@ -2177,6 +2177,14 @@ def admin_import_members():
             if selected_event:
                 event_invite_url = url_for('event_detail', id=selected_event.id, _external=True)
 
+        # Pre-loop validation for modes that require extra fields
+        if custom_message_mode and (not custom_subject or not custom_body):
+            flash('Custom subject and message body are required in Custom Message mode.', 'error')
+            return redirect(request.url)
+        if event_invite_mode and not selected_event:
+            flash('Please select an event for event invitation mode.', 'error')
+            return redirect(request.url)
+
         if file and file.filename.endswith('.csv'):
             try:
                 stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
@@ -2199,9 +2207,6 @@ def admin_import_members():
 
                     # ── EVENT INVITE MODE ─────────────────────────────────────
                     if event_invite_mode:
-                        if not selected_event:
-                            flash('Please select an event for event invitation mode.', 'error')
-                            return redirect(request.url)
                         # Skip if email is on the blocked list
                         if BlockedEmail.query.filter_by(email=email).first():
                             errors.append(f"Row {row_num}: {email} has unsubscribed — skipped")
@@ -2217,9 +2222,6 @@ def admin_import_members():
 
                     # ── CUSTOM MESSAGE MODE ───────────────────────────────────
                     if custom_message_mode:
-                        if not custom_subject or not custom_body:
-                            flash('Custom subject and message body are required in Custom Message mode.', 'error')
-                            return redirect(request.url)
                         # Skip if email is on the blocked list
                         if BlockedEmail.query.filter_by(email=email).first():
                             errors.append(f"Row {row_num}: {email} has unsubscribed — skipped")

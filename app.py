@@ -42,6 +42,7 @@ from utils.email_sender import (
     send_project_signup_confirmation,
     send_project_signup_admin_alert,
     send_bulk_initiatives_digest,
+    send_single_initiative_notification,
     send_event_registration_confirmation,
     send_custom_bulk_email,
 )
@@ -1876,11 +1877,11 @@ def send_queue_item(queue_id):
     try:
         initiative_url = url_for('view_initiative', slug=initiative.slug, _external=True)
         subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
-        send_bulk_initiatives_digest([{
+        send_single_initiative_notification({
             'title': initiative.title,
             'short_description': initiative.short_description or '',
             'url': initiative_url,
-        }], subscribed_users)
+        }, subscribed_users)
         entry.sent_at = datetime.utcnow()
         db.session.commit()
         flash(f'"{initiative.title}" sent to {len(subscribed_users)} member(s).', 'success')

@@ -1,11 +1,11 @@
 from deep_translator import GoogleTranslator
 
-def translate_text(text, target_lang='fr'):
+def translate_text(text, target_lang='fr', source_lang='auto'):
     if not text or len(text.strip()) == 0:
         return text
     
     try:
-        translator = GoogleTranslator(source='auto', target=target_lang)
+        translator = GoogleTranslator(source=source_lang, target=target_lang)
         
         # deep-translator handles chunking automatically, but has a 5000 char limit per request
         max_length = 4000

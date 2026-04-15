@@ -290,48 +290,64 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let currentLang = 'en';
-        let originalContent = {};
-        
+
         function translatePage(lang) {
             if (lang === currentLang) return;
-            
+
             document.getElementById('current-lang').textContent = lang.toUpperCase();
-            
-            if (lang === 'en') {
-                location.reload();
-                return;
-            }
-            
             document.body.style.cursor = 'wait';
-            
-            const elements = document.querySelectorAll('h1, h2, h3, h4, h5, h6, p, .lead, .card-title, .card-text, .nav-link, .btn');
-            
-            elements.forEach((el, index) => {
-                if (!el.closest('.dropdown-menu') && !el.closest('.lang-toggle')) {
-                    const text = el.textContent.trim();
-                    if (text && text.length > 0 && !originalContent[index]) {
-                        originalContent[index] = text;
-                    }
-                    
-                    if (text && text.length > 0 && text.length < 5000) {
-                        fetch('/api/translate', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({text: originalContent[index] || text, lang: lang})
-                        })
-                        .then(r => r.json())
-                        .then(data => {
-                            if (data.success) {
-                                el.textContent = data.translation;
-                                el.classList.add('translated-content');
-                            }
-                        })
-                        .catch(e => console.error('Translation error:', e));
-                    }
+
+            const elements = document.querySelectorAll(
+                'h1, h2, h3, h4, h5, h6, p, .lead, .card-title, .card-text, .nav-link, .btn'
+            );
+
+            const promises = [];
+
+            elements.forEach(el => {
+                // Skip the language toggle UI itself
+                if (el.closest('.lang-toggle')) return;
+
+                // On the first ever translation, snapshot the original text
+                if (!el.dataset.original) {
+                    el.dataset.original = el.textContent.trim();
                 }
+
+                const text = el.dataset.original;
+                if (!text || text.length === 0 || text.length >= 5000) return;
+
+                // When going back to English, restore the snapshot — no API call needed
+                if (lang === 'en') {
+                    el.textContent = el.dataset.original;
+                    el.classList.remove('translated-content');
+                    return;
+                }
+
+                // Translate from whatever language the original text is in → target lang
+                const p = fetch('/api/translate', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        text: text,
+                        lang: lang,
+                        source_lang: 'auto'   // Google detects EN or FR automatically
+                    })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        el.textContent = data.translation;
+                        el.classList.add('translated-content');
+                    }
+                })
+                .catch(e => console.error('Translation error:', e));
+
+                promises.push(p);
             });
-            
-            document.body.style.cursor = 'default';
+
+            Promise.all(promises).finally(() => {
+                document.body.style.cursor = 'default';
+            });
+
             currentLang = lang;
         }
     </script>

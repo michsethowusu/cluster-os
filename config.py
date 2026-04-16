@@ -29,6 +29,8 @@ class Config:
     ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL') or 'admin@au-eced-fln.org'
     # If set, admin OTP is sent here instead of ADMIN_EMAIL (avoids Brevo self-send block)
     ADMIN_OTP_EMAIL = os.environ.get('ADMIN_OTP_EMAIL') or None
+    # Set to False (or env var ADMIN_OTP_ENABLED=false) to skip OTP and use password-only login for admin
+    ADMIN_OTP_ENABLED = os.environ.get('ADMIN_OTP_ENABLED', 'true').lower() == 'true'
     
     # Uploads — absolute path so it works regardless of working directory
     UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')

@@ -472,7 +472,7 @@ def login():
             flash('Email not found or account pending approval.', 'error')
             return redirect(url_for('login'))
             
-        # Admin uses password + OTP
+        # Admin uses password + OTP (OTP can be disabled via ADMIN_OTP_ENABLED=false)
         if user.is_admin:
             from werkzeug.security import check_password_hash
             password = request.form.get('password')
@@ -481,6 +481,12 @@ def login():
             if not user.password_hash or not check_password_hash(user.password_hash, password):
                 flash('Invalid password.', 'error')
                 return redirect(url_for('login'))
+
+            # If OTP is disabled, log the admin in directly after password check
+            if not app.config.get('ADMIN_OTP_ENABLED', True):
+                login_user(user)
+                flash('Welcome back!', 'success')
+                return redirect(url_for('dashboard'))
 
             # Password correct — send OTP to ADMIN_OTP_EMAIL if configured,
             # otherwise fall back to the admin's own email.

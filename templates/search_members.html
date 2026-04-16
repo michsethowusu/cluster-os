@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Search Members - AU ECED-FLN Cluster{% endblock %}
+{% block title %}Search Staekholders - AU ECED-FLN Cluster{% endblock %}
 
 {% block content %}
 <div class="container mt-5">
@@ -8,11 +8,11 @@
         <div class="col-12">
             <div class="d-flex align-items-center mb-2">
                 <a href="{{ url_for('members') }}" class="text-muted text-decoration-none small me-2">
-                    <i class="bi bi-arrow-left"></i> Back to Members
+                    <i class="bi bi-arrow-left"></i> Back to Stakeholder Directory
                 </a>
             </div>
-            <h3>Search Members by Expertise</h3>
-            <p class="text-muted">Find members with knowledge in specific topics.</p>
+            <h3>Search Stakeholders by Initiatives</h3>
+            <p class="text-muted">Find stakeholders with initiatives in specific topics.</p>
 
             <form action="{{ url_for('search_members') }}" method="GET" class="mb-4">
                 <div class="input-group">
@@ -73,7 +73,7 @@
                 </div>
             {% elif query %}
                 <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i> No members found matching your query. Try different keywords.
+                    <i class="bi bi-info-circle"></i> No stakeholders found matching your query. Try different keywords.
                 </div>
             {% endif %}
         </div>

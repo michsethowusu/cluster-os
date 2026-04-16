@@ -64,6 +64,29 @@
             </div>
         </div>
     </div>
+
+    <div class="col-md-4 mb-4">
+        <div class="card shadow-sm border-0" style="border-left: 5px solid #6f42c1 !important;">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-muted small fw-bold">WITHOUT LANGUAGE</div>
+                        <div class="display-6 mb-0">{{ undetected_lang_count }}</div>
+                    </div>
+                    <i class="bi bi-translate text-muted" style="font-size:2rem;"></i>
+                </div>
+                {% if undetected_lang_count > 0 %}
+                <form method="POST" action="{{ url_for('admin_bulk_detect_lang') }}" class="mt-3">
+                    <button type="submit" class="btn btn-sm btn-outline-purple w-100" style="color: #6f42c1; border-color: #6f42c1;">
+                        <i class="bi bi-translate"></i> Detect Language ({{ undetected_lang_count }})
+                    </button>
+                </form>
+                {% else %}
+                <div class="mt-3 text-success small"><i class="bi bi-check-circle"></i> All languages detected</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="card mt-2">
@@ -83,7 +106,6 @@
             </form>
         </div>
 
-        <!-- Live progress panel — hidden until a job is running or just finished -->
         <div id="bulk-score-progress" class="mt-3" style="display:none;">
             <div class="d-flex justify-content-between align-items-center mb-1">
                 <small class="text-muted">
@@ -98,11 +120,29 @@
             </div>
             <small class="text-muted mt-1 d-block" id="bsp-last"></small>
         </div>
+
+        <div id="langJobCard" class="mt-3" style="display:none;">
+            <hr>
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <small class="fw-semibold">
+                    <i class="bi bi-translate text-secondary"></i> Language Detection Progress
+                </small>
+                <small class="text-muted">
+                    <span id="langDone">0</span> / <span id="langTotal">0</span> processed
+                    (<span id="langErrors">0</span> errors)
+                </small>
+            </div>
+            <div class="progress mb-1" style="height:10px;">
+                <div id="langProgress" class="progress-bar progress-bar-striped progress-bar-animated bg-secondary" style="width:0%"></div>
+            </div>
+            <small class="text-muted d-block">Last: <em id="langLast">—</em></small>
+        </div>
     </div>
 </div>
 
 <script>
 (function () {
+    // --- Bulk Score Logic ---
     const panel   = document.getElementById('bulk-score-progress');
     const bar     = document.getElementById('bsp-bar');
     const done    = document.getElementById('bsp-done');
@@ -151,16 +191,46 @@
             .catch(() => {});
     }
 
-    // Auto-start polling if a job is already running when the page loads
     poll();
     timer = setInterval(poll, 2000);
 
-    // Also start polling immediately when the form is submitted
     document.getElementById('bulk-score-form').addEventListener('submit', function () {
         setTimeout(function () {
             if (!timer) timer = setInterval(poll, 2000);
         }, 800);
     });
+
+    // --- Language Detection Logic ---
+    var langCard  = document.getElementById('langJobCard');
+    var langProg  = document.getElementById('langProgress');
+    var langDone  = document.getElementById('langDone');
+    var langTotal = document.getElementById('langTotal');
+    var langErrs  = document.getElementById('langErrors');
+    var langLast  = document.getElementById('langLast');
+
+    function pollLang() {
+        fetch('{{ url_for("admin_bulk_detect_lang_progress") }}')
+            .then(r => r.json())
+            .then(d => {
+                if (d.running || d.total > 0) {
+                    langCard.style.display = 'block';
+                    var pct = d.total > 0 ? Math.round(d.done / d.total * 100) : 0;
+                    langProg.style.width  = pct + '%';
+                    langDone.textContent  = d.done;
+                    langTotal.textContent = d.total;
+                    langErrs.textContent  = d.errors;
+                    langLast.textContent  = d.last_title || '—';
+                    
+                    if (!d.running) {
+                        langProg.classList.remove('progress-bar-animated');
+                        langProg.classList.replace('bg-secondary', 'bg-success');
+                    }
+                }
+                if (d.running) setTimeout(pollLang, 2000);
+            })
+            .catch(function(){});
+    }
+    pollLang();
 })();
 </script>
 {% endblock %}

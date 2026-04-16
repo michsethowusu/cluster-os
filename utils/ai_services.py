@@ -200,6 +200,34 @@ def rank_members_by_query(query, user_data):
         return []
 
 
+def detect_language(title, content):
+    """
+    Detect the language of an initiative using the NVIDIA AI model.
+    Returns an ISO 639-1 language code compatible with deep_translator's
+    GoogleTranslator source parameter (e.g. 'en', 'fr', 'pt', 'ar', 'sw').
+    Returns None on failure.
+    """
+    sample = f"{title}\n\n{content[:1500]}"
+    prompt = f"""You are a language detection tool. Identify the primary language of the following text.
+Respond ONLY with a valid ISO 639-1 two-letter language code (e.g. en, fr, pt, ar, sw, es, am).
+Do not include any explanation, punctuation, or extra text — just the two-letter code.
+
+Text:
+{sample}
+
+Language code:"""
+    try:
+        response = call_nvidia_api(prompt, max_tokens=10, temperature=0.0)
+        code = response.strip().lower().split()[0][:5]
+        # Validate it looks like a language code (2-3 letters)
+        if code.isalpha() and 2 <= len(code) <= 3:
+            return code
+        return None
+    except Exception as e:
+        print(f"Language detection error: {e}")
+        return None
+
+
 def clean_tags_for_polls(poll_title):
     """Extract tags from poll title using AI."""
     prompt = f"""

@@ -30,6 +30,10 @@ with app.app_context():
             ALTER TABLE initiative
             ADD COLUMN IF NOT EXISTS quality_score INTEGER
         '''))
+        conn.execute(db.text('''
+            ALTER TABLE initiative
+            ADD COLUMN IF NOT EXISTS detected_lang VARCHAR(10)
+        '''))
         
         # Update Project table
         conn.execute(db.text('''

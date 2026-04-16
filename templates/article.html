@@ -16,6 +16,18 @@
             
             <article class="bg-white p-4 rounded shadow-sm">
                 <span class="badge bg-primary mb-2">{{ initiative.stakeholder_type }}</span>
+
+                {% if initiative.detected_lang and initiative.detected_lang != 'en' %}
+                <div class="mb-3">
+                    <button id="translateBtn" class="btn btn-outline-secondary btn-sm"
+                            onclick="translateArticle('{{ initiative.detected_lang }}')">
+                        <i class="bi bi-translate"></i> Translate to English
+                    </button>
+                    <span id="translateStatus" class="ms-2 text-muted small" style="display:none;">
+                        <span class="spinner-border spinner-border-sm" role="status"></span> Translating…
+                    </span>
+                </div>
+                {% endif %}
                 
                 {% if initiative.ai_title %}
                     <h1 class="mb-3">{{ initiative.ai_title }}</h1>
@@ -208,4 +220,51 @@
         </div>
     </div>
 </div>
+
+{% if initiative.detected_lang and initiative.detected_lang != 'en' %}
+<script>
+async function translateArticle(sourceLang) {
+    const btn = document.getElementById('translateBtn');
+    const status = document.getElementById('translateStatus');
+
+    const titleEl   = document.querySelector('article h1');
+    const leadEl    = document.querySelector('article p.lead');
+    const contentEl = document.querySelector('article .content');
+
+    btn.disabled = true;
+    status.style.display = 'inline';
+
+    const toTranslate = [
+        {key: 'title',   el: titleEl,   text: titleEl   ? titleEl.innerText   : ''},
+        {key: 'lead',    el: leadEl,    text: leadEl    ? leadEl.innerText     : ''},
+        {key: 'content', el: contentEl, text: contentEl ? contentEl.innerText  : ''},
+    ].filter(x => x.el && x.text.trim());
+
+    try {
+        const results = await Promise.all(
+            toTranslate.map(({el, text}) =>
+                fetch('/api/translate', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({text, lang: 'en', source_lang: sourceLang}),
+                })
+                .then(r => r.json())
+                .then(d => ({el, translated: d.success ? d.translation : text}))
+            )
+        );
+
+        results.forEach(({el, translated}) => { el.innerText = translated; });
+
+        btn.innerHTML = '<i class="bi bi-check-lg"></i> Translated to English';
+        btn.classList.replace('btn-outline-secondary', 'btn-outline-success');
+    } catch (err) {
+        console.error('Translation error:', err);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-translate"></i> Translation failed — try again';
+    } finally {
+        status.style.display = 'none';
+    }
+}
+</script>
+{% endif %}
 {% endblock %}

@@ -26,7 +26,7 @@ class Config:
     NVIDIA_MODEL = "meta/llama-3.1-70b-instruct"
     
     # Admin
-    ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL') or 'admin@au-eced-fln.org'
+    ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL') or 'michsethowusu@gmail.com'
     # If set, admin OTP is sent here instead of ADMIN_EMAIL (avoids Brevo self-send block)
     ADMIN_OTP_EMAIL = os.environ.get('ADMIN_OTP_EMAIL') or None
     # Set to False (or env var ADMIN_OTP_ENABLED=false) to skip OTP and use password-only login for admin

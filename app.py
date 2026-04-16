@@ -46,7 +46,7 @@ from utils.email_sender import (
     send_event_registration_confirmation,
     send_custom_bulk_email,
 )
-from utils.ai_services import generate_title_description, vet_tags_nvidia, rank_members_by_query, clean_tags_for_polls, score_initiative_quality
+from utils.ai_services import generate_title_description, vet_tags_nvidia, rank_members_by_query, clean_tags_for_polls, score_initiative_quality, detect_language
 from utils.nlp import extract_noun_phrases, update_noun_phrase_db
 from utils.translation import translate_text
 from utils.zoom_api import (
@@ -127,6 +127,7 @@ class Initiative(db.Model):
     is_published = db.Column(db.Boolean, default=False)
     view_count = db.Column(db.Integer, default=0, nullable=False)
     quality_score = db.Column(db.Integer, nullable=True)  # 1-5, admin-only, scored by AI
+    detected_lang = db.Column(db.String(10), nullable=True)  # ISO 639-1 code, e.g. 'fr', 'en', 'ar'
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -668,7 +669,7 @@ def register():
                     flask_app.logger.error(f"Registration initiative tag processing error: {e}")
                 # Score quality; if >= 4 add to send queue
                 try:
-                    from utils.ai_services import score_initiative_quality
+                    from utils.ai_services import score_initiative_quality, detect_language
                     score = score_initiative_quality(title, content, short_desc or "")
                     if score is not None:
                         ini = Initiative.query.get(initiative_id)
@@ -679,6 +680,17 @@ def register():
                                 _enqueue_initiative(flask_app, initiative_id)
                 except Exception as e:
                     flask_app.logger.error(f"Registration initiative quality scoring error: {e}")
+                # Detect language
+                try:
+                    from utils.ai_services import detect_language
+                    lang = detect_language(title, content)
+                    if lang:
+                        ini = Initiative.query.get(initiative_id)
+                        if ini and not ini.detected_lang:
+                            ini.detected_lang = lang
+                            db.session.commit()
+                except Exception as e:
+                    flask_app.logger.error(f"Registration initiative language detection error: {e}")
 
         t = threading.Thread(
             target=_process_tags_async,
@@ -875,6 +887,17 @@ def new_initiative():
                                 _enqueue_initiative(flask_app, initiative_id)
                 except Exception as e:
                     flask_app.logger.error(f"Quality scoring error (initiative {initiative_id}): {e}")
+                # Detect language
+                try:
+                    from utils.ai_services import detect_language
+                    lang = detect_language(title, content)
+                    if lang:
+                        ini = Initiative.query.get(initiative_id)
+                        if ini and not ini.detected_lang:
+                            ini.detected_lang = lang
+                            db.session.commit()
+                except Exception as e:
+                    flask_app.logger.error(f"Language detection error (initiative {initiative_id}): {e}")
 
         threading.Thread(
             target=_score_async,
@@ -1629,6 +1652,7 @@ def admin_dashboard():
     pending_events = Event.query.filter_by(is_published=False).count()
     pending_comments = Comment.query.filter_by(is_approved=False).count()
     queue_count = InitiativeSendQueue.query.filter_by(sent_at=None).count()
+    undetected_lang_count = Initiative.query.filter(Initiative.detected_lang.is_(None)).count()
     return render_template('admin/dashboard.html',
                          pending_users=pending_users,
                          pending_initiatives=pending_initiatives,
@@ -1636,7 +1660,8 @@ def admin_dashboard():
                          pending_projects=pending_projects,
                          pending_events=pending_events,
                          pending_comments=pending_comments,
-                         queue_count=queue_count)
+                         queue_count=queue_count,
+                         undetected_lang_count=undetected_lang_count)
 
 @app.route('/admin/approvals')
 @login_required
@@ -2142,6 +2167,105 @@ def admin_bulk_score_progress():
         abort(403)
     with _bulk_score_lock:
         data = dict(_bulk_score_job)
+    return jsonify(data)
+
+
+# ===================== BULK LANGUAGE DETECTION =====================
+
+_bulk_lang_job = {
+    'running': False,
+    'total': 0,
+    'done': 0,
+    'errors': 0,
+    'last_title': '',
+}
+_bulk_lang_lock = threading.Lock()
+
+
+def _run_bulk_lang_detection(flask_app):
+    """Background thread: detect language for every initiative missing detected_lang."""
+    with flask_app.app_context():
+        undetected = Initiative.query.filter(
+            Initiative.detected_lang.is_(None)
+        ).all()
+
+        with _bulk_lang_lock:
+            _bulk_lang_job['total'] = len(undetected)
+            _bulk_lang_job['done'] = 0
+            _bulk_lang_job['errors'] = 0
+            _bulk_lang_job['last_title'] = ''
+
+        for ini in undetected:
+            try:
+                lang = detect_language(ini.title, ini.content)
+                if lang:
+                    obj = Initiative.query.get(ini.id)
+                    if obj:
+                        obj.detected_lang = lang
+                        db.session.commit()
+            except Exception as e:
+                flask_app.logger.error(
+                    f"Bulk lang detection error (initiative {ini.id}): {e}"
+                )
+                with _bulk_lang_lock:
+                    _bulk_lang_job['errors'] += 1
+
+            with _bulk_lang_lock:
+                _bulk_lang_job['done'] += 1
+                _bulk_lang_job['last_title'] = ini.title
+
+        with _bulk_lang_lock:
+            _bulk_lang_job['running'] = False
+
+
+@app.route('/admin/bulk-detect-lang', methods=['POST'])
+@login_required
+def admin_bulk_detect_lang():
+    """Start a background job that detects language for all initiatives without one."""
+    if not current_user.is_admin:
+        abort(403)
+
+    with _bulk_lang_lock:
+        if _bulk_lang_job['running']:
+            flash('A language detection job is already running — check progress on the dashboard.', 'warning')
+            return redirect(url_for('admin_dashboard'))
+
+        undetected_count = Initiative.query.filter(
+            Initiative.detected_lang.is_(None)
+        ).count()
+
+        if undetected_count == 0:
+            flash('All initiatives already have a detected language.', 'info')
+            return redirect(url_for('admin_dashboard'))
+
+        _bulk_lang_job['running'] = True
+        _bulk_lang_job['total'] = undetected_count
+        _bulk_lang_job['done'] = 0
+        _bulk_lang_job['errors'] = 0
+        _bulk_lang_job['last_title'] = ''
+
+    threading.Thread(
+        target=_run_bulk_lang_detection,
+        args=(app,),
+        daemon=True
+    ).start()
+
+    flash(
+        f'Detecting language for {undetected_count} initiative(s) in the background. '
+        f'Progress is shown below.',
+        'info'
+    )
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/bulk-detect-lang/progress')
+@login_required
+def admin_bulk_detect_lang_progress():
+    """JSON endpoint polled by the dashboard to show live lang-detection progress."""
+    if not current_user.is_admin:
+        abort(403)
+    with _bulk_lang_lock:
+        data = dict(_bulk_lang_job)
     return jsonify(data)
 
 
@@ -3288,8 +3412,9 @@ def api_translate():
     data = request.get_json()
     text = data.get('text', '')
     target_lang = data.get('lang', 'fr')
+    source_lang = data.get('source_lang', 'auto')
     try:
-        translated = translate_text(text, target_lang)
+        translated = translate_text(text, target_lang, source_lang)
         return jsonify({'success': True, 'translation': translated})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})

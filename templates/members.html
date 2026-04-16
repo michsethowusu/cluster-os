@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}Member Organizations - AU ECED-FLN Cluster{% endblock %}
+{% block title %}Participating Organisations - AU ECED-FLN Cluster{% endblock %}
 
 {% block content %}
 <div class="container mt-5">
     <div class="row mb-4">
         <div class="col-12 text-center">
-            <h3>Cluster Member Organizations</h3>
-            <p class="text-muted">Connect with experts across Africa's ECED-FLN ecosystem</p>
+            <h3>Participating Organizations</h3>
+            <p class="text-muted">Connect with stakeholders across Africa's ECED-FLN ecosystem</p>
         </div>
     </div>
 
@@ -15,8 +15,8 @@
     <div class="row mb-5">
         <div class="col-md-8 mx-auto">
             <div class="stats-card">
-                <h5 class="mb-2"><i class="bi bi-search text-primary"></i> Find Experts by Topic</h5>
-                <p class="text-muted small mb-3">Describe a topic or area of work and we'll match you with members who have relevant project experience.</p>
+                <h5 class="mb-2"><i class="bi bi-search text-primary"></i> Find Stakeholders by Topic</h5>
+                <p class="text-muted small mb-3">Describe a topic or area of work and we'll match you with stakeholders who have relevant project experience.</p>
                 <form action="{{ url_for('search_members') }}" method="GET">
                     <div class="input-group">
                         <input type="text" name="q" class="form-control form-control-lg"
@@ -50,7 +50,7 @@
                         <div class="stats-number">
                             {{ organizations|map(attribute='member_count')|sum }}
                         </div>
-                        <div class="text-muted small">Total Experts</div>
+                        <div class="text-muted small">Total Stakeholders</div>
                     </div>
                 </div>
             </div>
@@ -71,7 +71,7 @@
                                 <tr>
                                     <th>Organization</th>
                                     <th>Type</th>
-                                    <th>Experts</th>
+                                    <th>Stakeholders</th>
                                     <th>Initiatives</th>
                                 </tr>
                             </thead>
@@ -136,7 +136,7 @@
         <div class="col-12 text-center">
             <div class="stats-card py-4" style="background: linear-gradient(135deg, #0066cc 0%, #004499 100%); color: white;">
                 <h4 class="mb-2">Is your organization part of the cluster?</h4>
-                <p>Join experts from across Africa working on Early Childhood Education and Foundational Learning.</p>
+                <p>Join stakeholders from across Africa working on Early Childhood Education and Foundational Learning.</p>
                 <a href="{{ url_for('register') }}" class="btn btn-light btn-lg mt-2">Request to Join</a>
             </div>
         </div>

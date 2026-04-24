@@ -445,7 +445,7 @@ def send_single_initiative_notification(initiative_data, users):
     title = initiative_data['title']
     url = initiative_data['url']
     desc = initiative_data.get('short_description', '')
-    subject = "New Initiative Published – AU ECED-FLN Platform"
+    subject = f"New Initiative Published – {title}"
 
     desc_block = (
         f'<p style="color:#555;font-size:0.95em;line-height:1.6;margin:8px 0 0;">{desc}</p>'

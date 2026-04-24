@@ -46,8 +46,8 @@ def _base_email(title, body_html, footer_html=""):
 
     <!-- Body -->
     <div style="padding:36px 32px 24px;line-height:1.6;">
-      <p style="margin:0 0 24px;font-size:0.75em;color:#007451;text-transform:uppercase;
-                letter-spacing:1px;font-weight:bold;">AU ECED-FLN Cluster Platform</p>
+      <p style="margin:0 0 24px;font-size:0.75em;color:#aaa;text-transform:uppercase;
+                letter-spacing:1px;font-weight:bold;text-align:center;">AU ECED-FLN Cluster Platform</p>
       <h2 style="margin:0 0 20px;color:#007451;font-size:1.25em;font-weight:bold;line-height:1.3;">
         {title}
       </h2>

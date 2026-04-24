@@ -12,7 +12,7 @@
     </div>
 
     <!-- AI Member Search -->
-    <div class="row mb-5">
+    <div class="row mb-4">
         <div class="col-md-8 mx-auto">
             <div class="stats-card">
                 <h5 class="mb-2"><i class="bi bi-search text-primary"></i> Find Stakeholders by Topic</h5>
@@ -31,6 +31,24 @@
         </div>
     </div>
 
+    <!-- Stakeholder Type Filter Tabs -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex flex-wrap gap-2">
+                <a href="{{ url_for('members') }}"
+                   class="btn btn-sm {% if not active_type %}btn-success{% else %}btn-outline-secondary{% endif %}">
+                    All Types
+                </a>
+                {% for stype in ['Government', 'NGO / Civil Society', 'Development Partner / Donor', 'Academic / Research', 'UN Agency', 'Private Sector'] %}
+                    <a href="{{ url_for('members', type=stype) }}"
+                       class="btn btn-sm {% if active_type == stype %}btn-success{% else %}btn-outline-secondary{% endif %}">
+                        {{ stype }}
+                    </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
     <!-- Stats Overview -->
     <div class="row mb-5">
         <div class="col-md-8 mx-auto">
@@ -38,7 +56,7 @@
                 <div class="row text-center">
                     <div class="col-4">
                         <div class="stats-number">{{ organizations|length }}</div>
-                        <div class="text-muted small">Organizations</div>
+                        <div class="text-muted small">Organizations{% if active_type %} (filtered){% endif %}</div>
                     </div>
                     <div class="col-4">
                         <div class="stats-number">
@@ -61,8 +79,11 @@
     <div class="row">
         <div class="col-12">
             <div class="card">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0">Organization Directory</h5>
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Organization Directory{% if active_type %} — {{ active_type }}{% endif %}</h5>
+                    {% if active_type %}
+                        <a href="{{ url_for('members') }}" class="btn btn-sm btn-outline-secondary">Clear filter</a>
+                    {% endif %}
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
@@ -79,8 +100,7 @@
                                 {% for org in organizations %}
                                     <tr>
                                         <td>
-                                            <strong>{{ org.organization }}</strong><br>
-                                            <small class="text-muted">{{ org.country }}</small>
+                                            <strong>{{ org.organization }}</strong>
                                         </td>
                                         <td>
                                             <span class="badge bg-secondary">{{ org.stakeholder_type }}</span>
@@ -104,37 +124,41 @@
         </div>
     </div>
 
-    <!-- Stakeholder Distribution -->
+    <!-- Stakeholder Distribution (hidden when filtered) -->
+    {% if not active_type %}
     <div class="row mt-5">
         <div class="col-12">
             <h5 class="mb-4">Stakeholder Distribution</h5>
             <div class="row">
-                {% for org in organizations|groupby('stakeholder_type') %}
+                {% for grp in organizations|groupby('stakeholder_type') %}
                     <div class="col-md-4 mb-3">
-                        <div class="stats-card">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <span class="fw-bold">{{ org.grouper }}</span>
-                                <span class="badge bg-primary rounded-pill">{{ org.list|length }}</span>
+                        <a href="{{ url_for('members', type=grp.grouper) }}" class="text-decoration-none">
+                            <div class="stats-card" style="cursor:pointer;">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="fw-bold text-dark">{{ grp.grouper }}</span>
+                                    <span class="badge bg-primary rounded-pill">{{ grp.list|length }}</span>
+                                </div>
+                                <div class="mt-2">
+                                    {% for item in grp.list[:3] %}
+                                        <div class="small text-muted">{{ item.organization }}</div>
+                                    {% endfor %}
+                                    {% if grp.list|length > 3 %}
+                                        <div class="small text-muted">+{{ grp.list|length - 3 }} more</div>
+                                    {% endif %}
+                                </div>
                             </div>
-                            <div class="mt-2">
-                                {% for item in org.list[:3] %}
-                                    <div class="small text-muted">{{ item.organization }}</div>
-                                {% endfor %}
-                                {% if org.list|length > 3 %}
-                                    <div class="small text-muted">+{{ org.list|length - 3 }} more</div>
-                                {% endif %}
-                            </div>
-                        </div>
+                        </a>
                     </div>
                 {% endfor %}
             </div>
         </div>
     </div>
+    {% endif %}
 
     <!-- Join CTA -->
     <div class="row mt-5 mb-5">
         <div class="col-12 text-center">
-            <div class="stats-card py-4" style="background: linear-gradient(135deg, #0066cc 0%, #004499 100%); color: white;">
+            <div class="stats-card py-4" style="background:#007451; color:white;">
                 <h4 class="mb-2">Is your organization part of the cluster?</h4>
                 <p>Join stakeholders from across Africa working on Early Childhood Education and Foundational Learning.</p>
                 <a href="{{ url_for('register') }}" class="btn btn-light btn-lg mt-2">Request to Join</a>

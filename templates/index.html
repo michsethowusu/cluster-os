@@ -55,7 +55,7 @@
         <div class="col-md-3 mb-3">
             <a href="{{ url_for('members') }}" class="text-decoration-none">
                 <div class="stats-card text-center" style="cursor:pointer;">
-                    <div class="stats-number">{{ stats.stakeholders.values()|sum }}</div>
+                    <div class="stats-number">{{ stats.total_organizations }}</div>
                     <div class="text-muted">Organizations</div>
                 </div>
             </a>

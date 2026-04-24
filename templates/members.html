@@ -2,6 +2,41 @@
 
 {% block title %}Participating Organisations - AU ECED-FLN Cluster{% endblock %}
 
+{% block extra_css %}
+<style>
+    .btn-brand-green {
+        background-color: #007451;
+        border-color: #007451;
+        color: #fff;
+        font-weight: 600;
+    }
+    .btn-brand-green:hover {
+        background-color: #005c3f;
+        border-color: #005c3f;
+        color: #fff;
+    }
+    .btn-outline-brand {
+        color: #333;
+        border-color: #333;
+    }
+    .btn-outline-brand:hover {
+        background-color: #007451;
+        border-color: #007451;
+        color: #fff;
+    }
+    /* Filter buttons — keep outline-secondary hover green too */
+    .btn-outline-secondary:hover {
+        background-color: #007451 !important;
+        border-color: #007451 !important;
+        color: #fff !important;
+    }
+    /* Active filter button */
+    .btn-success {
+        background-color: #007451 !important;
+        border-color: #007451 !important;
+    }
+</style>
+{% endblock %}
 {% block content %}
 <div class="container mt-5">
     <div class="row mb-4">
@@ -22,7 +57,7 @@
                         <input type="text" name="q" class="form-control form-control-lg"
                                placeholder="e.g., early literacy, teacher training, community engagement"
                                {% if request.args.get('q') %}value="{{ request.args.get('q') }}"{% endif %}>
-                        <button type="submit" class="btn btn-primary">
+                        <button type="submit" class="btn btn-brand-green">
                             <i class="bi bi-search"></i> Search
                         </button>
                     </div>
@@ -110,7 +145,7 @@
                                             <small class="text-muted">expert{% if org.member_count != 1 %}s{% endif %}</small>
                                         </td>
                                         <td>
-                                            <a href="{{ url_for('search') }}?q={{ org.organization }}" class="btn btn-sm btn-outline-primary">
+                                            <a href="{{ url_for('search') }}?q={{ org.organization }}" class="btn btn-sm btn-outline-dark btn-outline-brand">
                                                 View Initiatives
                                             </a>
                                         </td>

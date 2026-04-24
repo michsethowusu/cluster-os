@@ -1,5 +1,20 @@
 {% extends "base.html" %}
 
+{% block extra_css %}
+<style>
+    .btn-brand-green {
+        background-color: #007451;
+        border-color: #007451;
+        color: #fff;
+        font-weight: 600;
+    }
+    .btn-brand-green:hover {
+        background-color: #005c3f;
+        border-color: #005c3f;
+        color: #fff;
+    }
+</style>
+{% endblock %}
 {% block content %}
 <!-- White Header Section with Image -->
 <div class="bg-white py-5 border-bottom">
@@ -55,7 +70,7 @@
         <div class="col-md-3 mb-3">
             <a href="{{ url_for('members') }}" class="text-decoration-none">
                 <div class="stats-card text-center" style="cursor:pointer;">
-                    <div class="stats-number">{{ stats.total_organizations }}</div>
+                    <div class="stats-number">{{ stats.stakeholders.values()|sum }}</div>
                     <div class="text-muted">Organizations</div>
                 </div>
             </a>
@@ -111,7 +126,7 @@
                                     {% endfor %}
                                 </div>
                                 <div class="mt-auto">
-                                    <a href="{{ url_for('view_initiative', slug=initiative.slug) }}" class="btn btn-primary btn-sm">
+                                    <a href="{{ url_for('view_initiative', slug=initiative.slug) }}" class="btn btn-brand-green btn-sm">
                                         Read More
                                     </a>
                                 </div>
@@ -132,7 +147,7 @@
             <div class="stats-card py-5">
                 <h3 class="mb-3">Join the Cluster</h3>
                 <p class="lead text-muted">Share your ECED/FLN initiatives and connect with stakeholders across Africa</p>
-                <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg mt-3">
+                <a href="{{ url_for('register') }}" class="btn btn-brand-green btn-lg mt-3">
                     Request Access
                 </a>
             </div>

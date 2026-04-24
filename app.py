@@ -444,9 +444,18 @@ def load_user(user_id):
 
 @app.route('/')
 def index():
+    from sqlalchemy import func, distinct
+    org_count = db.session.query(
+        func.count(distinct(func.lower(func.trim(User.organization))))
+    ).filter(
+        User.is_approved == True,
+        User.organization != None,
+        func.trim(User.organization) != ''
+    ).scalar()
     stats = {
         'total_members': User.query.filter_by(is_approved=True).count(),
         'total_initiatives': Initiative.query.filter_by(is_published=True).count(),
+        'total_organizations': org_count or 0,
         'stakeholders': {}
     }
     
@@ -3421,10 +3430,18 @@ def api_translate():
 
 @app.route('/api/stats')
 def api_stats():
+    from sqlalchemy import func, distinct
+    org_count = db.session.query(
+        func.count(distinct(func.lower(func.trim(User.organization))))
+    ).filter(
+        User.is_approved == True,
+        User.organization != None,
+        func.trim(User.organization) != ''
+    ).scalar()
     stats = {
         'members': User.query.filter_by(is_approved=True).count(),
         'initiatives': Initiative.query.filter_by(is_published=True).count(),
-        'organizations': db.session.query(User.organization).distinct().count()
+        'organizations': org_count or 0
     }
     return jsonify(stats)
 

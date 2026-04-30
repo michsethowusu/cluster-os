@@ -3794,6 +3794,33 @@ def admin_policy_list():
     return render_template('admin/policy_list.html', policies=policies)
 
 
+@app.route('/admin/policy/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+def admin_edit_policy(id):
+    """Edit a policy development (title, summary, country, date, etc.)."""
+    if not current_user.is_admin:
+        abort(403)
+    policy = PolicyDevelopment.query.get_or_404(id)
+    if request.method == 'POST':
+        policy.title = request.form.get('title', '').strip()[:300] or policy.title
+        policy.short_summary = request.form.get('short_summary', '').strip()[:500] or None
+        policy.country = request.form.get('country', '').strip()[:100] or None
+        raw_date = request.form.get('published_date', '').strip()
+        if raw_date:
+            try:
+                from datetime import date as _date
+                policy.published_date = _date.fromisoformat(raw_date)
+            except Exception:
+                pass
+        else:
+            policy.published_date = None
+        policy.updated_at = datetime.utcnow()
+        db.session.commit()
+        flash('Policy development updated.', 'success')
+        return redirect(url_for('admin_policy_list'))
+    return render_template('admin/edit_policy.html', policy=policy)
+
+
 @app.route('/admin/policy/<int:id>/delete', methods=['POST'])
 @login_required
 def admin_delete_policy(id):

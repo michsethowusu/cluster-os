@@ -3,27 +3,48 @@
 {% block admin_title %}Send Queue{% endblock %}
 
 {% block admin_actions %}
-{% if unsent %}
-<form method="POST" action="{{ url_for('send_queue_all') }}"
-      onsubmit="return confirm('Send ALL {{ unsent|length }} unsent initiative(s) as a single digest email to all subscribed members?')">
-    <button type="submit" class="btn btn-success">
-        <i class="bi bi-send"></i> Send All as Digest ({{ unsent|length }})
-    </button>
-</form>
+{% if initiative_unsent or policy_unsent %}
+<div class="d-flex gap-2">
+    {% if initiative_unsent %}
+    <form method="POST" action="{{ url_for('send_queue_all') }}"
+          onsubmit="return confirm('Send ALL {{ initiative_unsent|length }} unsent initiative(s) as a single digest email to all subscribed members?')">
+        <button type="submit" class="btn btn-success">
+            <i class="bi bi-send"></i> Send All Initiatives ({{ initiative_unsent|length }})
+        </button>
+    </form>
+    {% endif %}
+    {% if policy_unsent %}
+    <form method="POST" action="{{ url_for('send_policy_queue_all') }}"
+          onsubmit="return confirm('Send ALL {{ policy_unsent|length }} unsent policy development(s) as a single digest email to all subscribed members?')">
+        <button type="submit" class="btn btn-success">
+            <i class="bi bi-send"></i> Send All Policies ({{ policy_unsent|length }})
+        </button>
+    </form>
+    {% endif %}
+</div>
 {% endif %}
 {% endblock %}
 
 {% block admin_content %}
 
 <p class="text-muted mb-4">
-    Initiatives with a quality score of 4–5 that have been published are held here.
-    You can send them to all subscribed members individually or all at once as a digest email.
+    Approved initiatives (quality score ≥ 4) and policy developments are held here.
+    You can send them to all subscribed members individually or all at once as digest emails.
 </p>
 
-{% if unsent %}
-<h5 class="mb-3">Unsent ({{ unsent|length }})</h5>
-<div class="list-group mb-5">
-    {% for entry in unsent %}
+<!-- INITIATIVES SECTION -->
+<h4 class="mt-4 mb-3 d-flex align-items-center">
+    <span class="badge bg-primary me-2">Initiatives</span>
+    {% if initiative_unsent %}
+    <span class="badge bg-danger">{{ initiative_unsent|length }} unsent</span>
+    {% else %}
+    <span class="badge bg-success">Queue empty</span>
+    {% endif %}
+</h4>
+
+{% if initiative_unsent %}
+<div class="list-group mb-4">
+    {% for entry in initiative_unsent %}
     {% set ini = entry.initiative %}
     <div class="approval-item">
         <div class="d-flex w-100 justify-content-between align-items-start">
@@ -65,15 +86,15 @@
     {% endfor %}
 </div>
 {% else %}
-<div class="alert alert-success mb-5">
-    <i class="bi bi-check-circle"></i> Send queue is empty — no initiatives waiting to be sent.
+<div class="alert alert-success mb-4">
+    <i class="bi bi-check-circle"></i> No initiatives waiting to be sent.
 </div>
 {% endif %}
 
-{% if sent %}
-<h5 class="mb-3 text-muted">Recently Sent (last 20)</h5>
-<div class="list-group">
-    {% for entry in sent %}
+{% if initiative_sent %}
+<h5 class="mb-3 text-muted">Recently Sent Initiatives (last 20)</h5>
+<div class="list-group mb-5">
+    {% for entry in initiative_sent %}
     {% set ini = entry.initiative %}
     <div class="approval-item" style="opacity:0.7;">
         <div class="d-flex w-100 justify-content-between align-items-start">
@@ -85,6 +106,86 @@
                 <h5 class="mb-1">
                     <a href="{{ url_for('view_initiative', slug=ini.slug) }}" target="_blank" class="text-decoration-none text-muted">
                         {{ ini.title }}
+                    </a>
+                </h5>
+                <small class="text-muted">Sent {{ entry.sent_at | format_date }}</small>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- POLICY DEVELOPMENTS SECTION -->
+<h4 class="mt-5 mb-3 d-flex align-items-center">
+    <span class="badge bg-info me-2">Policy Developments</span>
+    {% if policy_unsent %}
+    <span class="badge bg-danger">{{ policy_unsent|length }} unsent</span>
+    {% else %}
+    <span class="badge bg-success">Queue empty</span>
+    {% endif %}
+</h4>
+
+{% if policy_unsent %}
+<div class="list-group mb-4">
+    {% for entry in policy_unsent %}
+    {% set policy = entry.policy %}
+    <div class="approval-item">
+        <div class="d-flex w-100 justify-content-between align-items-start">
+            <div class="flex-grow-1 me-3">
+                <span class="badge bg-success mb-1">Approved Policy</span>
+                <h5 class="mb-1">
+                    <a href="{{ url_for('view_policy', id=policy.id) }}" target="_blank" class="text-decoration-none">
+                        {{ policy.title or policy.source_url[:100] }}
+                    </a>
+                </h5>
+                <p class="mb-1 text-muted">
+                    {% if policy.country %}<span class="badge bg-info">{{ policy.country }}</span>{% endif %}
+                    {% if policy.published_date %}<span class="badge bg-secondary">{{ policy.published_date | format_date }}</span>{% endif %}
+                </p>
+                {% if policy.short_summary %}
+                <small class="text-muted">{{ policy.short_summary[:200] }}</small>
+                {% endif %}
+                <div class="mt-2">
+                    <small class="text-muted">Queued {{ entry.queued_at | format_date }}</small>
+                </div>
+            </div>
+            <div class="d-flex flex-column gap-2">
+                <form method="POST" action="{{ url_for('send_policy_queue_item', queue_id=entry.id) }}"
+                      onsubmit="return confirm('Send this policy development to all subscribed members now?')">
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="bi bi-send"></i> Send Now
+                    </button>
+                </form>
+                <form method="POST" action="{{ url_for('remove_policy_queue_item', queue_id=entry.id) }}"
+                      onsubmit="return confirm('Remove from queue without sending?')">
+                    <button type="submit" class="btn btn-outline-danger btn-sm">
+                        <i class="bi bi-x-lg"></i> Remove
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-success mb-4">
+    <i class="bi bi-check-circle"></i> No policy developments waiting to be sent.
+</div>
+{% endif %}
+
+{% if policy_sent %}
+<h5 class="mb-3 text-muted">Recently Sent Policies (last 20)</h5>
+<div class="list-group mb-5">
+    {% for entry in policy_sent %}
+    {% set policy = entry.policy %}
+    <div class="approval-item" style="opacity:0.7;">
+        <div class="d-flex w-100 justify-content-between align-items-start">
+            <div class="flex-grow-1">
+                <span class="badge bg-secondary mb-1">Sent</span>
+                <h5 class="mb-1">
+                    <a href="{{ url_for('view_policy', id=policy.id) }}" target="_blank" class="text-decoration-none text-muted">
+                        {{ policy.title or policy.source_url[:100] }}
                     </a>
                 </h5>
                 <small class="text-muted">Sent {{ entry.sent_at | format_date }}</small>

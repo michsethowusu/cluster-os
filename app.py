@@ -2091,18 +2091,35 @@ def unpublish_item(type, id):
 @app.route('/admin/send-queue')
 @login_required
 def admin_send_queue():
-    """View of all approved initiatives waiting to be sent to members."""
+    """View of all approved initiatives and policy developments waiting to be sent to members."""
     if not current_user.is_admin:
         abort(403)
-    unsent = (InitiativeSendQueue.query
+
+    # Initiatives
+    initiative_unsent = (InitiativeSendQueue.query
               .filter_by(sent_at=None)
               .order_by(InitiativeSendQueue.queued_at.desc())
               .all())
-    sent = (InitiativeSendQueue.query
+    initiative_sent = (InitiativeSendQueue.query
             .filter(InitiativeSendQueue.sent_at.isnot(None))
             .order_by(InitiativeSendQueue.sent_at.desc())
             .limit(20).all())
-    return render_template('admin/send_queue.html', unsent=unsent, sent=sent)
+
+    # Policy developments
+    policy_unsent = (PolicySendQueue.query
+              .filter_by(sent_at=None)
+              .order_by(PolicySendQueue.queued_at.desc())
+              .all())
+    policy_sent = (PolicySendQueue.query
+            .filter(PolicySendQueue.sent_at.isnot(None))
+            .order_by(PolicySendQueue.sent_at.desc())
+            .limit(20).all())
+
+    return render_template('admin/send_queue.html', 
+                         initiative_unsent=initiative_unsent, 
+                         initiative_sent=initiative_sent,
+                         policy_unsent=policy_unsent,
+                         policy_sent=policy_sent)
 
 
 @app.route('/admin/send-queue/send/<int:queue_id>', methods=['POST'])
@@ -2183,22 +2200,6 @@ def remove_queue_item(queue_id):
 
 
 # ===================== POLICY SEND QUEUE ROUTES =====================
-
-@app.route('/admin/policy-send-queue')
-@login_required
-def admin_policy_send_queue():
-    """View of all approved policy developments waiting to be sent to members."""
-    if not current_user.is_admin:
-        abort(403)
-    unsent = (PolicySendQueue.query
-              .filter_by(sent_at=None)
-              .order_by(PolicySendQueue.queued_at.desc())
-              .all())
-    sent = (PolicySendQueue.query
-            .filter(PolicySendQueue.sent_at.isnot(None))
-            .order_by(PolicySendQueue.sent_at.desc())
-            .limit(20).all())
-    return render_template('admin/policy_send_queue.html', unsent=unsent, sent=sent)
 
 
 @app.route('/admin/policy-send-queue/send/<int:queue_id>', methods=['POST'])

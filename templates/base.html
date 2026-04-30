@@ -185,6 +185,7 @@
         }
     </style>
     {% block extra_css %}{% endblock %}
+<base target="_blank">
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark">
@@ -217,6 +218,9 @@
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('policy_developments') }}">Policy Developments</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('documents') }}">Document Library</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('members') }}">Members</a>

@@ -15,23 +15,245 @@
             --au-green: #007451;
             --au-gold: #ffcc00;
             --light-bg: #f8f9fa;
+            --nav-height: 60px;
         }
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: var(--light-bg);
+            padding-top: var(--nav-height);
         }
-        
-        .navbar {
-            background: #007451;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+
+        /* ── Dock Navbar ── */
+        .dock-navbar {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            height: var(--nav-height);
+            background: var(--au-green);
+            box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+            z-index: 1050;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 4px;
         }
-        
-        .navbar-brand {
+
+        .dock-brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
             font-weight: 700;
-            color: white !important;
+            font-size: 15px;
+            color: white;
+            text-decoration: none;
+            white-space: nowrap;
+            padding-right: 12px;
+            border-right: 1px solid rgba(255,255,255,0.2);
+            margin-right: 4px;
         }
-        
+        .dock-brand:hover { color: white; }
+        .dock-brand i { font-size: 18px; }
+
+        .dock-items {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            flex: 1;
+        }
+
+        .dock-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            text-decoration: none;
+            color: rgba(255,255,255,0.75);
+            font-size: 10px;
+            transition: background 0.15s, color 0.15s;
+            white-space: nowrap;
+            position: relative;
+        }
+        .dock-item i {
+            font-size: 17px;
+            line-height: 1;
+        }
+        .dock-item:hover {
+            background: rgba(255,255,255,0.15);
+            color: white;
+        }
+        .dock-item.active {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+        .dock-item .dock-badge {
+            position: absolute;
+            top: 5px;
+            right: 8px;
+            width: 7px;
+            height: 7px;
+            background: var(--au-gold);
+            border-radius: 50%;
+        }
+
+        /* "More" dropdown trigger */
+        .dock-more {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            color: rgba(255,255,255,0.75);
+            font-size: 10px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.08);
+            border: none;
+            transition: background 0.15s, color 0.15s;
+        }
+        .dock-more i { font-size: 17px; line-height: 1; }
+        .dock-more:hover {
+            background: rgba(255,255,255,0.18);
+            color: white;
+        }
+        .dock-more.show { background: rgba(255,255,255,0.2); color: white; }
+
+        /* More dropdown menu */
+        .dock-more-menu {
+            min-width: 200px;
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.14);
+            padding: 6px;
+            margin-top: 6px !important;
+        }
+        .dock-more-menu .dropdown-item {
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #333;
+        }
+        .dock-more-menu .dropdown-item i { font-size: 15px; color: #666; }
+        .dock-more-menu .dropdown-item:hover { background: #f0f8f4; color: var(--au-green); }
+        .dock-more-menu .dropdown-item:hover i { color: var(--au-green); }
+        .dock-more-menu .dropdown-divider { margin: 4px 0; }
+
+        /* Right side controls */
+        .dock-right {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-left: auto;
+            padding-left: 12px;
+            border-left: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .dock-icon-btn {
+            width: 34px;
+            height: 34px;
+            border-radius: 7px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            transition: background 0.15s, color 0.15s;
+            background: rgba(255,255,255,0.08);
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .dock-icon-btn:hover {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+
+        .dock-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.25);
+            border: 1.5px solid rgba(255,255,255,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 700;
+            color: white;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .dock-avatar:hover { background: rgba(255,255,255,0.35); color: white; }
+
+        /* Avatar dropdown */
+        .dock-avatar-menu {
+            min-width: 180px;
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.14);
+            padding: 6px;
+            margin-top: 6px !important;
+        }
+        .dock-avatar-menu .dropdown-item {
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .dock-avatar-menu .dropdown-item i { font-size: 14px; color: #666; }
+        .dock-avatar-menu .dropdown-item:hover { background: #f0f8f4; color: var(--au-green); }
+        .dock-avatar-menu .dropdown-item:hover i { color: var(--au-green); }
+
+        /* Mobile: collapse to hamburger below md */
+        @media (max-width: 768px) {
+            .dock-items { display: none; }
+            .dock-mobile-toggle { display: flex !important; }
+        }
+        .dock-mobile-toggle { display: none; }
+
+        /* Mobile full-screen menu */
+        .dock-mobile-menu {
+            display: none;
+            position: fixed;
+            top: var(--nav-height);
+            left: 0; right: 0; bottom: 0;
+            background: var(--au-green);
+            z-index: 1040;
+            padding: 16px;
+            flex-direction: column;
+            gap: 4px;
+            overflow-y: auto;
+        }
+        .dock-mobile-menu.open { display: flex; }
+        .dock-mobile-link {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 14px 16px;
+            border-radius: 10px;
+            color: rgba(255,255,255,0.85);
+            text-decoration: none;
+            font-size: 15px;
+            transition: background 0.15s;
+        }
+        .dock-mobile-link i { font-size: 20px; width: 24px; text-align: center; }
+        .dock-mobile-link:hover, .dock-mobile-link.active {
+            background: rgba(255,255,255,0.15);
+            color: white;
+        }
+        .dock-mobile-divider {
+            height: 1px;
+            background: rgba(255,255,255,0.15);
+            margin: 8px 0;
+        }
+
+        /* ── Existing styles kept as-is ── */
         .stats-card {
             background: white;
             border-radius: 12px;
@@ -40,17 +262,12 @@
             transition: transform 0.3s;
             height: 100%;
         }
-        
-        .stats-card:hover {
-            transform: translateY(-5px);
-        }
-        
+        .stats-card:hover { transform: translateY(-5px); }
         .stats-number {
             font-size: 2.5rem;
             font-weight: 700;
             color: var(--au-blue);
         }
-        
         .initiative-card {
             background: white;
             border-radius: 12px;
@@ -60,12 +277,10 @@
             height: 100%;
             border: none;
         }
-        
         .initiative-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 8px 25px rgba(0,0,0,0.12);
         }
-        
         .tag-badge {
             background: #e9ecef;
             color: #495057;
@@ -77,67 +292,28 @@
             display: inline-block;
             text-decoration: none;
         }
-        
-        .tag-badge:hover {
-            background: var(--au-blue);
-            color: white;
-        }
-        
+        .tag-badge:hover { background: var(--au-blue); color: white; }
         .btn-primary {
             background-color: var(--au-blue);
             border-color: var(--au-blue);
             padding: 10px 25px;
             font-weight: 600;
         }
-        
-        .btn-primary:hover {
-            background-color: #0055aa;
-            border-color: #0055aa;
-        }
-        
+        .btn-primary:hover { background-color: #0055aa; border-color: #0055aa; }
         .footer {
             background: #007451;
             color: white;
             padding: 40px 0;
             margin-top: 60px;
         }
-        
-        .project-active {
-            border-left: 4px solid #28a745;
-        }
-        
-        .project-past {
-            border-left: 4px solid #6c757d;
-            opacity: 0.8;
-        }
-        
-        .project-upcoming {
-            border-left: 4px solid #ffc107;
-        }
-        
-        .deadline-badge {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-        }
-        
-        .lang-toggle {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            z-index: 1000;
-        }
-        
-        .translated-content {
-            animation: fadeIn 0.3s ease-in;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
+        .project-active { border-left: 4px solid #28a745; }
+        .project-past { border-left: 4px solid #6c757d; opacity: 0.8; }
+        .project-upcoming { border-left: 4px solid #ffc107; }
+        .deadline-badge { position: absolute; top: 10px; right: 10px; }
+        .lang-toggle { position: fixed; bottom: 20px; right: 20px; z-index: 1000; }
+        .translated-content { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-        /* Feed / Discussion styles */
         .feed-card {
             background: white;
             border-radius: 12px;
@@ -146,15 +322,9 @@
             overflow: hidden;
             transition: box-shadow 0.2s;
         }
-        .feed-card:hover {
-            box-shadow: 0 4px 20px rgba(0,0,0,0.12);
-        }
-        .feed-card .feed-header {
-            padding: 16px 20px 0;
-        }
-        .feed-card .feed-body {
-            padding: 0 20px 16px;
-        }
+        .feed-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.12); }
+        .feed-card .feed-header { padding: 16px 20px 0; }
+        .feed-card .feed-body { padding: 0 20px 16px; }
         .feed-card .feed-footer {
             background: #f8f9fa;
             padding: 12px 20px;
@@ -166,96 +336,199 @@
             padding: 10px 14px;
             margin-bottom: 8px;
         }
-        .comment-bubble:last-child {
-            margin-bottom: 0;
-        }
-        .comment-author {
-            font-weight: 600;
-            font-size: 0.85rem;
-            color: #333;
-        }
-        .comment-text {
-            font-size: 0.9rem;
-            color: #555;
-            margin: 2px 0 0;
-        }
-        .comment-meta {
-            font-size: 0.78rem;
-            color: #999;
-        }
+        .comment-bubble:last-child { margin-bottom: 0; }
+        .comment-author { font-weight: 600; font-size: 0.85rem; color: #333; }
+        .comment-text { font-size: 0.9rem; color: #555; margin: 2px 0 0; }
+        .comment-meta { font-size: 0.78rem; color: #999; }
     </style>
     {% block extra_css %}{% endblock %}
 <base target="_blank">
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark">
-        <div class="container">
-            <a class="navbar-brand" href="{{ url_for('index') }}">
-                <i class="bi bi-globe-africa"></i> AU ECED-FLN
+
+    <!-- ── Dock Navbar ── -->
+    <nav class="dock-navbar">
+
+        <!-- Brand -->
+        <a class="dock-brand" href="{{ url_for('index') }}" target="_self">
+            <i class="bi bi-globe-africa"></i> AU ECED-FLN
+        </a>
+
+        <!-- Primary nav items (desktop) -->
+        <div class="dock-items">
+            <a class="dock-item {% if request.endpoint == 'index' %}active{% endif %}"
+               href="{{ url_for('index') }}" target="_self">
+                <i class="bi bi-house-fill"></i>
+                <span>Home</span>
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('index') }}">Home</a>
+            <a class="dock-item {% if request.endpoint == 'search' %}active{% endif %}"
+               href="{{ url_for('search') }}" target="_self">
+                <i class="bi bi-search"></i>
+                <span>Initiatives</span>
+            </a>
+            <a class="dock-item {% if request.endpoint == 'discussions' %}active{% endif %}"
+               href="{{ url_for('discussions') }}" target="_self">
+                <i class="bi bi-chat-dots-fill"></i>
+                <span>Discuss</span>
+                {# Optional unread badge — add logic here if needed #}
+                {# <span class="dock-badge"></span> #}
+            </a>
+            <a class="dock-item {% if request.endpoint == 'events' %}active{% endif %}"
+               href="{{ url_for('events') }}" target="_self">
+                <i class="bi bi-calendar-event-fill"></i>
+                <span>Events</span>
+            </a>
+            <a class="dock-item {% if request.endpoint == 'documents' %}active{% endif %}"
+               href="{{ url_for('documents') }}" target="_self">
+                <i class="bi bi-folder2-open"></i>
+                <span>Docs</span>
+            </a>
+
+            <!-- "More" dropdown for secondary pages -->
+            <div class="dropdown">
+                <button class="dock-more dropdown-toggle"
+                        data-bs-toggle="dropdown"
+                        aria-expanded="false"
+                        data-bs-offset="0,8">
+                    <i class="bi bi-grid-3x3-gap-fill"></i>
+                    <span>More</span>
+                </button>
+                <ul class="dropdown-menu dock-more-menu">
+                    <li>
+                        <a class="dropdown-item" href="{{ url_for('projects') }}" target="_self">
+                            <i class="bi bi-kanban-fill"></i> Projects
+                        </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('search') }}">Initiatives</a>
+                    <li>
+                        <a class="dropdown-item" href="{{ url_for('polls') }}" target="_self">
+                            <i class="bi bi-bar-chart-fill"></i> Polls
+                        </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('discussions') }}">Discussions</a>
+                    <li>
+                        <a class="dropdown-item" href="{{ url_for('policy_developments') }}" target="_self">
+                            <i class="bi bi-journal-text"></i> Policy Developments
+                        </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('projects') }}">Projects</a>
+                    <li>
+                        <a class="dropdown-item" href="{{ url_for('members') }}" target="_self">
+                            <i class="bi bi-people-fill"></i> Members
+                        </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('events') }}">Events</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('polls') }}">Polls</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('policy_developments') }}">Policy Developments</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('documents') }}">Document Library</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('members') }}">Members</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="https://ecedcluster.africa/" target="_blank" rel="noopener noreferrer">
-                            Cluster Website <i class="bi bi-box-arrow-up-right" style="font-size: 0.75rem;"></i>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <a class="dropdown-item" href="https://ecedcluster.africa/" target="_blank" rel="noopener noreferrer">
+                            <i class="bi bi-box-arrow-up-right"></i> Cluster Website
                         </a>
                     </li>
                 </ul>
-                <ul class="navbar-nav">
-                    {% if current_user.is_authenticated %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
-                        </li>
-                        {% if current_user.is_admin %}
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('admin_dashboard') }}">Admin</a>
-                            </li>
-                        {% endif %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
-                        </li>
-                    {% else %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('login') }}">Login</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('register') }}">Join Cluster</a>
-                        </li>
-                    {% endif %}
-                </ul>
             </div>
         </div>
+
+        <!-- Right-side controls -->
+        <div class="dock-right">
+            {% if current_user.is_authenticated %}
+                {% if current_user.is_admin %}
+                    <a class="dock-icon-btn" href="{{ url_for('admin_dashboard') }}" target="_self" title="Admin">
+                        <i class="bi bi-shield-fill"></i>
+                    </a>
+                {% endif %}
+
+                <!-- Avatar dropdown -->
+                <div class="dropdown">
+                    <a class="dock-avatar dropdown-toggle"
+                       data-bs-toggle="dropdown"
+                       aria-expanded="false"
+                       data-bs-offset="0,8"
+                       title="{{ current_user.name or current_user.email }}">
+                        {{ (current_user.name or current_user.email)[:2]|upper }}
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end dock-avatar-menu">
+                        <li>
+                            <a class="dropdown-item" href="{{ url_for('dashboard') }}" target="_self">
+                                <i class="bi bi-speedometer2"></i> Dashboard
+                            </a>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <a class="dropdown-item" href="{{ url_for('logout') }}" target="_self">
+                                <i class="bi bi-box-arrow-right"></i> Logout
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            {% else %}
+                <a class="dock-icon-btn" href="{{ url_for('login') }}" target="_self" title="Login">
+                    <i class="bi bi-person-fill"></i>
+                </a>
+                <a class="dock-icon-btn" href="{{ url_for('register') }}" target="_self" title="Join Cluster"
+                   style="background:rgba(255,204,0,0.25); color: #ffcc00;">
+                    <i class="bi bi-person-plus-fill"></i>
+                </a>
+            {% endif %}
+        </div>
+
+        <!-- Mobile hamburger -->
+        <button class="dock-mobile-toggle dock-icon-btn" onclick="toggleMobileMenu()" id="mobileToggle">
+            <i class="bi bi-list" id="mobileIcon"></i>
+        </button>
+
     </nav>
+
+    <!-- Mobile full-screen menu -->
+    <div class="dock-mobile-menu" id="mobileMenu">
+        <a class="dock-mobile-link" href="{{ url_for('index') }}" target="_self">
+            <i class="bi bi-house-fill"></i> Home
+        </a>
+        <a class="dock-mobile-link" href="{{ url_for('search') }}" target="_self">
+            <i class="bi bi-search"></i> Initiatives
+        </a>
+        <a class="dock-mobile-link" href="{{ url_for('discussions') }}" target="_self">
+            <i class="bi bi-chat-dots-fill"></i> Discussions
+        </a>
+        <a class="dock-mobile-link" href="{{ url_for('projects') }}" target="_self">
+            <i class="bi bi-kanban-fill"></i> Projects
+        </a>
+        <a class="dock-mobile-link" href="{{ url_for('events') }}" target="_self">
+            <i class="bi bi-calendar-event-fill"></i> Events
+        </a>
+        <a class="dock-mobile-link" href="{{ url_for('polls') }}" target="_self">
+            <i class="bi bi-bar-chart-fill"></i> Polls
+        </a>
+        <a class="dock-mobile-link" href="{{ url_for('policy_developments') }}" target="_self">
+            <i class="bi bi-journal-text"></i> Policy Developments
+        </a>
+        <a class="dock-mobile-link" href="{{ url_for('documents') }}" target="_self">
+            <i class="bi bi-folder2-open"></i> Document Library
+        </a>
+        <a class="dock-mobile-link" href="{{ url_for('members') }}" target="_self">
+            <i class="bi bi-people-fill"></i> Members
+        </a>
+        <div class="dock-mobile-divider"></div>
+        <a class="dock-mobile-link" href="https://ecedcluster.africa/" target="_blank" rel="noopener noreferrer">
+            <i class="bi bi-box-arrow-up-right"></i> Cluster Website
+        </a>
+        <div class="dock-mobile-divider"></div>
+        {% if current_user.is_authenticated %}
+            <a class="dock-mobile-link" href="{{ url_for('dashboard') }}" target="_self">
+                <i class="bi bi-speedometer2"></i> Dashboard
+            </a>
+            {% if current_user.is_admin %}
+                <a class="dock-mobile-link" href="{{ url_for('admin_dashboard') }}" target="_self">
+                    <i class="bi bi-shield-fill"></i> Admin
+                </a>
+            {% endif %}
+            <a class="dock-mobile-link" href="{{ url_for('logout') }}" target="_self">
+                <i class="bi bi-box-arrow-right"></i> Logout
+            </a>
+        {% else %}
+            <a class="dock-mobile-link" href="{{ url_for('login') }}" target="_self">
+                <i class="bi bi-person-fill"></i> Login
+            </a>
+            <a class="dock-mobile-link" href="{{ url_for('register') }}" target="_self">
+                <i class="bi bi-person-plus-fill"></i> Join Cluster
+            </a>
+        {% endif %}
+    </div>
 
     <main>
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -288,6 +561,7 @@
         </div>
     </footer>
 
+    <!-- Language toggle -->
     <div class="lang-toggle">
         <div class="dropup">
             <button class="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -302,6 +576,23 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        /* ── Mobile menu toggle ── */
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobileMenu');
+            const icon = document.getElementById('mobileIcon');
+            const isOpen = menu.classList.toggle('open');
+            icon.className = isOpen ? 'bi bi-x-lg' : 'bi bi-list';
+        }
+
+        /* ── Close mobile menu on link click ── */
+        document.querySelectorAll('.dock-mobile-link').forEach(link => {
+            link.addEventListener('click', () => {
+                document.getElementById('mobileMenu').classList.remove('open');
+                document.getElementById('mobileIcon').className = 'bi bi-list';
+            });
+        });
+
+        /* ── Translation ── */
         let currentLang = 'en';
 
         function translatePage(lang) {
@@ -311,16 +602,14 @@
             document.body.style.cursor = 'wait';
 
             const elements = document.querySelectorAll(
-                'h1, h2, h3, h4, h5, h6, p, .lead, .card-title, .card-text, .nav-link, .btn'
+                'h1, h2, h3, h4, h5, h6, p, .lead, .card-title, .card-text, .btn'
             );
 
             const promises = [];
 
             elements.forEach(el => {
-                // Skip the language toggle UI itself
-                if (el.closest('.lang-toggle')) return;
+                if (el.closest('.lang-toggle') || el.closest('.dock-navbar') || el.closest('.dock-mobile-menu')) return;
 
-                // On the first ever translation, snapshot the original text
                 if (!el.dataset.original) {
                     el.dataset.original = el.textContent.trim();
                 }
@@ -328,22 +617,16 @@
                 const text = el.dataset.original;
                 if (!text || text.length === 0 || text.length >= 5000) return;
 
-                // When going back to English, restore the snapshot — no API call needed
                 if (lang === 'en') {
                     el.textContent = el.dataset.original;
                     el.classList.remove('translated-content');
                     return;
                 }
 
-                // Translate from whatever language the original text is in → target lang
                 const p = fetch('/api/translate', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        text: text,
-                        lang: lang,
-                        source_lang: 'auto'   // Google detects EN or FR automatically
-                    })
+                    body: JSON.stringify({ text, lang, source_lang: 'auto' })
                 })
                 .then(r => r.json())
                 .then(data => {

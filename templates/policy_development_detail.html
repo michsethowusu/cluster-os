@@ -20,6 +20,18 @@
         line-height: 1.8;
         color: #333;
     }
+    .article-body h1, .article-body h2, .article-body h3,
+    .article-body h4, .article-body h5, .article-body h6 {
+        margin-top: 1.4em;
+        margin-bottom: 0.4em;
+        font-weight: 700;
+        color: #1a1a1a;
+    }
+    .article-body p   { margin-bottom: 1em; }
+    .article-body ul,
+    .article-body ol  { padding-left: 1.4em; margin-bottom: 1em; }
+    .article-body li  { margin-bottom: 0.3em; }
+    .article-body strong { font-weight: 700; }
     .source-box {
         background: #f8f9fa;
         border-left: 4px solid #007451;
@@ -28,6 +40,19 @@
         font-size: 0.9rem;
     }
 </style>
+{% endblock %}
+
+{% block extra_js %}
+<!-- marked.js for client-side markdown rendering -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const el = document.getElementById('article-body-content');
+        if (el && el.dataset.markdown) {
+            el.innerHTML = marked.parse(el.dataset.markdown);
+        }
+    });
+</script>
 {% endblock %}
 
 {% block content %}
@@ -42,7 +67,7 @@
         </ol>
     </nav>
 
-    <!-- Header -->
+    <!-- Meta pills -->
     <div class="mb-3">
         {% if policy.country %}
         <span class="meta-pill country mb-2">
@@ -62,31 +87,20 @@
     <p class="lead text-muted mb-4">{{ policy.short_summary }}</p>
     {% endif %}
 
-    <!-- Tags -->
-    {% if policy.tags %}
-    <div class="mb-4">
-        {% for tag in policy.tags %}
-        <a href="{{ url_for('policy_developments', tag=tag.name) }}" class="tag-badge">{{ tag.name }}</a>
-        {% endfor %}
-    </div>
-    {% endif %}
-
     <hr class="mb-4">
 
-    <!-- Extracted ECED Content -->
+    <!-- Extracted ECED Content rendered as markdown -->
     {% if policy.extracted_text %}
-    <div class="article-body mb-4">
-        <h5 class="text-muted text-uppercase fw-bold" style="font-size:.8rem; letter-spacing:.06em;">
-            <i class="bi bi-robot"></i> AI-Extracted ECED/FLN Content
-        </h5>
-        <div class="mt-3">
-            {{ policy.extracted_text | replace('\n', '<br>') | safe }}
-        </div>
+    <div class="article-body mb-5"
+         id="article-body-content"
+         data-markdown="{{ policy.extracted_text | e }}">
+        {# Fallback plain text if JS is disabled #}
+        <noscript>{{ policy.extracted_text }}</noscript>
     </div>
     {% endif %}
 
     <!-- Source link -->
-    <div class="source-box mb-5">
+    <div class="source-box mb-4">
         <strong><i class="bi bi-link-45deg"></i> Original Source:</strong><br>
         <a href="{{ policy.source_url }}" target="_blank" rel="noopener noreferrer"
            class="text-break">
@@ -99,6 +113,15 @@
         </div>
         {% endif %}
     </div>
+
+    <!-- Tags -->
+    {% if policy.tags %}
+    <div class="mb-5">
+        {% for tag in policy.tags %}
+        <a href="{{ url_for('policy_developments', tag=tag.name) }}" class="tag-badge">{{ tag.name }}</a>
+        {% endfor %}
+    </div>
+    {% endif %}
 
     <a href="{{ url_for('policy_developments') }}" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left"></i> Back to Policy Developments

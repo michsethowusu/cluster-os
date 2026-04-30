@@ -515,3 +515,114 @@ def send_bulk_initiatives_digest(initiatives_data, users):
             footer_html=_unsubscribe_footer(user.email)
         )
         send_email(user.email, subject, html)
+
+
+# ===================== POLICY DEVELOPMENT EMAILS =====================
+
+def send_single_policy_notification(policy_data, users):
+    """
+    Send a single policy development notification email to all subscribed members.
+    policy_data: dict with keys: title, short_summary, url, country, published_date
+    """
+    if not users or not policy_data:
+        return
+
+    title = policy_data['title']
+    url = policy_data['url']
+    summary = policy_data.get('short_summary', '')
+    country = policy_data.get('country', '')
+    published_date = policy_data.get('published_date', '')
+    subject = f"New Policy Development – {title}"
+
+    meta_line = ""
+    if country or published_date:
+        parts = []
+        if country:
+            parts.append(f"Country: {country}")
+        if published_date:
+            parts.append(f"Published: {published_date}")
+        meta_line = f'<p style="margin:4px 0 12px;color:#777;font-size:0.88em;">{" | ".join(parts)}</p>'
+
+    summary_block = (
+        f'<p style="color:#555;font-size:0.95em;line-height:1.6;margin:8px 0 0;">{summary}</p>'
+        if summary else ""
+    )
+
+    for user in users:
+        body = f"""
+            <p>A new ECED-FLN policy development has just been published on the platform:</p>
+            {_info_box(f'<p style="margin:0;font-size:1.05em;font-weight:bold;color:#333;">{title}</p>{meta_line}{summary_block}')}
+            {_btn(url, "Read Full Policy Development →")}
+            <p style="color:#666;font-size:0.88em;margin:0;">
+                You are receiving this because you are a member of the AU&nbsp;ECED-FLN Cluster Platform.
+            </p>
+        """
+        html = _base_email("New Policy Development Published", body,
+                           footer_html=_unsubscribe_footer(user.email))
+        send_email(user.email, subject, html)
+
+
+def send_bulk_policies_digest(policies_data, users):
+    """
+    Send a digest email listing multiple newly published policy developments
+    to all subscribed members.
+    Each item in policies_data is a dict with keys: title, short_summary, url,
+    country, published_date
+    """
+    if not users or not policies_data:
+        return
+
+    count = len(policies_data)
+    subject = f"{count} New Policy Development{'s' if count != 1 else ''} on the AU ECED-FLN Platform"
+
+    for user in users:
+        items_html = ""
+        for item in policies_data:
+            meta_parts = []
+            if item.get('country'):
+                meta_parts.append(f"Country: {item['country']}")
+            if item.get('published_date'):
+                meta_parts.append(f"Published: {item['published_date']}")
+            meta_line = (
+                f'<p style="margin:4px 0 8px;color:#777;font-size:0.85em;">{" | ".join(meta_parts)}</p>'
+                if meta_parts else ""
+            )
+
+            summary_block = (
+                f'<p style="margin:6px 0 0;color:#555;font-size:0.9em;line-height:1.5;">'
+                f'{item["short_summary"]}</p>'
+                if item.get("short_summary") else ""
+            )
+
+            items_html += f"""
+            <div style="margin-bottom:12px;padding:16px 18px;background:#f8f9fa;
+                        border-left:4px solid #007451;border-radius:4px;">
+                <a href="{item['url']}"
+                   style="font-size:1em;font-weight:bold;color:#007451;text-decoration:none;line-height:1.4;">
+                    {item['title']}
+                </a>
+                {meta_line}
+                {summary_block}
+                <p style="margin:10px 0 0;">
+                    <a href="{item['url']}"
+                       style="font-size:0.85em;color:#007451;text-decoration:none;font-weight:bold;">
+                        Read more →
+                    </a>
+                </p>
+            </div>"""
+
+        body = f"""
+            <p>The following policy development{'s have' if count != 1 else ' has'} just been
+            published on the AU&nbsp;ECED-FLN Cluster Platform:</p>
+            {items_html}
+            <p style="color:#666;font-size:0.88em;margin:20px 0 0;">
+                You are receiving this because you are a member of the AU&nbsp;ECED-FLN Cluster Platform.
+            </p>
+        """
+        html = _base_email(
+            f"{count} New Policy Development{'s' if count != 1 else ''} Published",
+            body,
+            footer_html=_unsubscribe_footer(user.email)
+        )
+        send_email(user.email, subject, html)
+

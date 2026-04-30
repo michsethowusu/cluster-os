@@ -45,6 +45,8 @@ from utils.email_sender import (
     send_single_initiative_notification,
     send_event_registration_confirmation,
     send_custom_bulk_email,
+    send_single_policy_notification,
+    send_bulk_policies_digest,
 )
 from utils.ai_services import generate_title_description, vet_tags_nvidia, rank_members_by_query, clean_tags_for_polls, score_initiative_quality, detect_language
 from utils.nlp import extract_noun_phrases, update_noun_phrase_db
@@ -1820,6 +1822,7 @@ def admin_dashboard():
         is_published=False, processing_status='ready'
     ).count()
     queue_count = InitiativeSendQueue.query.filter_by(sent_at=None).count()
+    policy_queue_count = PolicySendQueue.query.filter_by(sent_at=None).count()
     undetected_lang_count = Initiative.query.filter(Initiative.detected_lang.is_(None)).count()
     return render_template('admin/dashboard.html',
                          pending_users=pending_users,
@@ -1830,6 +1833,7 @@ def admin_dashboard():
                          pending_comments=pending_comments,
                          pending_policy=pending_policy,
                          queue_count=queue_count,
+                         policy_queue_count=policy_queue_count,
                          undetected_lang_count=undetected_lang_count)
 
 @app.route('/admin/approvals')
@@ -2072,8 +2076,10 @@ def unpublish_item(type, id):
     elif type == 'policydevelopment':
         item = PolicyDevelopment.query.get_or_404(id)
         item.is_published = False
+        # Also remove from send queue if present
+        PolicySendQueue.query.filter_by(policy_id=id).delete()
         db.session.commit()
-        flash('Policy development rejected.', 'success')
+        flash('Policy development rejected and removed from send queue.', 'success')
         return redirect(request.referrer or url_for('admin_approvals'))
     db.session.commit()
     flash('Item unpublished.', 'success')
@@ -2174,6 +2180,106 @@ def remove_queue_item(queue_id):
     db.session.commit()
     flash('Initiative removed from send queue.', 'success')
     return redirect(url_for('admin_send_queue'))
+
+
+# ===================== POLICY SEND QUEUE ROUTES =====================
+
+@app.route('/admin/policy-send-queue')
+@login_required
+def admin_policy_send_queue():
+    """View of all approved policy developments waiting to be sent to members."""
+    if not current_user.is_admin:
+        abort(403)
+    unsent = (PolicySendQueue.query
+              .filter_by(sent_at=None)
+              .order_by(PolicySendQueue.queued_at.desc())
+              .all())
+    sent = (PolicySendQueue.query
+            .filter(PolicySendQueue.sent_at.isnot(None))
+            .order_by(PolicySendQueue.sent_at.desc())
+            .limit(20).all())
+    return render_template('admin/policy_send_queue.html', unsent=unsent, sent=sent)
+
+
+@app.route('/admin/policy-send-queue/send/<int:queue_id>', methods=['POST'])
+@login_required
+def send_policy_queue_item(queue_id):
+    """Send a single policy development from the queue to all subscribed members."""
+    if not current_user.is_admin:
+        abort(403)
+    entry = PolicySendQueue.query.get_or_404(queue_id)
+    if entry.sent_at:
+        flash('This policy development has already been sent.', 'warning')
+        return redirect(url_for('admin_policy_send_queue'))
+    policy = entry.policy
+    try:
+        policy_url = url_for('view_policy', id=policy.id, _external=True)
+        subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
+        send_single_policy_notification({
+            'title': policy.title or policy.source_url[:100],
+            'short_summary': policy.short_summary or '',
+            'url': policy_url,
+            'country': policy.country or '',
+            'published_date': policy.published_date.strftime('%B %d, %Y') if policy.published_date else '',
+        }, subscribed_users)
+        entry.sent_at = datetime.utcnow()
+        db.session.commit()
+        flash(f'"{policy.title or policy.source_url[:100]}" sent to {len(subscribed_users)} member(s).', 'success')
+    except Exception as e:
+        app.logger.error(f"Policy send queue item error: {e}")
+        flash('Failed to send. Check logs.', 'error')
+    return redirect(url_for('admin_policy_send_queue'))
+
+
+@app.route('/admin/policy-send-queue/send-all', methods=['POST'])
+@login_required
+def send_policy_queue_all():
+    """Send ALL unsent policy developments in the queue as a single digest email."""
+    if not current_user.is_admin:
+        abort(403)
+    unsent = PolicySendQueue.query.filter_by(sent_at=None).all()
+    if not unsent:
+        flash('No unsent policy developments in the queue.', 'info')
+        return redirect(url_for('admin_policy_send_queue'))
+    policies_data = []
+    for entry in unsent:
+        policy = entry.policy
+        policy_url = url_for('view_policy', id=policy.id, _external=True)
+        policies_data.append({
+            'title': policy.title or policy.source_url[:100],
+            'short_summary': policy.short_summary or '',
+            'url': policy_url,
+            'country': policy.country or '',
+            'published_date': policy.published_date.strftime('%B %d, %Y') if policy.published_date else '',
+        })
+    try:
+        subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
+        send_bulk_policies_digest(policies_data, subscribed_users)
+        now = datetime.utcnow()
+        for entry in unsent:
+            entry.sent_at = now
+        db.session.commit()
+        flash(
+            f'{len(unsent)} policy development(s) sent to {len(subscribed_users)} member(s) as a digest.',
+            'success'
+        )
+    except Exception as e:
+        app.logger.error(f"Send all policy queue error: {e}")
+        flash('Failed to send digest. Check logs.', 'error')
+    return redirect(url_for('admin_policy_send_queue'))
+
+
+@app.route('/admin/policy-send-queue/remove/<int:queue_id>', methods=['POST'])
+@login_required
+def remove_policy_queue_item(queue_id):
+    """Remove a policy development from the send queue without sending."""
+    if not current_user.is_admin:
+        abort(403)
+    entry = PolicySendQueue.query.get_or_404(queue_id)
+    db.session.delete(entry)
+    db.session.commit()
+    flash('Policy development removed from send queue.', 'success')
+    return redirect(url_for('admin_policy_send_queue'))
 
 @app.route('/admin/settings', methods=['GET', 'POST'])
 @login_required
@@ -3693,6 +3799,9 @@ def admin_delete_policy(id):
     if not current_user.is_admin:
         abort(403)
     policy = PolicyDevelopment.query.get_or_404(id)
+    # Delete send queue entry first (NOT NULL FK — must go before the policy row)
+    PolicySendQueue.query.filter_by(policy_id=id).delete()
+    db.session.flush()
     db.session.delete(policy)
     db.session.commit()
     flash('Policy development deleted.', 'success')
@@ -3857,3 +3966,4 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     app.run(debug=True, host='0.0.0.0', port=5000)
+

@@ -2216,18 +2216,31 @@ def send_policy_queue_item(queue_id):
     try:
         policy_url = url_for('view_policy', id=policy.id, _external=True)
         subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
-        send_single_policy_notification({
+        member_count = len(subscribed_users)
+
+        # Build policy_data dict before the email loop so we don't rely on
+        # the SQLAlchemy-tracked `policy` object staying live during a long send.
+        policy_data = {
             'title': policy.title or policy.source_url[:100],
             'short_summary': policy.short_summary or '',
             'url': policy_url,
             'country': policy.country or '',
             'published_date': policy.published_date.strftime('%B %d, %Y') if policy.published_date else '',
-        }, subscribed_users)
+        }
+        policy_label = policy_data['title']
+
+        send_single_policy_notification(policy_data, subscribed_users)
+
+        # Re-fetch entry after the potentially long email loop to avoid a
+        # stale/detached SQLAlchemy object causing an internal server error
+        # even though all emails were delivered successfully.
+        entry = PolicySendQueue.query.get(queue_id)
         entry.sent_at = datetime.utcnow()
         db.session.commit()
-        flash(f'"{policy.title or policy.source_url[:100]}" sent to {len(subscribed_users)} member(s).', 'success')
+        flash(f'"{policy_label}" sent to {member_count} member(s).', 'success')
     except Exception as e:
-        app.logger.error(f"Policy send queue item error: {e}")
+        db.session.rollback()
+        app.logger.error(f"Policy send queue item error: {e}", exc_info=True)
         flash('Failed to send. Check logs.', 'error')
     return redirect(url_for('admin_policy_send_queue'))
 
@@ -3995,4 +4008,3 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     app.run(debug=True, host='0.0.0.0', port=5000)
-

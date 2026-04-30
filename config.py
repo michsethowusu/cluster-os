@@ -13,6 +13,8 @@ class Config:
         uri = uri.replace("postgres://", "postgresql://", 1)
     SQLALCHEMY_DATABASE_URI = uri
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_POOL_RECYCLE = 280        # recycle connections before DB drops them (~5 min)
+    SQLALCHEMY_POOL_PRE_PING = True      # test connection health before each use
     
     # Email (Brevo API)
     MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER')

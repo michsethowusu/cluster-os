@@ -3797,13 +3797,14 @@ def admin_policy_list():
 @app.route('/admin/policy/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
 def admin_edit_policy(id):
-    """Edit a policy development (title, summary, country, date, etc.)."""
+    """Edit a policy development (title, summary, extracted content, country, date, etc.)."""
     if not current_user.is_admin:
         abort(403)
     policy = PolicyDevelopment.query.get_or_404(id)
     if request.method == 'POST':
         policy.title = request.form.get('title', '').strip()[:300] or policy.title
         policy.short_summary = request.form.get('short_summary', '').strip()[:500] or None
+        policy.extracted_text = request.form.get('extracted_text', '').strip() or None
         policy.country = request.form.get('country', '').strip()[:100] or None
         raw_date = request.form.get('published_date', '').strip()
         if raw_date:

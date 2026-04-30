@@ -30,6 +30,12 @@
                         <div class="form-text">Max 500 characters. This appears in emails and listings.</div>
                     </div>
 
+                    <div class="mb-3">
+                        <label for="extracted_text" class="form-label">Extracted Content</label>
+                        <textarea class="form-control" id="extracted_text" name="extracted_text" rows="12">{{ policy.extracted_text or '' }}</textarea>
+                        <div class="form-text">Full AI-extracted content from the source URL. You can edit this directly.</div>
+                    </div>
+
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="country" class="form-label">Country</label>
@@ -82,18 +88,7 @@
             </div>
         </div>
 
-        {% if policy.extracted_text %}
-        <div class="card shadow-sm mt-4">
-            <div class="card-header bg-white">
-                <h5 class="mb-0">Extracted Content</h5>
-            </div>
-            <div class="card-body">
-                <div class="p-3 bg-light rounded" style="max-height: 400px; overflow-y: auto;">
-                    <pre class="mb-0" style="white-space: pre-wrap;">{{ policy.extracted_text }}</pre>
-                </div>
-            </div>
-        </div>
-        {% endif %}
+
     </div>
 </div>
 

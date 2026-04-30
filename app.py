@@ -414,28 +414,74 @@ def _process_policy_async(flask_app, policy_id):
             return
 
         # ── Step 1: Fetch HTML ──────────────────────────────────────────────
+        # Strategy A: realistic browser headers (handles most sites)
+        # Strategy B: Jina Reader API (handles JS-heavy / bot-blocking sites)
+        BROWSER_HEADERS = {
+            'User-Agent': (
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                'AppleWebKit/537.36 (KHTML, like Gecko) '
+                'Chrome/124.0.0.0 Safari/537.36'
+            ),
+            'Accept': (
+                'text/html,application/xhtml+xml,application/xml;'
+                'q=0.9,image/avif,image/webp,*/*;q=0.8'
+            ),
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+        }
+
+        raw_text = None
+        fetch_error = None
+
+        # Strategy A — direct fetch with browser headers
         try:
             resp = _requests.get(
                 policy.source_url,
-                timeout=20,
-                headers={
-                    'User-Agent': (
-                        'Mozilla/5.0 (compatible; AU-ECED-Bot/1.0; '
-                        '+https://ecedcluster.africa/)'
-                    )
-                }
+                timeout=25,
+                headers=BROWSER_HEADERS,
+                allow_redirects=True,
             )
             resp.raise_for_status()
             soup = _BS(resp.text, 'html.parser')
             for tag in soup(['script', 'style', 'nav', 'footer', 'header',
-                             'aside', 'form', 'iframe']):
+                             'aside', 'form', 'iframe', 'noscript']):
                 tag.decompose()
             raw_text = soup.get_text(separator=' ', strip=True)[:12000]
+            # Treat suspiciously short responses as a failure — likely a block page
+            if len(raw_text.strip()) < 200:
+                raw_text = None
+                fetch_error = 'Direct fetch returned almost no content (possible soft block)'
         except Exception as e:
+            fetch_error = str(e)
+
+        # Strategy B — Jina Reader (free, no key needed, bypasses most bot blocks)
+        if not raw_text:
+            try:
+                jina_url = f'https://r.jina.ai/{policy.source_url}'
+                jina_resp = _requests.get(
+                    jina_url,
+                    timeout=30,
+                    headers={
+                        'User-Agent': BROWSER_HEADERS['User-Agent'],
+                        'Accept': 'text/plain',
+                        'X-Return-Format': 'text',
+                    },
+                )
+                jina_resp.raise_for_status()
+                raw_text = jina_resp.text.strip()[:12000]
+                if len(raw_text) < 200:
+                    raw_text = None
+            except Exception as jina_e:
+                fetch_error = f'{fetch_error} | Jina fallback: {str(jina_e)[:150]}'
+
+        if not raw_text:
             policy.processing_status = 'failed'
-            policy.processing_error  = f'Fetch error: {str(e)[:200]}'
+            policy.processing_error  = f'Fetch error: {(fetch_error or "unknown")[:200]}'
             db.session.commit()
-            flask_app.logger.error(f'PolicyDev fetch error (id={policy_id}): {e}')
+            flask_app.logger.error(f'PolicyDev fetch error (id={policy_id}): {fetch_error}')
             return
 
         # ── Step 2: AI extraction via Claude ───────────────────────────────

@@ -375,6 +375,45 @@ class PolicySendQueue(db.Model):
     policy = db.relationship('PolicyDevelopment', backref='send_queue_entry')
 
 
+class DocumentLibrary(db.Model):
+    """Member-uploaded documents with AI-extracted metadata.
+
+    Workflow:
+      1. Member uploads a document (PDF, DOC, DOCX, etc.)
+      2. Background thread extracts text from the document
+      3. AI extracts metadata: title, year, tags, description
+      4. Admin reviews and approves before it goes public
+    """
+    id                = db.Column(db.Integer, primary_key=True)
+    title             = db.Column(db.String(300), nullable=True)
+    description       = db.Column(db.Text, nullable=True)
+    year_published    = db.Column(db.Integer, nullable=True)
+    filename          = db.Column(db.String(300), nullable=False)    # original filename
+    stored_name       = db.Column(db.String(300), nullable=False)    # UUID-based name on disk
+    file_size         = db.Column(db.Integer, nullable=True)       # bytes
+    file_type         = db.Column(db.String(50), nullable=True)     # mime type or extension
+    extracted_text    = db.Column(db.Text, nullable=True)            # raw text extracted from doc
+    tags              = db.relationship('Tag', secondary='document_tags', backref='documents')
+    is_published      = db.Column(db.Boolean, default=False)
+    processing_status = db.Column(db.String(50), default='pending')
+    # 'pending' -> uploaded, awaiting text extraction
+    # 'extracting' -> text extraction in progress
+    # 'ready' -> AI done, awaiting admin approval
+    # 'failed' -> error during extraction or AI processing
+    processing_error  = db.Column(db.String(500), nullable=True)
+    submitted_by      = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at        = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at        = db.Column(db.DateTime, default=datetime.utcnow)
+
+    submitter = db.relationship('User', foreign_keys=[submitted_by])
+
+
+document_tags = db.Table('document_tags',
+    db.Column('document_id', db.Integer, db.ForeignKey('document_library.id'), primary_key=True),
+    db.Column('tag_id', db.Integer, db.ForeignKey('tag.id'), primary_key=True)
+)
+
+
 # ===================== HELPER FUNCTIONS =====================
 
 def get_setting(key, default=None):
@@ -531,6 +570,164 @@ def save_attachment(file_obj):
     os.makedirs(folder, exist_ok=True)
     file_obj.save(os.path.join(folder, stored))
     return original, stored
+
+
+def save_document(file_obj):
+    """Save an uploaded document to UPLOAD_FOLDER/documents/.
+    Returns (original_filename, stored_name, file_size) tuple."""
+    original = secure_filename(file_obj.filename)
+    ext      = original.rsplit('.', 1)[1].lower() if '.' in original else 'bin'
+    stored   = f"{uuid.uuid4().hex}.{ext}"
+    folder   = os.path.join(app.config['UPLOAD_FOLDER'], 'documents')
+    os.makedirs(folder, exist_ok=True)
+    filepath = os.path.join(folder, stored)
+    file_obj.save(filepath)
+    file_size = os.path.getsize(filepath)
+    return original, stored, file_size, ext
+
+
+def _extract_document_text(filepath, file_ext):
+    """Extract raw text from a document file. Supports PDF, DOCX, TXT."""
+    text = ""
+    try:
+        if file_ext == 'pdf':
+            try:
+                import PyPDF2
+                with open(filepath, 'rb') as f:
+                    reader = PyPDF2.PdfReader(f)
+                    for page in reader.pages:
+                        page_text = page.extract_text()
+                        if page_text:
+                            text += page_text + "\n"
+            except Exception as e:
+                return None, f"PyPDF2 error: {str(e)[:200]}"
+
+        elif file_ext in ('docx', 'doc'):
+            try:
+                import docx
+                doc = docx.Document(filepath)
+                for para in doc.paragraphs:
+                    text += para.text + "\n"
+            except Exception as e:
+                return None, f"python-docx error: {str(e)[:200]}"
+
+        elif file_ext == 'txt':
+            with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                text = f.read()
+        else:
+            return None, f"Unsupported file type: {file_ext}"
+
+        return text[:15000], None  # Limit to 15k chars for AI processing
+    except Exception as e:
+        return None, f"Extraction error: {str(e)[:200]}"
+
+
+def _process_document_async(flask_app, document_id):
+    """Background thread: extract text from document, then use AI to extract metadata."""
+    with flask_app.app_context():
+        doc = DocumentLibrary.query.get(document_id)
+        if not doc:
+            return
+
+        filepath = os.path.join(
+            app.config['UPLOAD_FOLDER'], 'documents', doc.stored_name
+        )
+
+        # Step 1: Extract text
+        try:
+            doc.processing_status = 'extracting'
+            db.session.commit()
+
+            raw_text, error = _extract_document_text(filepath, doc.file_type)
+            if error:
+                doc.processing_status = 'failed'
+                doc.processing_error = error
+                db.session.commit()
+                flask_app.logger.error(f"Document extraction error (id={document_id}): {error}")
+                return
+
+            doc.extracted_text = raw_text
+            db.session.commit()
+        except Exception as e:
+            doc.processing_status = 'failed'
+            doc.processing_error = f'Text extraction error: {str(e)[:200]}'
+            db.session.commit()
+            flask_app.logger.error(f"Document extraction error (id={document_id}): {e}")
+            return
+
+        # Step 2: AI metadata extraction via NVIDIA
+        try:
+            from utils.ai_services import call_nvidia_api
+
+            prompt = f"""You are an expert document librarian for African education policy documents.
+
+Below is text extracted from a document. Return ONLY a JSON object (no markdown fences, no preamble) with these keys:
+{{
+  "title": "<formal title of the document, or a descriptive title if none is obvious>",
+  "year_published": <4-digit year if found in the text, or null>,
+  "description": "<2-3 sentence summary of what the document covers>",
+  "tags": ["<tag1>", "<tag2>", ...]
+}}
+
+Rules:
+- title should be concise but descriptive (max 200 chars)
+- year_published: look for copyright dates, publication dates, or references to years. Return ONLY the 4-digit integer or null.
+- description: plain English, max 300 chars
+- tags: 3-8 specific keywords related to ECED, FLN, education policy, African education, etc.
+- If the document has no meaningful educational content, set description to "No relevant educational content found."
+- Return ONLY the JSON object — no explanation, no markdown.
+
+DOCUMENT TEXT:
+{raw_text[:8000]}"""
+
+            response_text = call_nvidia_api(prompt, max_tokens=800, temperature=0.1)
+            clean = response_text.strip().replace('```json', '').replace('```', '').strip()
+            data = json.loads(clean)
+
+        except Exception as e:
+            doc.processing_status = 'failed'
+            doc.processing_error = f'AI extraction error: {str(e)[:200]}'
+            db.session.commit()
+            flask_app.logger.error(f"Document AI error (id={document_id}): {e}")
+            return
+
+        # Step 3: Persist extracted fields
+        try:
+            doc.title = (data.get('title') or doc.filename)[:300]
+            doc.description = (data.get('description') or '')[:500]
+
+            raw_year = data.get('year_published')
+            if raw_year and isinstance(raw_year, int) and 1900 <= raw_year <= 2030:
+                doc.year_published = raw_year
+            elif raw_year and isinstance(raw_year, str) and raw_year.isdigit():
+                year_int = int(raw_year)
+                if 1900 <= year_int <= 2030:
+                    doc.year_published = year_int
+
+            raw_tags = data.get('tags', [])
+            if isinstance(raw_tags, list):
+                for tag_name in raw_tags[:8]:
+                    tag_name = str(tag_name).strip()[:100]
+                    if not tag_name:
+                        continue
+                    tag = Tag.query.filter_by(name=tag_name).first()
+                    if not tag:
+                        tag = Tag(name=tag_name, is_vetted=True)
+                        db.session.add(tag)
+                        db.session.flush()
+                    if tag not in doc.tags:
+                        doc.tags.append(tag)
+                        tag.usage_count = (tag.usage_count or 0) + 1
+
+            doc.processing_status = 'ready'
+            doc.updated_at = datetime.utcnow()
+            db.session.commit()
+
+        except Exception as e:
+            doc.processing_status = 'failed'
+            doc.processing_error = f'DB save error: {str(e)[:200]}'
+            db.session.commit()
+            flask_app.logger.error(f"Document save error (id={document_id}): {e}")
 
 # ===================== POINTS SYSTEM =====================
 # Points weights
@@ -1823,6 +2020,7 @@ def admin_dashboard():
     ).count()
     queue_count = InitiativeSendQueue.query.filter_by(sent_at=None).count()
     policy_queue_count = PolicySendQueue.query.filter_by(sent_at=None).count()
+    pending_documents = DocumentLibrary.query.filter_by(is_published=False).count()
     undetected_lang_count = Initiative.query.filter(Initiative.detected_lang.is_(None)).count()
     return render_template('admin/dashboard.html',
                          pending_users=pending_users,
@@ -1834,6 +2032,7 @@ def admin_dashboard():
                          pending_policy=pending_policy,
                          queue_count=queue_count,
                          policy_queue_count=policy_queue_count,
+                         pending_documents=pending_documents,
                          undetected_lang_count=undetected_lang_count)
 
 @app.route('/admin/approvals')
@@ -1858,6 +2057,10 @@ def admin_approvals():
         items = PolicyDevelopment.query.filter_by(
             is_published=False, processing_status='ready'
         ).order_by(PolicyDevelopment.created_at.desc()).all()
+    elif type_filter == 'documents':
+        items = DocumentLibrary.query.filter_by(
+            is_published=False
+        ).order_by(DocumentLibrary.created_at.desc()).all()
     else:
         users = User.query.filter_by(is_approved=False).all()
         initiatives = Initiative.query.filter_by(is_published=False).all()
@@ -1868,7 +2071,10 @@ def admin_approvals():
         policy_items = PolicyDevelopment.query.filter_by(
             is_published=False, processing_status='ready'
         ).order_by(PolicyDevelopment.created_at.desc()).all()
-        items = list(users) + list(initiatives) + list(questions) + list(projects) + list(events) + list(comments) + list(policy_items)
+        document_items = DocumentLibrary.query.filter_by(
+            is_published=False
+        ).order_by(DocumentLibrary.created_at.desc()).all()
+        items = list(users) + list(initiatives) + list(questions) + list(projects) + list(events) + list(comments) + list(policy_items) + list(document_items)
     return render_template('admin/approvals.html', items=items, type_filter=type_filter)
 
 @app.route('/admin/approve/<type>/<int:id>', methods=['POST'])
@@ -2216,31 +2422,18 @@ def send_policy_queue_item(queue_id):
     try:
         policy_url = url_for('view_policy', id=policy.id, _external=True)
         subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
-        member_count = len(subscribed_users)
-
-        # Build policy_data dict before the email loop so we don't rely on
-        # the SQLAlchemy-tracked `policy` object staying live during a long send.
-        policy_data = {
+        send_single_policy_notification({
             'title': policy.title or policy.source_url[:100],
             'short_summary': policy.short_summary or '',
             'url': policy_url,
             'country': policy.country or '',
             'published_date': policy.published_date.strftime('%B %d, %Y') if policy.published_date else '',
-        }
-        policy_label = policy_data['title']
-
-        send_single_policy_notification(policy_data, subscribed_users)
-
-        # Re-fetch entry after the potentially long email loop to avoid a
-        # stale/detached SQLAlchemy object causing an internal server error
-        # even though all emails were delivered successfully.
-        entry = PolicySendQueue.query.get(queue_id)
+        }, subscribed_users)
         entry.sent_at = datetime.utcnow()
         db.session.commit()
-        flash(f'"{policy_label}" sent to {member_count} member(s).', 'success')
+        flash(f'"{policy.title or policy.source_url[:100]}" sent to {len(subscribed_users)} member(s).', 'success')
     except Exception as e:
-        db.session.rollback()
-        app.logger.error(f"Policy send queue item error: {e}", exc_info=True)
+        app.logger.error(f"Policy send queue item error: {e}")
         flash('Failed to send. Check logs.', 'error')
     return redirect(url_for('admin_policy_send_queue'))
 
@@ -3797,6 +3990,239 @@ def view_policy(id):
     return render_template('policy_development_detail.html', policy=policy)
 
 
+# ===================== DOCUMENT LIBRARY =====================
+
+DOCUMENT_ALLOWED_EXTENSIONS = {
+    'pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx', 'ppt', 'pptx'
+}
+
+
+def allowed_document(filename):
+    return '.' in filename and            filename.rsplit('.', 1)[1].lower() in DOCUMENT_ALLOWED_EXTENSIONS
+
+
+@app.route('/documents')
+def documents():
+    """Public document library — listing of all published documents."""
+    page = request.args.get('page', 1, type=int)
+    tag_name = request.args.get('tag', '').strip()
+    year = request.args.get('year', '', type=int)
+    search = request.args.get('q', '').strip()
+
+    query = DocumentLibrary.query.filter_by(is_published=True)
+
+    if tag_name:
+        tag = Tag.query.filter_by(name=tag_name).first()
+        if tag:
+            query = query.filter(DocumentLibrary.tags.contains(tag))
+
+    if year:
+        query = query.filter(DocumentLibrary.year_published == year)
+
+    if search:
+        query = query.filter(
+            db.or_(
+                DocumentLibrary.title.ilike(f'%{search}%'),
+                DocumentLibrary.description.ilike(f'%{search}%'),
+                DocumentLibrary.extracted_text.ilike(f'%{search}%')
+            )
+        )
+
+    pagination = query.order_by(
+        DocumentLibrary.year_published.desc().nullslast(),
+        DocumentLibrary.created_at.desc()
+    ).paginate(page=page, per_page=12, error_out=False)
+
+    # Get all years and tags for filters
+    years = (
+        db.session.query(DocumentLibrary.year_published)
+        .filter(DocumentLibrary.is_published == True, DocumentLibrary.year_published != None)
+        .distinct().order_by(DocumentLibrary.year_published.desc()).all()
+    )
+    years = [y[0] for y in years if y[0]]
+
+    all_tags = Tag.query.join(document_tags).filter(
+        Tag.documents.any(DocumentLibrary.is_published == True)
+    ).distinct().order_by(Tag.name).all()
+
+    return render_template('documents.html',
+                         documents=pagination.items,
+                         pagination=pagination,
+                         years=years,
+                         tags=all_tags,
+                         selected_tag=tag_name,
+                         selected_year=year,
+                         search=search)
+
+
+@app.route('/document/<int:id>')
+def view_document(id):
+    """Public view of a single published document."""
+    doc = DocumentLibrary.query.filter_by(id=id, is_published=True).first_or_404()
+    return render_template('document_detail.html', doc=doc)
+
+
+@app.route('/document/<int:id>/download')
+def download_document(id):
+    """Serve a document file. Publicly accessible for published docs."""
+    doc = DocumentLibrary.query.get_or_404(id)
+    if not doc.is_published and (not current_user.is_authenticated or not current_user.is_admin):
+        abort(403)
+    folder = os.path.join(app.config['UPLOAD_FOLDER'], 'documents')
+    return send_from_directory(
+        folder, doc.stored_name,
+        as_attachment=True,
+        download_name=doc.filename,
+    )
+
+
+@app.route('/document/upload', methods=['GET', 'POST'])
+@login_required
+def upload_document():
+    """Member-facing document upload form."""
+    if request.method == 'POST':
+        if 'file' not in request.files:
+            flash('No file selected.', 'error')
+            return redirect(request.url)
+
+        file = request.files['file']
+        if file.filename == '':
+            flash('No file selected.', 'error')
+            return redirect(request.url)
+
+        if not allowed_document(file.filename):
+            flash('Invalid file type. Allowed: PDF, DOC, DOCX, TXT, XLS, XLSX, PPT, PPTX.', 'error')
+            return redirect(request.url)
+
+        original, stored, file_size, ext = save_document(file)
+
+        doc = DocumentLibrary(
+            filename=original,
+            stored_name=stored,
+            file_size=file_size,
+            file_type=ext,
+            submitted_by=current_user.id,
+            processing_status='pending',
+        )
+        db.session.add(doc)
+        db.session.commit()
+
+        # Start background processing
+        t = threading.Thread(
+            target=_process_document_async,
+            args=(app, doc.id),
+            daemon=True
+        )
+        t.start()
+
+        flash('Document uploaded successfully! It is being processed and will appear after admin review.', 'success')
+        return redirect(url_for('documents'))
+
+    return render_template('document_upload.html')
+
+
+# ===================== ADMIN DOCUMENT ROUTES =====================
+
+@app.route('/admin/documents')
+@login_required
+def admin_documents():
+    """Admin view of all documents including pending/failed."""
+    if not current_user.is_admin:
+        abort(403)
+    docs = DocumentLibrary.query.order_by(DocumentLibrary.created_at.desc()).all()
+    return render_template('admin/documents.html', documents=docs)
+
+
+@app.route('/admin/document/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+def admin_edit_document(id):
+    """Edit a document's metadata."""
+    if not current_user.is_admin:
+        abort(403)
+    doc = DocumentLibrary.query.get_or_404(id)
+    if request.method == 'POST':
+        doc.title = request.form.get('title', '').strip()[:300] or doc.title
+        doc.description = request.form.get('description', '').strip()[:500] or None
+        doc.year_published = request.form.get('year_published', type=int) or None
+        doc.updated_at = datetime.utcnow()
+
+        # Handle tags
+        raw_tags = request.form.get('tags', '')
+        if raw_tags:
+            doc.tags = []
+            for tag_name in [t.strip() for t in raw_tags.split(',') if t.strip()]:
+                tag = Tag.query.filter_by(name=tag_name).first()
+                if not tag:
+                    tag = Tag(name=tag_name, is_vetted=True)
+                    db.session.add(tag)
+                    db.session.flush()
+                doc.tags.append(tag)
+                tag.usage_count = (tag.usage_count or 0) + 1
+
+        db.session.commit()
+        flash('Document updated.', 'success')
+        return redirect(url_for('admin_documents'))
+
+    return render_template('admin/edit_document.html', doc=doc)
+
+
+@app.route('/admin/document/<int:id>/approve', methods=['POST'])
+@login_required
+def admin_approve_document(id):
+    """Approve and publish a document."""
+    if not current_user.is_admin:
+        abort(403)
+    doc = DocumentLibrary.query.get_or_404(id)
+    doc.is_published = True
+    doc.updated_at = datetime.utcnow()
+    db.session.commit()
+    flash('Document published.', 'success')
+    return redirect(request.referrer or url_for('admin_documents'))
+
+
+@app.route('/admin/document/<int:id>/delete', methods=['POST'])
+@login_required
+def admin_delete_document(id):
+    """Delete a document and its file."""
+    if not current_user.is_admin:
+        abort(403)
+    doc = DocumentLibrary.query.get_or_404(id)
+
+    # Delete file from disk
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'documents', doc.stored_name)
+    try:
+        os.remove(filepath)
+    except OSError:
+        pass
+
+    db.session.delete(doc)
+    db.session.commit()
+    flash('Document deleted.', 'success')
+    return redirect(request.referrer or url_for('admin_documents'))
+
+
+@app.route('/admin/document/<int:id>/reprocess', methods=['POST'])
+@login_required
+def admin_reprocess_document(id):
+    """Re-trigger background AI processing for a document."""
+    if not current_user.is_admin:
+        abort(403)
+    doc = DocumentLibrary.query.get_or_404(id)
+    doc.processing_status = 'pending'
+    doc.processing_error = None
+    db.session.commit()
+
+    t = threading.Thread(
+        target=_process_document_async,
+        args=(app, doc.id),
+        daemon=True
+    )
+    t.start()
+
+    flash('Reprocessing started.', 'info')
+    return redirect(request.referrer or url_for('admin_documents'))
+
+
 @app.route('/admin/policy-developments')
 @login_required
 def admin_policy_list():
@@ -4008,3 +4434,4 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     app.run(debug=True, host='0.0.0.0', port=5000)
+

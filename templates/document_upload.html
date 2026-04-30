@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}{{ doc.title or 'Document' }} - Document Library{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('documents') }}">Document Library</a></li>
+                    <li class="breadcrumb-item active">{{ doc.title or 'Untitled' }}</li>
+                </ol>
+            </nav>
+
+            <div class="card shadow-sm">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="badge bg-secondary">{{ doc.file_type.upper() }}</span>
+                        {% if doc.year_published %}
+                        <span class="badge bg-info">{{ doc.year_published }}</span>
+                        {% endif %}
+                    </div>
+                    <a href="{{ url_for('download_document', id=doc.id) }}" class="btn btn-success btn-sm">
+                        <i class="bi bi-download"></i> Download
+                    </a>
+                </div>
+                <div class="card-body">
+                    <h1 class="h3 mb-3">{{ doc.title or doc.filename }}</h1>
+
+                    {% if doc.description %}
+                    <p class="lead">{{ doc.description }}</p>
+                    {% endif %}
+
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <table class="table table-sm table-borderless">
+                                <tr>
+                                    <td class="text-muted">Uploaded by</td>
+                                    <td>{{ doc.submitter.name }} ({{ doc.submitter.organization }})</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Date uploaded</td>
+                                    <td>{{ doc.created_at | format_date }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">File size</td>
+                                    <td>{{ (doc.file_size / 1024 / 1024)|round(2) }} MB</td>
+                                </tr>
+                                {% if doc.year_published %}
+                                <tr>
+                                    <td class="text-muted">Year published</td>
+                                    <td>{{ doc.year_published }}</td>
+                                </tr>
+                                {% endif %}
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            {% if doc.tags %}
+                            <div class="mb-2">
+                                <span class="text-muted">Tags:</span><br>
+                                {% for tag in doc.tags %}
+                                <a href="{{ url_for('documents', tag=tag.name) }}" class="badge bg-light text-dark text-decoration-none">{{ tag.name }}</a>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if doc.extracted_text %}
+                    <hr>
+                    <h5>Document Content Preview</h5>
+                    <div class="p-3 bg-light rounded" style="max-height: 500px; overflow-y: auto;">
+                        <pre class="mb-0" style="white-space: pre-wrap; font-size: 0.9em;">{{ doc.extracted_text[:3000] }}</pre>
+                        {% if doc.extracted_text|length > 3000 %}
+                        <p class="text-muted text-center mt-2">... content truncated for preview ...</p>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

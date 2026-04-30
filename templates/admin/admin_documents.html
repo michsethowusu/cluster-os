@@ -1,0 +1,118 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}Document Library{% endblock %}
+
+{% block admin_actions %}
+<a href="{{ url_for('documents') }}" class="btn btn-outline-primary" target="_blank">
+    <i class="bi bi-eye"></i> View Public Page
+</a>
+{% endblock %}
+
+{% block admin_content %}
+
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>Document</th>
+                <th>Title / Description</th>
+                <th>Year</th>
+                <th>Status</th>
+                <th>Processing</th>
+                <th>Submitted</th>
+                <th style="width: 220px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for doc in documents %}
+            <tr>
+                <td>
+                    <span class="badge bg-secondary">{{ doc.file_type.upper() }}</span>
+                    <br>
+                    <small class="text-muted">{{ (doc.file_size / 1024 / 1024)|round(2) }} MB</small>
+                    <br>
+                    <a href="{{ url_for('download_document', id=doc.id) }}" class="small">
+                        <i class="bi bi-download"></i> Download
+                    </a>
+                </td>
+                <td>
+                    {% if doc.title %}
+                    <strong>{{ doc.title }}</strong>
+                    {% else %}
+                    <span class="text-muted">{{ doc.filename }}</span>
+                    {% endif %}
+                    {% if doc.description %}
+                    <br>
+                    <small class="text-muted">{{ doc.description[:100] }}...</small>
+                    {% endif %}
+                    {% if doc.tags %}
+                    <div class="mt-1">
+                        {% for tag in doc.tags %}
+                        <span class="badge bg-light text-dark">{{ tag.name }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </td>
+                <td>{{ doc.year_published or '-' }}</td>
+                <td>
+                    {% if doc.is_published %}
+                    <span class="badge bg-success">Published</span>
+                    {% else %}
+                    <span class="badge bg-warning">Pending</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if doc.processing_status == 'ready' %}
+                    <span class="badge bg-info">Ready</span>
+                    {% elif doc.processing_status == 'pending' %}
+                    <span class="badge bg-secondary">Pending</span>
+                    {% elif doc.processing_status == 'extracting' %}
+                    <span class="badge bg-primary">Extracting</span>
+                    {% elif doc.processing_status == 'failed' %}
+                    <span class="badge bg-danger">Failed</span>
+                    {% else %}
+                    <span class="badge bg-secondary">{{ doc.processing_status }}</span>
+                    {% endif %}
+                    {% if doc.processing_error %}
+                    <br>
+                    <small class="text-danger">{{ doc.processing_error[:80] }}</small>
+                    {% endif %}
+                </td>
+                <td>
+                    {{ doc.submitter.name }}
+                    <br>
+                    <small class="text-muted">{{ doc.created_at | format_date }}</small>
+                </td>
+                <td>
+                    <div class="d-flex flex-wrap gap-1">
+                        <a href="{{ url_for('admin_edit_document', id=doc.id) }}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-pencil"></i> Edit
+                        </a>
+                        {% if not doc.is_published %}
+                        <form method="POST" action="{{ url_for('admin_approve_document', id=doc.id) }}" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-success">
+                                <i class="bi bi-check-lg"></i> Approve
+                            </button>
+                        </form>
+                        {% endif %}
+                        <form method="POST" action="{{ url_for('admin_reprocess_document', id=doc.id) }}" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-secondary" title="Reprocess with AI">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </form>
+                        <form method="POST" action="{{ url_for('admin_delete_document', id=doc.id) }}"
+                              onsubmit="return confirm('Delete this document permanently?')" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}
+

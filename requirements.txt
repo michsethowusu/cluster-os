@@ -18,3 +18,5 @@ psycopg2-binary
 gunicorn
 firecrawl-py
 requests
+PyPDF2
+python-docx

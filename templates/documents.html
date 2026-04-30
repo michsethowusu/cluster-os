@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}Document Library - AU ECED-FLN{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Document Library</h1>
+        {% if current_user.is_authenticated %}
+        <a href="{{ url_for('upload_document') }}" class="btn btn-primary">
+            <i class="bi bi-upload"></i> Upload Document
+        </a>
+        {% endif %}
+    </div>
+
+    <p class="text-muted mb-4">
+        Browse and search ECED-FLN related documents, reports, and policy papers from across Africa.
+    </p>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('documents') }}" class="row g-3">
+                <div class="col-md-4">
+                    <input type="text" class="form-control" name="q" placeholder="Search documents..."
+                           value="{{ search or '' }}">
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" name="year">
+                        <option value="">All Years</option>
+                        {% for y in years %}
+                        <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>{{ y }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" name="tag">
+                        <option value="">All Tags</option>
+                        {% for tag in tags %}
+                        <option value="{{ tag.name }}" {% if selected_tag == tag.name %}selected{% endif %}>{{ tag.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-outline-primary w-100">Filter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if documents %}
+    <div class="row">
+        {% for doc in documents %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <span class="badge bg-secondary">{{ doc.file_type.upper() }}</span>
+                        {% if doc.year_published %}
+                        <span class="badge bg-info">{{ doc.year_published }}</span>
+                        {% endif %}
+                    </div>
+                    <h5 class="card-title">
+                        <a href="{{ url_for('view_document', id=doc.id) }}" class="text-decoration-none">
+                            {{ doc.title or doc.filename }}
+                        </a>
+                    </h5>
+                    <p class="card-text text-muted small">
+                        {{ doc.description[:150] + '...' if doc.description and doc.description|length > 150 else doc.description or 'No description available.' }}
+                    </p>
+                    {% if doc.tags %}
+                    <div class="mb-2">
+                        {% for tag in doc.tags[:5] %}
+                        <a href="{{ url_for('documents', tag=tag.name) }}" class="badge bg-light text-dark text-decoration-none">{{ tag.name }}</a>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <small class="text-muted">
+                            {{ (doc.file_size / 1024 / 1024)|round(2) }} MB
+                        </small>
+                        <small class="text-muted">By {{ doc.submitter.name }}</small>
+                    </div>
+                </div>
+                <div class="card-footer bg-white">
+                    <a href="{{ url_for('view_document', id=doc.id) }}" class="btn btn-sm btn-outline-primary">
+                        View Details
+                    </a>
+                    <a href="{{ url_for('download_document', id=doc.id) }}" class="btn btn-sm btn-outline-success">
+                        <i class="bi bi-download"></i> Download
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if pagination.has_prev or pagination.has_next %}
+    <nav aria-label="Page navigation" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if pagination.has_prev %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('documents', page=pagination.prev_num, tag=selected_tag, year=selected_year, q=search) }}">Previous</a>
+            </li>
+            {% endif %}
+            {% for page_num in pagination.iter_pages() %}
+                {% if page_num %}
+                    {% if page_num != pagination.page %}
+                    <li class="page-item"><a class="page-link" href="{{ url_for('documents', page=page_num, tag=selected_tag, year=selected_year, q=search) }}">{{ page_num }}</a></li>
+                    {% else %}
+                    <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
+                    {% endif %}
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+                {% endif %}
+            {% endfor %}
+            {% if pagination.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('documents', page=pagination.next_num, tag=selected_tag, year=selected_year, q=search) }}">Next</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> No documents found matching your criteria.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+

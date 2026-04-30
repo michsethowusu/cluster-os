@@ -413,11 +413,11 @@ def _process_policy_async(flask_app, policy_id):
         # ── Step 1: Scrape with Firecrawl ──────────────────────────────────
         # Firecrawl handles JS rendering, bot-blocking, and returns clean markdown.
         try:
-            from firecrawl import FirecrawlApp as _FC
+            from firecrawl import Firecrawl as _FC
             fc = _FC(api_key=os.environ.get('FIRECRAWL_API_KEY', ''))
-            result = fc.scrape_url(
+            result = fc.scrape(
                 policy.source_url,
-                params={'formats': ['markdown']}
+                formats=['markdown']
             )
             raw_text = (result.get('markdown') or '').strip()[:12000]
             if not raw_text:

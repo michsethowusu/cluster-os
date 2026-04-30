@@ -430,10 +430,9 @@ def _process_policy_async(flask_app, policy_id):
             flask_app.logger.error(f'PolicyDev fetch error (id={policy_id}): {e}')
             return
 
-        # ── Step 2: AI extraction via Claude ───────────────────────────────
+        # ── Step 2: AI extraction via NVIDIA ──────────────────────────────
         try:
-            import anthropic as _anthropic
-            client = _anthropic.Anthropic()
+            from utils.ai_services import call_nvidia_api
 
             prompt = f"""You are an expert in African early-childhood education policy.
 
@@ -457,17 +456,9 @@ Rules:
 ARTICLE TEXT:
 {raw_text}"""
 
-            message = client.messages.create(
-                model='claude-opus-4-5',
-                max_tokens=1500,
-                messages=[{'role': 'user', 'content': prompt}]
-            )
-            response_text = message.content[0].text.strip()
-            # Strip any accidental markdown fences
-            if response_text.startswith('```'):
-                response_text = response_text.split('\n', 1)[-1]
-                response_text = response_text.rsplit('```', 1)[0]
-            data = json.loads(response_text)
+            response_text = call_nvidia_api(prompt, max_tokens=1500, temperature=0.1)
+            clean = response_text.strip().replace('```json', '').replace('```', '').strip()
+            data = json.loads(clean)
 
         except Exception as e:
             policy.processing_status = 'failed'

@@ -1,0 +1,120 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}Policy Developments{% endblock %}
+
+{% block admin_actions %}
+<div class="d-flex gap-2">
+    <a href="{{ url_for('policy_developments') }}" class="btn btn-outline-secondary btn-sm" target="_blank">
+        <i class="bi bi-eye"></i> View Public Page
+    </a>
+</div>
+{% endblock %}
+
+{% block admin_content %}
+
+<p class="text-muted mb-4">
+    All submitted policy development articles. Items with status <strong>Ready</strong> that are unpublished
+    also appear in the main <a href="{{ url_for('admin_approvals', type='all') }}">Approvals queue</a>.
+</p>
+
+{% if policies %}
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>Title / URL</th>
+                <th>Country</th>
+                <th>Date</th>
+                <th>Status</th>
+                <th>Published</th>
+                <th>Submitted</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for p in policies %}
+        <tr>
+            <td style="max-width: 280px;">
+                {% if p.title %}
+                <div class="fw-semibold text-truncate" title="{{ p.title }}">{{ p.title }}</div>
+                {% endif %}
+                <a href="{{ p.source_url }}" target="_blank" rel="noopener noreferrer"
+                   class="text-muted small text-truncate d-block" style="max-width:260px;" title="{{ p.source_url }}">
+                    <i class="bi bi-link-45deg"></i> {{ p.source_url[:60] }}{% if p.source_url|length > 60 %}…{% endif %}
+                </a>
+            </td>
+            <td>{{ p.country or '—' }}</td>
+            <td>{{ p.published_date.strftime('%b %d, %Y') if p.published_date else '—' }}</td>
+            <td>
+                {% if p.processing_status == 'ready' %}
+                    <span class="badge bg-success">Ready</span>
+                {% elif p.processing_status == 'pending' %}
+                    <span class="badge bg-warning text-dark">Processing…</span>
+                {% elif p.processing_status == 'failed' %}
+                    <span class="badge bg-danger" title="{{ p.processing_error }}">Failed</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if p.is_published %}
+                    <span class="badge bg-success"><i class="bi bi-check-circle"></i> Yes</span>
+                {% else %}
+                    <span class="badge bg-secondary">No</span>
+                {% endif %}
+            </td>
+            <td>
+                <small class="text-muted">
+                    {{ p.created_at | format_date }}<br>
+                    {% if p.submitter %}
+                    {{ p.submitter.name }}
+                    {% else %}
+                    Anonymous
+                    {% endif %}
+                </small>
+            </td>
+            <td>
+                <div class="d-flex flex-column gap-1">
+                    {% if p.is_published %}
+                    <a href="{{ url_for('view_policy', id=p.id) }}" class="btn btn-outline-primary btn-sm" target="_blank">
+                        <i class="bi bi-eye"></i> View
+                    </a>
+                    {% else %}
+                    {% if p.processing_status == 'ready' %}
+                    <form method="POST" action="{{ url_for('approve_item', type='policydevelopment', id=p.id) }}" class="d-inline">
+                        <button type="submit" class="btn btn-success btn-sm w-100">
+                            <i class="bi bi-check-lg"></i> Approve
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ url_for('unpublish_item', type='policydevelopment', id=p.id) }}" class="d-inline">
+                        <button type="submit" class="btn btn-outline-danger btn-sm w-100">
+                            <i class="bi bi-x-lg"></i> Reject
+                        </button>
+                    </form>
+                    {% endif %}
+                    {% if p.processing_status in ('pending', 'failed') %}
+                    <form method="POST" action="{{ url_for('admin_reprocess_policy', id=p.id) }}" class="d-inline">
+                        <button type="submit" class="btn btn-warning btn-sm w-100">
+                            <i class="bi bi-arrow-repeat"></i> Reprocess
+                        </button>
+                    </form>
+                    {% endif %}
+                    {% endif %}
+                    <form method="POST" action="{{ url_for('admin_delete_policy', id=p.id) }}"
+                          class="d-inline"
+                          onsubmit="return confirm('Permanently delete this policy item?')">
+                        <button type="submit" class="btn btn-outline-danger btn-sm w-100">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i> No policy development submissions yet.
+</div>
+{% endif %}
+{% endblock %}

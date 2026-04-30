@@ -327,6 +327,52 @@ class InitiativeSendQueue(db.Model):
     initiative = db.relationship('Initiative', backref='send_queue_entry')
 
 
+class PolicyDevelopment(db.Model):
+    """A curated ECED-FLN policy news item sourced from a submitted URL.
+
+    Workflow:
+      1. Any authenticated member submits a URL (optionally hinting the country).
+      2. Background job fetches the page HTML, asks Claude to extract:
+           title, ECED-relevant body text, publication date, country, tags.
+      3. Saved with is_published=False → appears in admin approval queue.
+      4. Admin approves → is_published=True, auto-added to PolicySendQueue.
+    """
+    id                = db.Column(db.Integer, primary_key=True)
+    source_url        = db.Column(db.String(2000), nullable=False)
+    title             = db.Column(db.String(300),  nullable=True)
+    extracted_text    = db.Column(db.Text,          nullable=True)
+    short_summary     = db.Column(db.String(500),   nullable=True)
+    country           = db.Column(db.String(100),   nullable=True)
+    published_date    = db.Column(db.Date,          nullable=True)
+    is_published      = db.Column(db.Boolean, default=False)
+    processing_status = db.Column(db.String(50), default='pending')
+    # 'pending' → being processed | 'ready' → AI done, awaiting admin | 'failed' → error
+    processing_error  = db.Column(db.String(500), nullable=True)
+    submitted_by      = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_at        = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at        = db.Column(db.DateTime, default=datetime.utcnow)
+
+    submitter = db.relationship('User', foreign_keys=[submitted_by])
+    tags      = db.relationship('Tag', secondary='policy_tags', backref='policy_developments')
+
+
+policy_tags = db.Table('policy_tags',
+    db.Column('policy_id', db.Integer, db.ForeignKey('policy_development.id'), primary_key=True),
+    db.Column('tag_id',    db.Integer, db.ForeignKey('tag.id'),                primary_key=True)
+)
+
+
+class PolicySendQueue(db.Model):
+    """Send queue for approved PolicyDevelopment items."""
+    id        = db.Column(db.Integer, primary_key=True)
+    policy_id = db.Column(db.Integer, db.ForeignKey('policy_development.id'),
+                          nullable=False, unique=True)
+    queued_at = db.Column(db.DateTime, default=datetime.utcnow)
+    sent_at   = db.Column(db.DateTime, nullable=True)
+
+    policy = db.relationship('PolicyDevelopment', backref='send_queue_entry')
+
+
 # ===================== HELPER FUNCTIONS =====================
 
 def get_setting(key, default=None):
@@ -356,6 +402,129 @@ def _enqueue_initiative(flask_app_or_none, initiative_id):
             flask_app_or_none.logger.error(f"_enqueue_initiative error: {e}")
         else:
             app.logger.error(f"_enqueue_initiative error: {e}")
+
+def _process_policy_async(flask_app, policy_id):
+    """Fetch the article URL, extract ECED content with Claude, populate the record."""
+    import requests as _requests
+    from bs4 import BeautifulSoup as _BS
+
+    with flask_app.app_context():
+        policy = PolicyDevelopment.query.get(policy_id)
+        if not policy:
+            return
+
+        # ── Step 1: Fetch HTML ──────────────────────────────────────────────
+        try:
+            resp = _requests.get(
+                policy.source_url,
+                timeout=20,
+                headers={
+                    'User-Agent': (
+                        'Mozilla/5.0 (compatible; AU-ECED-Bot/1.0; '
+                        '+https://ecedcluster.africa/)'
+                    )
+                }
+            )
+            resp.raise_for_status()
+            soup = _BS(resp.text, 'html.parser')
+            for tag in soup(['script', 'style', 'nav', 'footer', 'header',
+                             'aside', 'form', 'iframe']):
+                tag.decompose()
+            raw_text = soup.get_text(separator=' ', strip=True)[:12000]
+        except Exception as e:
+            policy.processing_status = 'failed'
+            policy.processing_error  = f'Fetch error: {str(e)[:200]}'
+            db.session.commit()
+            flask_app.logger.error(f'PolicyDev fetch error (id={policy_id}): {e}')
+            return
+
+        # ── Step 2: AI extraction via Claude ───────────────────────────────
+        try:
+            import anthropic as _anthropic
+            client = _anthropic.Anthropic()
+
+            prompt = f"""You are an expert in African early-childhood education policy.
+
+Below is text scraped from a news article at this URL: {policy.source_url}
+
+Return ONLY a JSON object (no markdown fences, no preamble) with these keys:
+{{
+  "title": "<headline of the article>",
+  "country": "<African country this policy development is about, or null>",
+  "published_date": "<ISO date YYYY-MM-DD if found, or null>",
+  "eced_relevant_text": "<the portion(s) of the article most relevant to ECED / FLN / foundational learning policy — up to 800 words, or null if none>",
+  "short_summary": "<1-2 sentence plain-English summary of what the policy development is>",
+  "tags": ["<tag1>", "<tag2>", ...]
+}}
+
+Rules:
+- tags should be 3-8 specific ECED/education-policy keywords (e.g. 'early childhood policy', 'foundational literacy', 'pre-primary enrolment').
+- If the article has no meaningful ECED/FLN content, set eced_relevant_text to null.
+- Return ONLY the JSON object — no explanation, no markdown.
+
+ARTICLE TEXT:
+{raw_text}"""
+
+            message = client.messages.create(
+                model='claude-opus-4-5',
+                max_tokens=1500,
+                messages=[{'role': 'user', 'content': prompt}]
+            )
+            response_text = message.content[0].text.strip()
+            # Strip any accidental markdown fences
+            if response_text.startswith('```'):
+                response_text = response_text.split('\n', 1)[-1]
+                response_text = response_text.rsplit('```', 1)[0]
+            data = json.loads(response_text)
+
+        except Exception as e:
+            policy.processing_status = 'failed'
+            policy.processing_error  = f'AI extraction error: {str(e)[:200]}'
+            db.session.commit()
+            flask_app.logger.error(f'PolicyDev AI error (id={policy_id}): {e}')
+            return
+
+        # ── Step 3: Persist extracted fields ───────────────────────────────
+        try:
+            policy.title          = (data.get('title') or '')[:300] or policy.source_url[:300]
+            policy.extracted_text = data.get('eced_relevant_text') or ''
+            policy.short_summary  = (data.get('short_summary') or '')[:500]
+            if not policy.country:
+                policy.country    = (data.get('country') or '')[:100] or None
+
+            raw_date = data.get('published_date')
+            if raw_date:
+                try:
+                    from datetime import date as _date
+                    policy.published_date = _date.fromisoformat(raw_date)
+                except Exception:
+                    pass
+
+            raw_tags = data.get('tags', [])
+            if isinstance(raw_tags, list):
+                for tag_name in raw_tags[:8]:
+                    tag_name = str(tag_name).strip()[:100]
+                    if not tag_name:
+                        continue
+                    tag = Tag.query.filter_by(name=tag_name).first()
+                    if not tag:
+                        tag = Tag(name=tag_name, is_vetted=True)
+                        db.session.add(tag)
+                        db.session.flush()
+                    if tag not in policy.tags:
+                        policy.tags.append(tag)
+                        tag.usage_count = (tag.usage_count or 0) + 1
+
+            policy.processing_status = 'ready'
+            policy.updated_at        = datetime.utcnow()
+            db.session.commit()
+
+        except Exception as e:
+            policy.processing_status = 'failed'
+            policy.processing_error  = f'DB save error: {str(e)[:200]}'
+            db.session.commit()
+            flask_app.logger.error(f'PolicyDev save error (id={policy_id}): {e}')
+
 
 ALLOWED_ATTACHMENT_EXTENSIONS = {
     'pdf', 'doc', 'docx', 'xls', 'xlsx',
@@ -1664,6 +1833,9 @@ def admin_dashboard():
     pending_projects = Project.query.filter_by(is_published=False).count()
     pending_events = Event.query.filter_by(is_published=False).count()
     pending_comments = Comment.query.filter_by(is_approved=False).count()
+    pending_policy = PolicyDevelopment.query.filter_by(
+        is_published=False, processing_status='ready'
+    ).count()
     queue_count = InitiativeSendQueue.query.filter_by(sent_at=None).count()
     undetected_lang_count = Initiative.query.filter(Initiative.detected_lang.is_(None)).count()
     return render_template('admin/dashboard.html',
@@ -1673,6 +1845,7 @@ def admin_dashboard():
                          pending_projects=pending_projects,
                          pending_events=pending_events,
                          pending_comments=pending_comments,
+                         pending_policy=pending_policy,
                          queue_count=queue_count,
                          undetected_lang_count=undetected_lang_count)
 
@@ -1694,6 +1867,10 @@ def admin_approvals():
         items = Event.query.filter_by(is_published=False).all()
     elif type_filter == 'comments':
         items = Comment.query.filter_by(is_approved=False).order_by(Comment.created_at.desc()).all()
+    elif type_filter == 'policy':
+        items = PolicyDevelopment.query.filter_by(
+            is_published=False, processing_status='ready'
+        ).order_by(PolicyDevelopment.created_at.desc()).all()
     else:
         users = User.query.filter_by(is_approved=False).all()
         initiatives = Initiative.query.filter_by(is_published=False).all()
@@ -1701,7 +1878,10 @@ def admin_approvals():
         projects = Project.query.filter_by(is_published=False).all()
         events = Event.query.filter_by(is_published=False).all()
         comments = Comment.query.filter_by(is_approved=False).all()
-        items = list(users) + list(initiatives) + list(questions) + list(projects) + list(events) + list(comments)
+        policy_items = PolicyDevelopment.query.filter_by(
+            is_published=False, processing_status='ready'
+        ).order_by(PolicyDevelopment.created_at.desc()).all()
+        items = list(users) + list(initiatives) + list(questions) + list(projects) + list(events) + list(comments) + list(policy_items)
     return render_template('admin/approvals.html', items=items, type_filter=type_filter)
 
 @app.route('/admin/approve/<type>/<int:id>', methods=['POST'])
@@ -1761,6 +1941,17 @@ def approve_item(type, id):
         item.is_approved = True
         db.session.commit()
         flash('Comment approved.', 'success')
+
+    elif type == 'policydevelopment':
+        item = PolicyDevelopment.query.get_or_404(id)
+        item.is_published = True
+        item.updated_at   = datetime.utcnow()
+        db.session.commit()
+        existing_q = PolicySendQueue.query.filter_by(policy_id=item.id).first()
+        if not existing_q:
+            db.session.add(PolicySendQueue(policy_id=item.id))
+            db.session.commit()
+        flash('Policy development published and added to send queue.', 'success')
 
     else:
         abort(400)
@@ -1894,6 +2085,12 @@ def unpublish_item(type, id):
         db.session.delete(item)
         db.session.commit()
         flash('Comment rejected and deleted.', 'success')
+        return redirect(request.referrer or url_for('admin_approvals'))
+    elif type == 'policydevelopment':
+        item = PolicyDevelopment.query.get_or_404(id)
+        item.is_published = False
+        db.session.commit()
+        flash('Policy development rejected.', 'success')
         return redirect(request.referrer or url_for('admin_approvals'))
     db.session.commit()
     flash('Item unpublished.', 'success')
@@ -3412,6 +3609,129 @@ def unsubscribe():
     if not email or not token or not hmac.compare_digest(token, _make_token(email)):
         return render_template('unsubscribe.html', error=True, email='', confirmed=False)
     return render_template('unsubscribe.html', confirmed=False, error=False, email=email, token=token)
+
+
+# ===================== POLICY DEVELOPMENTS =====================
+
+@app.route('/policy-developments', methods=['GET', 'POST'])
+def policy_developments():
+    """Public listing of approved policy developments + URL submission form."""
+    if request.method == 'POST':
+        if not current_user.is_authenticated:
+            flash('Please log in to submit a policy development.', 'warning')
+            return redirect(url_for('login'))
+
+        url_input = request.form.get('source_url', '').strip()
+        country   = request.form.get('country', '').strip()[:100]
+
+        if not url_input or not url_input.startswith(('http://', 'https://')):
+            flash('Please enter a valid URL starting with http:// or https://', 'error')
+            return redirect(url_for('policy_developments'))
+
+        # Duplicate guard
+        existing = PolicyDevelopment.query.filter_by(source_url=url_input).first()
+        if existing:
+            flash('This URL has already been submitted. Thank you!', 'info')
+            return redirect(url_for('policy_developments'))
+
+        policy = PolicyDevelopment(
+            source_url=url_input,
+            country=country or None,
+            submitted_by=current_user.id if current_user.is_authenticated else None,
+            processing_status='pending',
+        )
+        db.session.add(policy)
+        db.session.commit()
+
+        t = threading.Thread(
+            target=_process_policy_async,
+            args=(app, policy.id),
+            daemon=True
+        )
+        t.start()
+
+        flash(
+            'Thank you! Your submission is being processed and will appear after admin review.',
+            'success'
+        )
+        return redirect(url_for('policy_developments'))
+
+    page       = request.args.get('page', 1, type=int)
+    country_f  = request.args.get('country', '').strip()
+    tag_f      = request.args.get('tag', '').strip()
+
+    query = PolicyDevelopment.query.filter_by(is_published=True)
+    if country_f:
+        query = query.filter(PolicyDevelopment.country.ilike(f'%{country_f}%'))
+    if tag_f:
+        query = query.join(PolicyDevelopment.tags).filter(Tag.name == tag_f)
+
+    policies = query.order_by(
+        PolicyDevelopment.published_date.desc().nullslast(),
+        PolicyDevelopment.created_at.desc()
+    ).paginate(page=page, per_page=12, error_out=False)
+
+    countries = (
+        db.session.query(PolicyDevelopment.country)
+        .filter(PolicyDevelopment.is_published == True,
+                PolicyDevelopment.country != None)
+        .distinct().order_by(PolicyDevelopment.country).all()
+    )
+    countries = [c[0] for c in countries if c[0]]
+
+    return render_template(
+        'policy_developments.html',
+        policies=policies,
+        countries=countries,
+        active_country=country_f,
+        active_tag=tag_f,
+    )
+
+
+@app.route('/policy-developments/<int:id>')
+def view_policy(id):
+    policy = PolicyDevelopment.query.filter_by(id=id, is_published=True).first_or_404()
+    return render_template('policy_development_detail.html', policy=policy)
+
+
+@app.route('/admin/policy-developments')
+@login_required
+def admin_policy_list():
+    """Admin view of all policy submissions including pending/failed."""
+    if not current_user.is_admin:
+        abort(403)
+    policies = PolicyDevelopment.query.order_by(PolicyDevelopment.created_at.desc()).all()
+    return render_template('admin/policy_list.html', policies=policies)
+
+
+@app.route('/admin/policy/<int:id>/delete', methods=['POST'])
+@login_required
+def admin_delete_policy(id):
+    if not current_user.is_admin:
+        abort(403)
+    policy = PolicyDevelopment.query.get_or_404(id)
+    db.session.delete(policy)
+    db.session.commit()
+    flash('Policy development deleted.', 'success')
+    return redirect(request.referrer or url_for('admin_policy_list'))
+
+
+@app.route('/admin/policy/<int:id>/reprocess', methods=['POST'])
+@login_required
+def admin_reprocess_policy(id):
+    """Re-trigger background processing for a failed/pending policy item."""
+    if not current_user.is_admin:
+        abort(403)
+    policy = PolicyDevelopment.query.get_or_404(id)
+    policy.processing_status = 'pending'
+    policy.processing_error  = None
+    db.session.commit()
+    t = threading.Thread(
+        target=_process_policy_async, args=(app, policy.id), daemon=True
+    )
+    t.start()
+    flash('Reprocessing started.', 'info')
+    return redirect(request.referrer or url_for('admin_approvals'))
 
 
 # ===================== API ROUTES =====================

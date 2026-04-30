@@ -102,6 +102,44 @@ with app.app_context():
             )
         '''))
 
+        # Policy developments — curated ECED-FLN news from submitted URLs
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS policy_development (
+                id SERIAL PRIMARY KEY,
+                source_url VARCHAR(2000) NOT NULL,
+                title VARCHAR(300),
+                extracted_text TEXT,
+                short_summary VARCHAR(500),
+                country VARCHAR(100),
+                published_date DATE,
+                is_published BOOLEAN DEFAULT FALSE,
+                processing_status VARCHAR(50) DEFAULT \'pending\',
+                processing_error VARCHAR(500),
+                submitted_by INTEGER REFERENCES \"user\"(id),
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        '''))
+
+        # Policy tags association table
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS policy_tags (
+                policy_id INTEGER NOT NULL REFERENCES policy_development(id) ON DELETE CASCADE,
+                tag_id INTEGER NOT NULL REFERENCES tag(id) ON DELETE CASCADE,
+                PRIMARY KEY (policy_id, tag_id)
+            )
+        '''))
+
+        # Policy send queue — approved policy items waiting to be emailed to members
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS policy_send_queue (
+                id SERIAL PRIMARY KEY,
+                policy_id INTEGER UNIQUE NOT NULL REFERENCES policy_development(id) ON DELETE CASCADE,
+                queued_at TIMESTAMP DEFAULT NOW(),
+                sent_at TIMESTAMP
+            )
+        '''))
+
         conn.commit()
     print('DB ready.')
 "

@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+
+{% block title %}ECED Policy Developments | AU ECED-FLN{% endblock %}
+
+{% block extra_css %}
+<style>
+    .policy-card {
+        background: #fff;
+        border-radius: 12px;
+        border: 1px solid #e9ecef;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+        transition: box-shadow 0.25s, transform 0.25s;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    .policy-card:hover {
+        box-shadow: 0 6px 24px rgba(0,0,0,0.11);
+        transform: translateY(-3px);
+    }
+    .policy-card .card-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        padding: 1.25rem;
+    }
+    .policy-card .card-footer {
+        background: #f8f9fa;
+        border-top: 1px solid #e9ecef;
+        padding: 0.75rem 1.25rem;
+        border-radius: 0 0 12px 12px;
+        font-size: 0.82rem;
+        color: #6c757d;
+    }
+    .country-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: #007451;
+        color: #fff;
+        border-radius: 20px;
+        padding: 3px 10px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        margin-bottom: 8px;
+    }
+    .submit-box {
+        background: linear-gradient(135deg, #007451 0%, #005c3f 100%);
+        border-radius: 16px;
+        padding: 2rem 2.5rem;
+        color: #fff;
+    }
+    .submit-box input {
+        border-radius: 8px 0 0 8px;
+    }
+    .submit-box .btn {
+        border-radius: 0 8px 8px 0;
+    }
+    .filter-bar {
+        background: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+    .source-link {
+        font-size: 0.78rem;
+        color: #6c757d;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 220px;
+        display: inline-block;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="bg-white border-bottom py-4">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <h1 class="h2 mb-1 fw-bold">
+                    <i class="bi bi-newspaper text-success"></i> ECED Policy Developments
+                </h1>
+                <p class="text-muted mb-0">
+                    Country-level news and policy progress on Early Childhood Education &amp; Foundational Learning across Africa, curated from local media.
+                </p>
+            </div>
+            <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
+                <span class="badge bg-success fs-6 px-3 py-2">
+                    {{ policies.total }} Development{{ 's' if policies.total != 1 else '' }}
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container mt-4">
+
+    <!-- Submit a URL -->
+    <div class="submit-box mb-4">
+        <h5 class="mb-1"><i class="bi bi-link-45deg"></i> Submit a News Article</h5>
+        <p class="mb-3" style="opacity:.85; font-size:.9rem;">
+            Found a news article about ECED/FLN policy progress in an African country?
+            Paste the URL below — our AI will extract the relevant content and it will appear here after admin review.
+        </p>
+        {% if current_user.is_authenticated %}
+        <form method="POST">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold text-white mb-1" for="source_url">Article URL</label>
+                    <input type="url" class="form-control" id="source_url" name="source_url"
+                           placeholder="https://example.com/article" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold text-white mb-1" for="country">Country <small style="opacity:.7">(optional — AI will detect)</small></label>
+                    <input type="text" class="form-control" id="country" name="country"
+                           placeholder="e.g. Ghana">
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-light fw-bold w-100">
+                        <i class="bi bi-send"></i> Submit
+                    </button>
+                </div>
+            </div>
+        </form>
+        {% else %}
+        <p class="mb-0">
+            <a href="{{ url_for('login') }}" class="btn btn-light fw-bold">
+                <i class="bi bi-box-arrow-in-right"></i> Log in to submit an article
+            </a>
+        </p>
+        {% endif %}
+    </div>
+
+    <!-- Filter Bar -->
+    {% if countries %}
+    <div class="filter-bar d-flex flex-wrap gap-2 align-items-center">
+        <span class="text-muted fw-semibold me-2"><i class="bi bi-funnel"></i> Filter by country:</span>
+        <a href="{{ url_for('policy_developments') }}"
+           class="badge {% if not active_country %}bg-success{% else %}bg-secondary{% endif %} text-decoration-none py-2 px-3">
+            All
+        </a>
+        {% for c in countries %}
+        <a href="{{ url_for('policy_developments', country=c) }}"
+           class="badge {% if active_country == c %}bg-success{% else %}bg-secondary{% endif %} text-decoration-none py-2 px-3">
+            {{ c }}
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Grid -->
+    {% if policies.items %}
+    <div class="row">
+        {% for policy in policies.items %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="policy-card">
+                <div class="card-body">
+                    {% if policy.country %}
+                    <span class="country-badge">
+                        <i class="bi bi-geo-alt-fill"></i> {{ policy.country }}
+                    </span>
+                    {% endif %}
+
+                    <h5 class="mb-2" style="font-size: 1rem; line-height: 1.4;">
+                        <a href="{{ url_for('view_policy', id=policy.id) }}"
+                           class="text-decoration-none text-dark stretched-link">
+                            {{ policy.title or 'Untitled Article' }}
+                        </a>
+                    </h5>
+
+                    <p class="text-muted small flex-grow-1 mb-3" style="
+                        display: -webkit-box;
+                        -webkit-line-clamp: 3;
+                        -webkit-box-orient: vertical;
+                        overflow: hidden;">
+                        {{ policy.short_summary or (policy.extracted_text or '')[:200] }}
+                    </p>
+
+                    <!-- Tags -->
+                    <div class="mb-2">
+                        {% for tag in policy.tags[:3] %}
+                        <a href="{{ url_for('policy_developments', tag=tag.name) }}"
+                           class="tag-badge">{{ tag.name }}</a>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="card-footer d-flex justify-content-between align-items-center">
+                    <span>
+                        {% if policy.published_date %}
+                        <i class="bi bi-calendar3"></i>
+                        {{ policy.published_date.strftime('%b %d, %Y') }}
+                        {% else %}
+                        <i class="bi bi-calendar3"></i> Date unknown
+                        {% endif %}
+                    </span>
+                    <a href="{{ policy.source_url }}" target="_blank" rel="noopener noreferrer"
+                       class="source-link" title="{{ policy.source_url }}"
+                       onclick="event.stopPropagation()">
+                        <i class="bi bi-box-arrow-up-right"></i> Source
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if policies.pages > 1 %}
+    <nav class="mt-3">
+        <ul class="pagination justify-content-center">
+            {% if policies.has_prev %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('policy_developments', page=policies.prev_num, country=active_country, tag=active_tag) }}">
+                    &laquo; Previous
+                </a>
+            </li>
+            {% endif %}
+            {% for num in policies.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                {% if num %}
+                <li class="page-item {% if num == policies.page %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('policy_developments', page=num, country=active_country, tag=active_tag) }}">{{ num }}</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% endif %}
+            {% endfor %}
+            {% if policies.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('policy_developments', page=policies.next_num, country=active_country, tag=active_tag) }}">
+                    Next &raquo;
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="text-center py-5">
+        <i class="bi bi-newspaper text-muted" style="font-size: 3rem;"></i>
+        <h4 class="mt-3 text-muted">No policy developments yet</h4>
+        <p class="text-muted">Be the first to submit a news article above!</p>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

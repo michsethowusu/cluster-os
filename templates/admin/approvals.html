@@ -17,6 +17,8 @@
            class="btn btn-outline-primary btn-sm {% if type_filter == 'projects' %}active{% endif %}">Projects</a>
         <a href="{{ url_for('admin_approvals', type='events') }}"
            class="btn btn-outline-primary btn-sm {% if type_filter == 'events' %}active{% endif %}">Events</a>
+        <a href="{{ url_for('admin_approvals', type='policy') }}"
+           class="btn btn-outline-primary btn-sm {% if type_filter == 'policy' %}active{% endif %}">Policy</a>
     </div>
     
     {% if items %}
@@ -105,6 +107,27 @@
                                 {% if item.meeting_link %}· <a href="{{ item.meeting_link }}" target="_blank">Meeting link</a>{% endif %}
                             </small>
 
+                        {% elif item.__class__.__name__ == 'PolicyDevelopment' %}
+                            <span class="badge mb-1 text-white" style="background-color:#1a6b3c;">Policy Development</span>
+                            <h5 class="mb-1">
+                                <i class="bi bi-newspaper"></i>
+                                <a href="{{ item.source_url }}" target="_blank" rel="noopener noreferrer"
+                                   class="text-decoration-none">{{ item.title or item.source_url }}</a>
+                            </h5>
+                            {% if item.submitter %}
+                                <p class="mb-1">By {{ item.submitter.name }} ({{ item.submitter.organization }})</p>
+                            {% endif %}
+                            <small class="text-muted">
+                                {% if item.country %}Country: {{ item.country }} · {% endif %}
+                                {% if item.published_date %}Published: {{ item.published_date.strftime('%b %d, %Y') }} · {% endif %}
+                                {{ (item.short_summary or '')[:150] }}
+                            </small>
+                            <div class="mt-1">
+                                {% for tag in item.tags[:4] %}
+                                    <span class="tag-badge">{{ tag.name }}</span>
+                                {% endfor %}
+                            </div>
+
                         {% endif %}
                     </div>
 
@@ -134,6 +157,30 @@
                                   class="d-inline">
                                 <button type="submit" class="btn btn-success btn-sm">
                                     <i class="bi bi-check-lg"></i> Approve
+                                </button>
+                            </form>
+
+                        {% elif item.__class__.__name__ == 'PolicyDevelopment' %}
+                            <form method="POST"
+                                  action="{{ url_for('approve_item', type='policydevelopment', id=item.id) }}"
+                                  class="d-inline">
+                                <button type="submit" class="btn btn-success btn-sm">
+                                    <i class="bi bi-check-lg"></i> Approve
+                                </button>
+                            </form>
+                            <form method="POST"
+                                  action="{{ url_for('unpublish_item', type='policydevelopment', id=item.id) }}"
+                                  class="d-inline">
+                                <button type="submit" class="btn btn-danger btn-sm">
+                                    <i class="bi bi-x-lg"></i> Reject
+                                </button>
+                            </form>
+                            <form method="POST"
+                                  action="{{ url_for('admin_delete_policy', id=item.id) }}"
+                                  class="d-inline"
+                                  onsubmit="return confirm('Permanently delete this policy item?')">
+                                <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete permanently">
+                                    <i class="bi bi-trash"></i>
                                 </button>
                             </form>
 

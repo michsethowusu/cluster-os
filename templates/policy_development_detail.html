@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}{{ policy.title }} | ECED Policy | AU ECED-FLN{% endblock %}
+
+{% block extra_css %}
+<style>
+    .meta-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 14px;
+        border-radius: 20px;
+        font-size: 0.84rem;
+        font-weight: 600;
+    }
+    .meta-pill.country { background: #007451; color: #fff; }
+    .meta-pill.date    { background: #e9ecef; color: #495057; }
+    .article-body {
+        font-size: 1.05rem;
+        line-height: 1.8;
+        color: #333;
+    }
+    .source-box {
+        background: #f8f9fa;
+        border-left: 4px solid #007451;
+        border-radius: 4px;
+        padding: 12px 16px;
+        font-size: 0.9rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4" style="max-width: 820px;">
+
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Home</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('policy_developments') }}">Policy Developments</a></li>
+            <li class="breadcrumb-item active text-truncate" style="max-width:260px;">{{ policy.title }}</li>
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="mb-3">
+        {% if policy.country %}
+        <span class="meta-pill country mb-2">
+            <i class="bi bi-geo-alt-fill"></i> {{ policy.country }}
+        </span>
+        {% endif %}
+        {% if policy.published_date %}
+        <span class="meta-pill date mb-2">
+            <i class="bi bi-calendar3"></i> {{ policy.published_date.strftime('%B %d, %Y') }}
+        </span>
+        {% endif %}
+    </div>
+
+    <h1 class="h2 fw-bold mb-3">{{ policy.title or 'Untitled Article' }}</h1>
+
+    {% if policy.short_summary %}
+    <p class="lead text-muted mb-4">{{ policy.short_summary }}</p>
+    {% endif %}
+
+    <!-- Tags -->
+    {% if policy.tags %}
+    <div class="mb-4">
+        {% for tag in policy.tags %}
+        <a href="{{ url_for('policy_developments', tag=tag.name) }}" class="tag-badge">{{ tag.name }}</a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <hr class="mb-4">
+
+    <!-- Extracted ECED Content -->
+    {% if policy.extracted_text %}
+    <div class="article-body mb-4">
+        <h5 class="text-muted text-uppercase fw-bold" style="font-size:.8rem; letter-spacing:.06em;">
+            <i class="bi bi-robot"></i> AI-Extracted ECED/FLN Content
+        </h5>
+        <div class="mt-3">
+            {{ policy.extracted_text | replace('\n', '<br>') | safe }}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Source link -->
+    <div class="source-box mb-5">
+        <strong><i class="bi bi-link-45deg"></i> Original Source:</strong><br>
+        <a href="{{ policy.source_url }}" target="_blank" rel="noopener noreferrer"
+           class="text-break">
+            {{ policy.source_url }}
+            <i class="bi bi-box-arrow-up-right ms-1" style="font-size:.8em;"></i>
+        </a>
+        {% if policy.submitter %}
+        <div class="mt-2 text-muted" style="font-size:.85rem;">
+            Submitted by {{ policy.submitter.name }} ({{ policy.submitter.organization }})
+        </div>
+        {% endif %}
+    </div>
+
+    <a href="{{ url_for('policy_developments') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Policy Developments
+    </a>
+
+</div>
+{% endblock %}

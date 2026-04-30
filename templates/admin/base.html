@@ -129,6 +129,12 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_policy_list' %}active{% endif %}"
+                           href="{{ url_for('admin_policy_list') }}">
+                            <i class="bi bi-newspaper"></i> Policy Developments
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'admin_fields' %}active{% endif %}" 
                            href="{{ url_for('admin_fields') }}">
                             <i class="bi bi-input-cursor-text"></i> Form Fields

@@ -16,3 +16,5 @@ deep-translator==1.11.4
 mistune==3.0.2
 psycopg2-binary
 gunicorn
+beautifulsoup4
+requests

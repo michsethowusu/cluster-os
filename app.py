@@ -419,7 +419,8 @@ def _process_policy_async(flask_app, policy_id):
                 policy.source_url,
                 formats=['markdown']
             )
-            raw_text = (result.get('markdown') or '').strip()[:12000]
+            # Result is a Document object — access markdown as an attribute
+            raw_text = (getattr(result, 'markdown', None) or '').strip()[:12000]
             if not raw_text:
                 raise ValueError('Firecrawl returned empty content')
         except Exception as e:

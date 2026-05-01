@@ -4118,7 +4118,7 @@ def upload_document():
         flash('Document uploaded successfully! It is being processed and will appear after admin review.', 'success')
         return redirect(url_for('documents'))
 
-    return render_template('document_upload.html')
+    return render_template('document_upload.html', doc=None)
 
 
 # ===================== ADMIN DOCUMENT ROUTES =====================
@@ -4434,4 +4434,3 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     app.run(debug=True, host='0.0.0.0', port=5000)
-

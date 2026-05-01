@@ -2,73 +2,24 @@
 
 {% block title %}ECED Policy Developments | AU ECED-FLN{% endblock %}
 
-{% block extra_css %}
-<style>
-    .btn-brand-green {
-        background-color: #007451;
-        border-color: #007451;
-        color: #fff;
-        font-weight: 600;
-    }
-    .btn-brand-green:hover {
-        background-color: #005c3f;
-        border-color: #005c3f;
-        color: #fff;
-    }
-    .submit-box {
-        background: linear-gradient(135deg, #007451 0%, #005c3f 100%);
-        border-radius: 16px;
-        padding: 2rem 2.5rem;
-        color: #fff;
-        margin-bottom: 1.5rem;
-    }
-</style>
-{% endblock %}
-
 {% block content %}
 <div class="container mt-5">
     <div class="row">
         <div class="col-12">
+
+            <!-- Page header -->
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <div>
                     <h3>ECED Policy Developments</h3>
                     <p class="text-muted mb-0">Country-level policy news on Early Childhood Education &amp; Foundational Learning across Africa.</p>
                 </div>
-                <span class="badge bg-success fs-6 px-3 py-2">
-                    {{ policies.total }} Development{{ 's' if policies.total != 1 else '' }}
-                </span>
-            </div>
-
-            <!-- Submit box -->
-            <div class="submit-box">
-                <h5 class="mb-1"><i class="bi bi-link-45deg"></i> Submit a Policy Development</h5>
-                <p class="mb-3" style="opacity:.85; font-size:.9rem;">
-                    Found a news article about ECED/FLN policy progress in an African country?
-                    Paste the URL below — our AI will extract the relevant content and it will appear here after admin review.
-                </p>
                 {% if current_user.is_authenticated %}
-                <form method="POST">
-                    <div class="row g-2 align-items-end">
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold text-white mb-1" for="source_url">Article URL</label>
-                            <input type="url" class="form-control" id="source_url" name="source_url"
-                                   placeholder="https://example.com/article" required>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label fw-semibold text-white mb-1" for="country">Country</label>
-                            <input type="text" class="form-control" id="country" name="country"
-                                   placeholder="e.g. Ghana">
-                        </div>
-                        <div class="col-md-2">
-                            <button type="submit" class="btn btn-light fw-bold w-100">
-                                <i class="bi bi-send"></i> Submit
-                            </button>
-                        </div>
-                    </div>
-                </form>
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#submitPolicyModal">
+                    <i class="bi bi-plus-lg"></i> Submit Article
+                </button>
                 {% else %}
-                <a href="{{ url_for('login') }}" class="btn btn-light fw-bold">
-                    <i class="bi bi-box-arrow-in-right"></i> Log in to submit an article
+                <a href="{{ url_for('login') }}" class="btn btn-primary">
+                    <i class="bi bi-box-arrow-in-right"></i> Log in to submit
                 </a>
                 {% endif %}
             </div>
@@ -78,6 +29,7 @@
             <form action="{{ url_for('policy_developments') }}" method="GET" class="mb-4">
                 <div class="row g-2">
                     <div class="col-md-4">
+                        <label class="form-label">Filter by Country</label>
                         <select class="form-select" name="country" onchange="this.form.submit()">
                             <option value="">-- All Countries --</option>
                             {% for c in countries %}
@@ -85,10 +37,10 @@
                             {% endfor %}
                         </select>
                     </div>
-                    {% if active_tag %}
-                    <input type="hidden" name="tag" value="{{ active_tag }}">
-                    {% endif %}
                 </div>
+                {% if active_tag %}
+                <input type="hidden" name="tag" value="{{ active_tag }}">
+                {% endif %}
             </form>
             {% endif %}
 
@@ -100,13 +52,11 @@
                     <div class="initiative-card h-100 d-flex flex-column">
                         <div class="card-body d-flex flex-column p-3">
                             {% if policy.country %}
-                            <span class="badge bg-success align-self-start mb-2">
+                            <span class="badge bg-secondary mb-2 align-self-start">
                                 <i class="bi bi-geo-alt-fill"></i> {{ policy.country }}
                             </span>
                             {% endif %}
-                            <h5 class="card-title mb-2" style="font-size: 1rem; line-height: 1.4;">
-                                {{ policy.title or 'Untitled Article' }}
-                            </h5>
+                            <h5 class="card-title mb-2">{{ policy.title or 'Untitled Article' }}</h5>
                             <p class="card-text text-muted small flex-grow-1 mb-3" style="
                                 overflow: hidden;
                                 display: -webkit-box;
@@ -114,7 +64,7 @@
                                 -webkit-box-orient: vertical;
                                 word-break: break-word;
                             ">
-                                {{ policy.short_summary or (policy.extracted_text or '')[:200] }}
+                                {{ policy.short_summary or (policy.extracted_text or '')[:120] }}
                             </p>
                             <div class="mb-3">
                                 {% for tag in policy.tags[:3] %}
@@ -122,7 +72,7 @@
                                 {% endfor %}
                             </div>
                             <div class="mt-auto d-flex gap-2">
-                                <a href="{{ url_for('view_policy', id=policy.id) }}" class="btn btn-brand-green btn-sm">Read More</a>
+                                <a href="{{ url_for('view_policy', id=policy.id) }}" class="btn btn-primary btn-sm">Read More</a>
                                 <a href="{{ policy.source_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-secondary btn-sm">
                                     <i class="bi bi-box-arrow-up-right"></i>
                                 </a>
@@ -141,6 +91,7 @@
                 {% endfor %}
             </div>
 
+            <!-- Pagination -->
             {% if policies.pages > 1 %}
             <nav class="mt-3">
                 <ul class="pagination justify-content-center">
@@ -171,11 +122,61 @@
             <div class="alert alert-info text-center py-5">
                 <i class="bi bi-newspaper display-4 text-muted mb-3 d-block"></i>
                 <h5>No policy developments yet</h5>
-                <p>Be the first to submit a news article above!</p>
+                {% if active_country %}
+                <p>No developments found for "{{ active_country }}". Try a different country.</p>
+                {% else %}
+                <p>Be the first to submit a news article about ECED/FLN policy progress in Africa.</p>
+                {% endif %}
+                {% if current_user.is_authenticated %}
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#submitPolicyModal">
+                    Submit Article
+                </button>
+                {% endif %}
             </div>
             {% endif %}
 
         </div>
     </div>
 </div>
+
+<!-- Submit Policy Modal (authenticated users only) -->
+{% if current_user.is_authenticated %}
+<div class="modal fade" id="submitPolicyModal" tabindex="-1" aria-labelledby="submitPolicyModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="submitPolicyModalLabel">
+                    <i class="bi bi-link-45deg"></i> Submit a Policy Development
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST">
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">
+                        Found a news article about ECED/FLN policy progress in an African country?
+                        Paste the URL below — our AI will extract the relevant content and it will appear here after admin review.
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold" for="source_url">Article URL</label>
+                        <input type="url" class="form-control" id="source_url" name="source_url"
+                               placeholder="https://example.com/article" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold" for="country">Country</label>
+                        <input type="text" class="form-control" id="country" name="country"
+                               placeholder="e.g. Ghana">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-send"></i> Submit
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {% endblock %}

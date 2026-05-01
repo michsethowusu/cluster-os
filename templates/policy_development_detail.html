@@ -79,6 +79,9 @@
             <i class="bi bi-calendar3"></i> {{ policy.published_date.strftime('%B %d, %Y') }}
         </span>
         {% endif %}
+        <span class="meta-pill date mb-2">
+            <i class="bi bi-eye"></i> {{ policy.view_count or 0 }} views
+        </span>
     </div>
 
     <h1 class="h2 fw-bold mb-3">{{ policy.title or 'Untitled Article' }}</h1>

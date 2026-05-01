@@ -20,6 +20,7 @@
                         {% if doc.year_published %}
                         <span class="badge bg-info">{{ doc.year_published }}</span>
                         {% endif %}
+                        <span class="text-muted small ms-2"><i class="bi bi-eye"></i> {{ doc.view_count or 0 }} views</span>
                     </div>
                     <a href="{{ url_for('download_document', id=doc.id) }}" class="btn btn-success btn-sm">
                         <i class="bi bi-download"></i> Download
@@ -83,4 +84,3 @@
     </div>
 </div>
 {% endblock %}
-

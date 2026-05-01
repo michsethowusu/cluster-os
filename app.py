@@ -47,6 +47,8 @@ from utils.email_sender import (
     send_custom_bulk_email,
     send_single_policy_notification,
     send_bulk_policies_digest,
+    send_single_document_notification,
+    send_bulk_documents_digest,
 )
 from utils.ai_services import generate_title_description, vet_tags_nvidia, rank_members_by_query, clean_tags_for_polls, score_initiative_quality, detect_language
 from utils.nlp import extract_noun_phrases, update_noun_phrase_db
@@ -351,7 +353,6 @@ class PolicyDevelopment(db.Model):
     # 'pending' → being processed | 'ready' → AI done, awaiting admin | 'failed' → error
     processing_error  = db.Column(db.String(500), nullable=True)
     submitted_by      = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
-    view_count        = db.Column(db.Integer, default=0, nullable=False)
     created_at        = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at        = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -374,6 +375,17 @@ class PolicySendQueue(db.Model):
     sent_at   = db.Column(db.DateTime, nullable=True)
 
     policy = db.relationship('PolicyDevelopment', backref='send_queue_entry')
+
+
+class DocumentSendQueue(db.Model):
+    """Send queue for approved DocumentLibrary items."""
+    id          = db.Column(db.Integer, primary_key=True)
+    document_id = db.Column(db.Integer, db.ForeignKey('document_library.id'),
+                            nullable=False, unique=True)
+    queued_at   = db.Column(db.DateTime, default=datetime.utcnow)
+    sent_at     = db.Column(db.DateTime, nullable=True)
+
+    document = db.relationship('DocumentLibrary', backref='send_queue_entry')
 
 
 class DocumentLibrary(db.Model):
@@ -403,7 +415,6 @@ class DocumentLibrary(db.Model):
     # 'failed' -> error during extraction or AI processing
     processing_error  = db.Column(db.String(500), nullable=True)
     submitted_by      = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    view_count        = db.Column(db.Integer, default=0, nullable=False)
     created_at        = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at        = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -2299,7 +2310,7 @@ def unpublish_item(type, id):
 @app.route('/admin/send-queue')
 @login_required
 def admin_send_queue():
-    """View of all approved initiatives and policy developments waiting to be sent to members."""
+    """View of all approved initiatives, policy developments, and documents waiting to be sent."""
     if not current_user.is_admin:
         abort(403)
 
@@ -2323,11 +2334,43 @@ def admin_send_queue():
             .order_by(PolicySendQueue.sent_at.desc())
             .limit(20).all())
 
-    return render_template('admin/send_queue.html', 
-                         initiative_unsent=initiative_unsent, 
-                         initiative_sent=initiative_sent,
+    # Documents
+    document_unsent = (DocumentSendQueue.query
+              .filter_by(sent_at=None)
+              .order_by(DocumentSendQueue.queued_at.desc())
+              .all())
+    document_sent = (DocumentSendQueue.query
+            .filter(DocumentSendQueue.sent_at.isnot(None))
+            .order_by(DocumentSendQueue.sent_at.desc())
+            .limit(20).all())
+
+    # Build unified sorted lists: each item is a dict with type + entry for the template
+    def _wrap(entries, kind):
+        return [{'type': kind, 'entry': e, 'queued_at': e.queued_at} for e in entries]
+    def _wrap_sent(entries, kind):
+        return [{'type': kind, 'entry': e, 'sent_at': e.sent_at} for e in entries]
+
+    queue_unsent = sorted(
+        _wrap(initiative_unsent, 'initiative') +
+        _wrap(policy_unsent, 'policy') +
+        _wrap(document_unsent, 'document'),
+        key=lambda x: x['queued_at'],
+        reverse=True
+    )
+    queue_sent = sorted(
+        _wrap_sent(initiative_sent, 'initiative') +
+        _wrap_sent(policy_sent, 'policy') +
+        _wrap_sent(document_sent, 'document'),
+        key=lambda x: x['sent_at'],
+        reverse=True
+    )[:20]
+
+    return render_template('admin/send_queue.html',
+                         queue_unsent=queue_unsent,
+                         queue_sent=queue_sent,
+                         initiative_unsent=initiative_unsent,
                          policy_unsent=policy_unsent,
-                         policy_sent=policy_sent)
+                         document_unsent=document_unsent)
 
 
 @app.route('/admin/send-queue/send/<int:queue_id>', methods=['POST'])
@@ -2419,7 +2462,7 @@ def send_policy_queue_item(queue_id):
     entry = PolicySendQueue.query.get_or_404(queue_id)
     if entry.sent_at:
         flash('This policy development has already been sent.', 'warning')
-        return redirect(url_for('admin_policy_send_queue'))
+        return redirect(url_for('admin_send_queue'))
     policy = entry.policy
     try:
         policy_url = url_for('view_policy', id=policy.id, _external=True)
@@ -2437,7 +2480,7 @@ def send_policy_queue_item(queue_id):
     except Exception as e:
         app.logger.error(f"Policy send queue item error: {e}")
         flash('Failed to send. Check logs.', 'error')
-    return redirect(url_for('admin_policy_send_queue'))
+    return redirect(url_for('admin_send_queue'))
 
 
 @app.route('/admin/policy-send-queue/send-all', methods=['POST'])
@@ -2449,7 +2492,7 @@ def send_policy_queue_all():
     unsent = PolicySendQueue.query.filter_by(sent_at=None).all()
     if not unsent:
         flash('No unsent policy developments in the queue.', 'info')
-        return redirect(url_for('admin_policy_send_queue'))
+        return redirect(url_for('admin_send_queue'))
     policies_data = []
     for entry in unsent:
         policy = entry.policy
@@ -2475,7 +2518,7 @@ def send_policy_queue_all():
     except Exception as e:
         app.logger.error(f"Send all policy queue error: {e}")
         flash('Failed to send digest. Check logs.', 'error')
-    return redirect(url_for('admin_policy_send_queue'))
+    return redirect(url_for('admin_send_queue'))
 
 
 @app.route('/admin/policy-send-queue/remove/<int:queue_id>', methods=['POST'])
@@ -2488,7 +2531,90 @@ def remove_policy_queue_item(queue_id):
     db.session.delete(entry)
     db.session.commit()
     flash('Policy development removed from send queue.', 'success')
-    return redirect(url_for('admin_policy_send_queue'))
+    return redirect(url_for('admin_send_queue'))
+
+
+# ===================== DOCUMENT SEND QUEUE ROUTES =====================
+
+@app.route('/admin/document-send-queue/send/<int:queue_id>', methods=['POST'])
+@login_required
+def send_document_queue_item(queue_id):
+    """Send a single document from the queue to all subscribed members."""
+    if not current_user.is_admin:
+        abort(403)
+    entry = DocumentSendQueue.query.get_or_404(queue_id)
+    if entry.sent_at:
+        flash('This document has already been sent.', 'warning')
+        return redirect(url_for('admin_send_queue'))
+    doc = entry.document
+    try:
+        doc_url = url_for('view_document', id=doc.id, _external=True)
+        subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
+        send_single_document_notification({
+            'title': doc.title or doc.filename,
+            'description': doc.description or '',
+            'url': doc_url,
+            'year_published': str(doc.year_published) if doc.year_published else '',
+            'file_type': doc.file_type or '',
+        }, subscribed_users)
+        entry.sent_at = datetime.utcnow()
+        db.session.commit()
+        flash(f'"{doc.title or doc.filename}" sent to {len(subscribed_users)} member(s).', 'success')
+    except Exception as e:
+        app.logger.error(f"Document send queue item error: {e}")
+        flash('Failed to send. Check logs.', 'error')
+    return redirect(url_for('admin_send_queue'))
+
+
+@app.route('/admin/document-send-queue/send-all', methods=['POST'])
+@login_required
+def send_document_queue_all():
+    """Send ALL unsent documents in the queue as a single digest email."""
+    if not current_user.is_admin:
+        abort(403)
+    unsent = DocumentSendQueue.query.filter_by(sent_at=None).all()
+    if not unsent:
+        flash('No unsent documents in the queue.', 'info')
+        return redirect(url_for('admin_send_queue'))
+    docs_data = []
+    for entry in unsent:
+        doc = entry.document
+        doc_url = url_for('view_document', id=doc.id, _external=True)
+        docs_data.append({
+            'title': doc.title or doc.filename,
+            'description': doc.description or '',
+            'url': doc_url,
+            'year_published': str(doc.year_published) if doc.year_published else '',
+            'file_type': doc.file_type or '',
+        })
+    try:
+        subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
+        send_bulk_documents_digest(docs_data, subscribed_users)
+        now = datetime.utcnow()
+        for entry in unsent:
+            entry.sent_at = now
+        db.session.commit()
+        flash(
+            f'{len(unsent)} document(s) sent to {len(subscribed_users)} member(s) as a digest.',
+            'success'
+        )
+    except Exception as e:
+        app.logger.error(f"Send all documents queue error: {e}")
+        flash('Failed to send digest. Check logs.', 'error')
+    return redirect(url_for('admin_send_queue'))
+
+
+@app.route('/admin/document-send-queue/remove/<int:queue_id>', methods=['POST'])
+@login_required
+def remove_document_queue_item(queue_id):
+    """Remove a document from the send queue without sending."""
+    if not current_user.is_admin:
+        abort(403)
+    entry = DocumentSendQueue.query.get_or_404(queue_id)
+    db.session.delete(entry)
+    db.session.commit()
+    flash('Document removed from send queue.', 'success')
+    return redirect(url_for('admin_send_queue'))
 
 @app.route('/admin/settings', methods=['GET', 'POST'])
 @login_required
@@ -3989,8 +4115,6 @@ def policy_developments():
 @app.route('/policy-developments/<int:id>')
 def view_policy(id):
     policy = PolicyDevelopment.query.filter_by(id=id, is_published=True).first_or_404()
-    policy.view_count = (policy.view_count or 0) + 1
-    db.session.commit()
     return render_template('policy_development_detail.html', policy=policy)
 
 
@@ -4063,8 +4187,6 @@ def documents():
 def view_document(id):
     """Public view of a single published document."""
     doc = DocumentLibrary.query.filter_by(id=id, is_published=True).first_or_404()
-    doc.view_count = (doc.view_count or 0) + 1
-    db.session.commit()
     return render_template('document_detail.html', doc=doc)
 
 
@@ -4181,8 +4303,11 @@ def admin_approve_document(id):
     doc = DocumentLibrary.query.get_or_404(id)
     doc.is_published = True
     doc.updated_at = datetime.utcnow()
+    # Add to send queue if not already there
+    if not doc.send_queue_entry:
+        db.session.add(DocumentSendQueue(document_id=doc.id))
     db.session.commit()
-    flash('Document published.', 'success')
+    flash('Document published and added to send queue.', 'success')
     return redirect(request.referrer or url_for('admin_documents'))
 
 

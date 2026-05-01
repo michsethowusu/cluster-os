@@ -351,6 +351,7 @@ class PolicyDevelopment(db.Model):
     # 'pending' → being processed | 'ready' → AI done, awaiting admin | 'failed' → error
     processing_error  = db.Column(db.String(500), nullable=True)
     submitted_by      = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    view_count        = db.Column(db.Integer, default=0, nullable=False)
     created_at        = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at        = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -402,6 +403,7 @@ class DocumentLibrary(db.Model):
     # 'failed' -> error during extraction or AI processing
     processing_error  = db.Column(db.String(500), nullable=True)
     submitted_by      = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    view_count        = db.Column(db.Integer, default=0, nullable=False)
     created_at        = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at        = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -3987,6 +3989,8 @@ def policy_developments():
 @app.route('/policy-developments/<int:id>')
 def view_policy(id):
     policy = PolicyDevelopment.query.filter_by(id=id, is_published=True).first_or_404()
+    policy.view_count = (policy.view_count or 0) + 1
+    db.session.commit()
     return render_template('policy_development_detail.html', policy=policy)
 
 
@@ -4059,6 +4063,8 @@ def documents():
 def view_document(id):
     """Public view of a single published document."""
     doc = DocumentLibrary.query.filter_by(id=id, is_published=True).first_or_404()
+    doc.view_count = (doc.view_count or 0) + 1
+    db.session.commit()
     return render_template('document_detail.html', doc=doc)
 
 

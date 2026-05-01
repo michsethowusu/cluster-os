@@ -78,13 +78,16 @@
                                 </a>
                             </div>
                         </div>
-                        <div class="card-footer text-muted small">
-                            <i class="bi bi-calendar3"></i>
-                            {% if policy.published_date %}
-                            {{ policy.published_date.strftime('%b %d, %Y') }}
-                            {% else %}
-                            Date unknown
-                            {% endif %}
+                        <div class="card-footer text-muted small d-flex justify-content-between">
+                            <span>
+                                <i class="bi bi-calendar3"></i>
+                                {% if policy.published_date %}
+                                {{ policy.published_date.strftime('%b %d, %Y') }}
+                                {% else %}
+                                Date unknown
+                                {% endif %}
+                            </span>
+                            <span><i class="bi bi-eye"></i> {{ policy.view_count or 0 }}</span>
                         </div>
                     </div>
                 </div>

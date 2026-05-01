@@ -140,6 +140,16 @@ with app.app_context():
             )
         '''))
 
+        # View counts for policy developments and documents
+        conn.execute(db.text('''
+            ALTER TABLE policy_development
+            ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0
+        '''))
+        conn.execute(db.text('''
+            ALTER TABLE document_library
+            ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0
+        '''))
+
         conn.commit()
     print('DB ready.')
 "
@@ -154,4 +164,3 @@ print(f'Upload folder ready: {folder}')
 "
 
 exec gunicorn -w 4 -b 0.0.0.0:3000 app:app
-

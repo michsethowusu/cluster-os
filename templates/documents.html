@@ -88,8 +88,9 @@
                                 </a>
                             </div>
                         </div>
-                        <div class="card-footer text-muted small">
-                            <i class="bi bi-person"></i> {{ doc.submitter.name }} &middot; {{ (doc.file_size / 1024 / 1024)|round(2) }} MB
+                        <div class="card-footer text-muted small d-flex justify-content-between">
+                            <span><i class="bi bi-person"></i> {{ doc.submitter.name }} &middot; {{ (doc.file_size / 1024 / 1024)|round(2) }} MB</span>
+                            <span><i class="bi bi-eye"></i> {{ doc.view_count or 0 }}</span>
                         </div>
                     </div>
                 </div>

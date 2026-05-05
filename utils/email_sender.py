@@ -445,7 +445,7 @@ def send_single_initiative_notification(initiative_data, users):
     title = initiative_data['title']
     url = initiative_data['url']
     desc = initiative_data.get('short_description', '')
-    subject = f"New Initiative Published – {title}"
+    subject = title
 
     desc_block = (
         f'<p style="color:#555;font-size:0.95em;line-height:1.6;margin:8px 0 0;">{desc}</p>'
@@ -532,7 +532,7 @@ def send_single_policy_notification(policy_data, users):
     summary = policy_data.get('short_summary', '')
     country = policy_data.get('country', '')
     published_date = policy_data.get('published_date', '')
-    subject = f"New Policy Development – {title}"
+    subject = title
 
     meta_line = ""
     if country or published_date:
@@ -643,7 +643,7 @@ def send_single_document_notification(doc_data, users):
     description = doc_data.get('description', '')
     year = doc_data.get('year_published', '')
     file_type = doc_data.get('file_type', '')
-    subject = f"New Document Published – {title}"
+    subject = title
 
     meta_parts = []
     if file_type:

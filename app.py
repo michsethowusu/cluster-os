@@ -2309,6 +2309,22 @@ def unpublish_item(type, id):
 
 # ===================== SEND QUEUE ROUTES =====================
 
+@app.route('/admin/send-queue/toggle-test-mode', methods=['POST'])
+@login_required
+def toggle_send_queue_test_mode():
+    """Toggle test mode for the send queue on or off."""
+    if not current_user.is_admin:
+        abort(403)
+    current = get_setting('send_queue_test_mode', 'false')
+    new_value = 'false' if current == 'true' else 'true'
+    set_setting('send_queue_test_mode', new_value)
+    if new_value == 'true':
+        flash('Test mode ON — sends will go only to the admin OTP email and items will stay in the queue.', 'warning')
+    else:
+        flash('Test mode OFF — sends will go to all subscribed members.', 'success')
+    return redirect(url_for('admin_send_queue'))
+
+
 @app.route('/admin/send-queue')
 @login_required
 def admin_send_queue():
@@ -2367,12 +2383,16 @@ def admin_send_queue():
         reverse=True
     )[:20]
 
+    test_mode = get_setting('send_queue_test_mode', 'false') == 'true'
+    test_email = app.config.get('ADMIN_OTP_EMAIL') or ''
     return render_template('admin/send_queue.html',
                          queue_unsent=queue_unsent,
                          queue_sent=queue_sent,
                          initiative_unsent=initiative_unsent,
                          policy_unsent=policy_unsent,
-                         document_unsent=document_unsent)
+                         document_unsent=document_unsent,
+                         test_mode=test_mode,
+                         test_email=test_email)
 
 
 @app.route('/admin/send-queue/send/<int:queue_id>', methods=['POST'])
@@ -2386,17 +2406,30 @@ def send_queue_item(queue_id):
         flash('This initiative has already been sent.', 'warning')
         return redirect(url_for('admin_send_queue'))
     initiative = entry.initiative
+    test_mode = get_setting('send_queue_test_mode', 'false') == 'true'
     try:
         initiative_url = url_for('view_initiative', slug=initiative.slug, _external=True)
-        subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
-        send_single_initiative_notification({
-            'title': initiative.title,
-            'short_description': initiative.short_description or '',
-            'url': initiative_url,
-        }, subscribed_users)
-        entry.sent_at = datetime.utcnow()
-        db.session.commit()
-        flash(f'"{initiative.title}" sent to {len(subscribed_users)} member(s).', 'success')
+        if test_mode:
+            test_email = app.config.get('ADMIN_OTP_EMAIL') or current_user.email
+            from utils.email_sender import User as _U
+            class _FakeUser:
+                def __init__(self, email): self.email = email
+            send_single_initiative_notification({
+                'title': initiative.title,
+                'short_description': initiative.short_description or '',
+                'url': initiative_url,
+            }, [_FakeUser(test_email)])
+            flash(f'[TEST] "{initiative.title}" sent to {test_email} only. Item stays in queue.', 'warning')
+        else:
+            subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
+            send_single_initiative_notification({
+                'title': initiative.title,
+                'short_description': initiative.short_description or '',
+                'url': initiative_url,
+            }, subscribed_users)
+            entry.sent_at = datetime.utcnow()
+            db.session.commit()
+            flash(f'"{initiative.title}" sent to {len(subscribed_users)} member(s).', 'success')
     except Exception as e:
         app.logger.error(f"Send queue item error: {e}")
         flash('Failed to send. Check logs.', 'error')
@@ -2422,17 +2455,25 @@ def send_queue_all():
             'short_description': initiative.short_description or '',
             'url': initiative_url,
         })
+    test_mode = get_setting('send_queue_test_mode', 'false') == 'true'
     try:
-        subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
-        send_bulk_initiatives_digest(initiatives_data, subscribed_users)
-        now = datetime.utcnow()
-        for entry in unsent:
-            entry.sent_at = now
-        db.session.commit()
-        flash(
-            f'{len(unsent)} initiative(s) sent to {len(subscribed_users)} member(s) as a digest.',
-            'success'
-        )
+        if test_mode:
+            test_email = app.config.get('ADMIN_OTP_EMAIL') or current_user.email
+            class _FakeUser:
+                def __init__(self, email): self.email = email
+            send_bulk_initiatives_digest(initiatives_data, [_FakeUser(test_email)])
+            flash(f'[TEST] {len(unsent)} initiative(s) sent as digest to {test_email} only. Items stay in queue.', 'warning')
+        else:
+            subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
+            send_bulk_initiatives_digest(initiatives_data, subscribed_users)
+            now = datetime.utcnow()
+            for entry in unsent:
+                entry.sent_at = now
+            db.session.commit()
+            flash(
+                f'{len(unsent)} initiative(s) sent to {len(subscribed_users)} member(s) as a digest.',
+                'success'
+            )
     except Exception as e:
         app.logger.error(f"Send all queue error: {e}")
         flash('Failed to send digest. Check logs.', 'error')
@@ -2466,19 +2507,28 @@ def send_policy_queue_item(queue_id):
         flash('This policy development has already been sent.', 'warning')
         return redirect(url_for('admin_send_queue'))
     policy = entry.policy
+    test_mode = get_setting('send_queue_test_mode', 'false') == 'true'
     try:
         policy_url = url_for('view_policy', id=policy.id, _external=True)
-        subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
-        send_single_policy_notification({
+        policy_data = {
             'title': policy.title or policy.source_url[:100],
             'short_summary': policy.short_summary or '',
             'url': policy_url,
             'country': policy.country or '',
             'published_date': policy.published_date.strftime('%B %d, %Y') if policy.published_date else '',
-        }, subscribed_users)
-        entry.sent_at = datetime.utcnow()
-        db.session.commit()
-        flash(f'"{policy.title or policy.source_url[:100]}" sent to {len(subscribed_users)} member(s).', 'success')
+        }
+        if test_mode:
+            test_email = app.config.get('ADMIN_OTP_EMAIL') or current_user.email
+            class _FakeUser:
+                def __init__(self, email): self.email = email
+            send_single_policy_notification(policy_data, [_FakeUser(test_email)])
+            flash(f'[TEST] "{policy_data["title"]}" sent to {test_email} only. Item stays in queue.', 'warning')
+        else:
+            subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
+            send_single_policy_notification(policy_data, subscribed_users)
+            entry.sent_at = datetime.utcnow()
+            db.session.commit()
+            flash(f'"{policy_data["title"]}" sent to {len(subscribed_users)} member(s).', 'success')
     except Exception as e:
         app.logger.error(f"Policy send queue item error: {e}")
         flash('Failed to send. Check logs.', 'error')
@@ -2506,17 +2556,25 @@ def send_policy_queue_all():
             'country': policy.country or '',
             'published_date': policy.published_date.strftime('%B %d, %Y') if policy.published_date else '',
         })
+    test_mode = get_setting('send_queue_test_mode', 'false') == 'true'
     try:
-        subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
-        send_bulk_policies_digest(policies_data, subscribed_users)
-        now = datetime.utcnow()
-        for entry in unsent:
-            entry.sent_at = now
-        db.session.commit()
-        flash(
-            f'{len(unsent)} policy development(s) sent to {len(subscribed_users)} member(s) as a digest.',
-            'success'
-        )
+        if test_mode:
+            test_email = app.config.get('ADMIN_OTP_EMAIL') or current_user.email
+            class _FakeUser:
+                def __init__(self, email): self.email = email
+            send_bulk_policies_digest(policies_data, [_FakeUser(test_email)])
+            flash(f'[TEST] {len(unsent)} policy development(s) sent as digest to {test_email} only. Items stay in queue.', 'warning')
+        else:
+            subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
+            send_bulk_policies_digest(policies_data, subscribed_users)
+            now = datetime.utcnow()
+            for entry in unsent:
+                entry.sent_at = now
+            db.session.commit()
+            flash(
+                f'{len(unsent)} policy development(s) sent to {len(subscribed_users)} member(s) as a digest.',
+                'success'
+            )
     except Exception as e:
         app.logger.error(f"Send all policy queue error: {e}")
         flash('Failed to send digest. Check logs.', 'error')
@@ -2549,19 +2607,28 @@ def send_document_queue_item(queue_id):
         flash('This document has already been sent.', 'warning')
         return redirect(url_for('admin_send_queue'))
     doc = entry.document
+    test_mode = get_setting('send_queue_test_mode', 'false') == 'true'
     try:
         doc_url = url_for('view_document', id=doc.id, _external=True)
-        subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
-        send_single_document_notification({
+        doc_data = {
             'title': doc.title or doc.filename,
             'description': doc.description or '',
             'url': doc_url,
             'year_published': str(doc.year_published) if doc.year_published else '',
             'file_type': doc.file_type or '',
-        }, subscribed_users)
-        entry.sent_at = datetime.utcnow()
-        db.session.commit()
-        flash(f'"{doc.title or doc.filename}" sent to {len(subscribed_users)} member(s).', 'success')
+        }
+        if test_mode:
+            test_email = app.config.get('ADMIN_OTP_EMAIL') or current_user.email
+            class _FakeUser:
+                def __init__(self, email): self.email = email
+            send_single_document_notification(doc_data, [_FakeUser(test_email)])
+            flash(f'[TEST] "{doc_data["title"]}" sent to {test_email} only. Item stays in queue.', 'warning')
+        else:
+            subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
+            send_single_document_notification(doc_data, subscribed_users)
+            entry.sent_at = datetime.utcnow()
+            db.session.commit()
+            flash(f'"{doc_data["title"]}" sent to {len(subscribed_users)} member(s).', 'success')
     except Exception as e:
         app.logger.error(f"Document send queue item error: {e}")
         flash('Failed to send. Check logs.', 'error')
@@ -2589,17 +2656,25 @@ def send_document_queue_all():
             'year_published': str(doc.year_published) if doc.year_published else '',
             'file_type': doc.file_type or '',
         })
+    test_mode = get_setting('send_queue_test_mode', 'false') == 'true'
     try:
-        subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
-        send_bulk_documents_digest(docs_data, subscribed_users)
-        now = datetime.utcnow()
-        for entry in unsent:
-            entry.sent_at = now
-        db.session.commit()
-        flash(
-            f'{len(unsent)} document(s) sent to {len(subscribed_users)} member(s) as a digest.',
-            'success'
-        )
+        if test_mode:
+            test_email = app.config.get('ADMIN_OTP_EMAIL') or current_user.email
+            class _FakeUser:
+                def __init__(self, email): self.email = email
+            send_bulk_documents_digest(docs_data, [_FakeUser(test_email)])
+            flash(f'[TEST] {len(unsent)} document(s) sent as digest to {test_email} only. Items stay in queue.', 'warning')
+        else:
+            subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
+            send_bulk_documents_digest(docs_data, subscribed_users)
+            now = datetime.utcnow()
+            for entry in unsent:
+                entry.sent_at = now
+            db.session.commit()
+            flash(
+                f'{len(unsent)} document(s) sent to {len(subscribed_users)} member(s) as a digest.',
+                'success'
+            )
     except Exception as e:
         app.logger.error(f"Send all documents queue error: {e}")
         flash('Failed to send digest. Check logs.', 'error')

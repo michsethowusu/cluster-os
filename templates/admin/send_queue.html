@@ -3,38 +3,71 @@
 {% block admin_title %}Send Queue{% endblock %}
 
 {% block admin_actions %}
-{% set total_unsent = queue_unsent | length %}
-{% if total_unsent %}
-<div class="d-flex gap-2">
-    {% if initiative_unsent %}
-    <form method="POST" action="{{ url_for('send_queue_all') }}"
-          onsubmit="return confirm('Send ALL {{ initiative_unsent|length }} initiative(s) as a digest to all subscribed members?')">
-        <button type="submit" class="btn btn-outline-primary btn-sm">
-            <i class="bi bi-send"></i> Send All Initiatives ({{ initiative_unsent|length }})
-        </button>
+<div class="d-flex align-items-center gap-3 flex-wrap">
+
+    <!-- Test Mode Toggle -->
+    <form method="POST" action="{{ url_for('toggle_send_queue_test_mode') }}" class="d-flex align-items-center gap-2 mb-0">
+        <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" role="switch" id="testModeSwitch"
+                   {% if test_mode %}checked{% endif %}
+                   onchange="this.form.submit()"
+                   style="width:2.5em;height:1.4em;cursor:pointer;">
+            <label class="form-check-label fw-semibold {% if test_mode %}text-warning{% endif %}" for="testModeSwitch">
+                {% if test_mode %}
+                <i class="bi bi-flask"></i> Test Mode ON
+                {% else %}
+                <i class="bi bi-flask"></i> Test Mode
+                {% endif %}
+            </label>
+        </div>
     </form>
+
+    {% set total_unsent = queue_unsent | length %}
+    {% if total_unsent %}
+    <div class="d-flex gap-2">
+        {% if initiative_unsent %}
+        <form method="POST" action="{{ url_for('send_queue_all') }}"
+              onsubmit="return confirm('{% if test_mode %}[TEST] Send {{ initiative_unsent|length }} initiative(s) as a digest to YOUR email only (test mode)?{% else %}Send ALL {{ initiative_unsent|length }} initiative(s) as a digest to all subscribed members?{% endif %}')">
+            <button type="submit" class="btn {% if test_mode %}btn-outline-warning{% else %}btn-outline-primary{% endif %} btn-sm">
+                <i class="bi bi-send"></i> Send All Initiatives ({{ initiative_unsent|length }}){% if test_mode %} [TEST]{% endif %}
+            </button>
+        </form>
+        {% endif %}
+        {% if policy_unsent %}
+        <form method="POST" action="{{ url_for('send_policy_queue_all') }}"
+              onsubmit="return confirm('{% if test_mode %}[TEST] Send {{ policy_unsent|length }} policy development(s) as a digest to YOUR email only (test mode)?{% else %}Send ALL {{ policy_unsent|length }} policy development(s) as a digest to all subscribed members?{% endif %}')">
+            <button type="submit" class="btn {% if test_mode %}btn-outline-warning{% else %}btn-outline-primary{% endif %} btn-sm">
+                <i class="bi bi-send"></i> Send All Policies ({{ policy_unsent|length }}){% if test_mode %} [TEST]{% endif %}
+            </button>
+        </form>
+        {% endif %}
+        {% if document_unsent %}
+        <form method="POST" action="{{ url_for('send_document_queue_all') }}"
+              onsubmit="return confirm('{% if test_mode %}[TEST] Send {{ document_unsent|length }} document(s) as a digest to YOUR email only (test mode)?{% else %}Send ALL {{ document_unsent|length }} document(s) as a digest to all subscribed members?{% endif %}')">
+            <button type="submit" class="btn {% if test_mode %}btn-outline-warning{% else %}btn-outline-primary{% endif %} btn-sm">
+                <i class="bi bi-send"></i> Send All Documents ({{ document_unsent|length }}){% if test_mode %} [TEST]{% endif %}
+            </button>
+        </form>
+        {% endif %}
+    </div>
     {% endif %}
-    {% if policy_unsent %}
-    <form method="POST" action="{{ url_for('send_policy_queue_all') }}"
-          onsubmit="return confirm('Send ALL {{ policy_unsent|length }} policy development(s) as a digest to all subscribed members?')">
-        <button type="submit" class="btn btn-outline-primary btn-sm">
-            <i class="bi bi-send"></i> Send All Policies ({{ policy_unsent|length }})
-        </button>
-    </form>
-    {% endif %}
-    {% if document_unsent %}
-    <form method="POST" action="{{ url_for('send_document_queue_all') }}"
-          onsubmit="return confirm('Send ALL {{ document_unsent|length }} document(s) as a digest to all subscribed members?')">
-        <button type="submit" class="btn btn-outline-primary btn-sm">
-            <i class="bi bi-send"></i> Send All Documents ({{ document_unsent|length }})
-        </button>
-    </form>
-    {% endif %}
+
 </div>
-{% endif %}
 {% endblock %}
 
 {% block admin_content %}
+
+{% if test_mode %}
+<div class="alert alert-warning d-flex align-items-start gap-2 mb-4">
+    <i class="bi bi-flask-fill fs-5 flex-shrink-0 mt-1"></i>
+    <div>
+        <strong>Test Mode is ON.</strong>
+        All sends will go to <code>{{ test_email or '(admin OTP email not configured)' }}</code> only — not to members.
+        Items will <strong>not</strong> be removed from the queue after sending.
+        Toggle the switch above to send for real.
+    </div>
+</div>
+{% endif %}
 
 <p class="text-muted mb-4">
     Approved initiatives, policy developments, and documents are held here.
@@ -124,9 +157,9 @@
             <div class="d-flex flex-column gap-2">
                 {% if item.type == 'initiative' %}
                 <form method="POST" action="{{ url_for('send_queue_item', queue_id=entry.id) }}"
-                      onsubmit="return confirm('Send this initiative to all subscribed members now?')">
-                    <button type="submit" class="btn btn-primary btn-sm">
-                        <i class="bi bi-send"></i> Send Now
+                      onsubmit="return confirm('{% if test_mode %}[TEST] Send this initiative to YOUR email only (test mode)?{% else %}Send this initiative to all subscribed members now?{% endif %}')">
+                    <button type="submit" class="btn {% if test_mode %}btn-warning{% else %}btn-primary{% endif %} btn-sm">
+                        <i class="bi bi-send"></i> {% if test_mode %}Send Test{% else %}Send Now{% endif %}
                     </button>
                 </form>
                 <form method="POST" action="{{ url_for('remove_queue_item', queue_id=entry.id) }}"
@@ -137,9 +170,9 @@
                 </form>
                 {% elif item.type == 'policy' %}
                 <form method="POST" action="{{ url_for('send_policy_queue_item', queue_id=entry.id) }}"
-                      onsubmit="return confirm('Send this policy development to all subscribed members now?')">
-                    <button type="submit" class="btn btn-primary btn-sm">
-                        <i class="bi bi-send"></i> Send Now
+                      onsubmit="return confirm('{% if test_mode %}[TEST] Send this policy development to YOUR email only (test mode)?{% else %}Send this policy development to all subscribed members now?{% endif %}')">
+                    <button type="submit" class="btn {% if test_mode %}btn-warning{% else %}btn-primary{% endif %} btn-sm">
+                        <i class="bi bi-send"></i> {% if test_mode %}Send Test{% else %}Send Now{% endif %}
                     </button>
                 </form>
                 <form method="POST" action="{{ url_for('remove_policy_queue_item', queue_id=entry.id) }}"
@@ -150,9 +183,9 @@
                 </form>
                 {% else %}
                 <form method="POST" action="{{ url_for('send_document_queue_item', queue_id=entry.id) }}"
-                      onsubmit="return confirm('Send this document to all subscribed members now?')">
-                    <button type="submit" class="btn btn-primary btn-sm">
-                        <i class="bi bi-send"></i> Send Now
+                      onsubmit="return confirm('{% if test_mode %}[TEST] Send this document to YOUR email only (test mode)?{% else %}Send this document to all subscribed members now?{% endif %}')">
+                    <button type="submit" class="btn {% if test_mode %}btn-warning{% else %}btn-primary{% endif %} btn-sm">
+                        <i class="bi bi-send"></i> {% if test_mode %}Send Test{% else %}Send Now{% endif %}
                     </button>
                 </form>
                 <form method="POST" action="{{ url_for('remove_document_queue_item', queue_id=entry.id) }}"

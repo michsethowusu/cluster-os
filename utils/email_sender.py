@@ -31,7 +31,7 @@ def _unsubscribe_footer(email):
 def _base_email(title, body_html, footer_html=""):
     """
     Shared email shell.
-    - Green header bar (#007451) matches the site navbar and footer.
+    - Green header bar (#1a56db) matches the site navbar and footer.
     - White body keeps it clean and readable.
     - Light grey footer for unsubscribe / platform credit.
     """
@@ -48,7 +48,7 @@ def _base_email(title, body_html, footer_html=""):
     <div style="padding:36px 32px 24px;line-height:1.6;">
       <p style="margin:0 0 24px;font-size:0.75em;color:#aaa;text-transform:uppercase;
                 letter-spacing:1px;font-weight:bold;text-align:center;">AU ECED-FLN Cluster Platform</p>
-      <h2 style="margin:0 0 20px;color:#007451;font-size:1.25em;font-weight:bold;line-height:1.3;">
+      <h2 style="margin:0 0 20px;color:#1a56db;font-size:1.25em;font-weight:bold;line-height:1.3;">
         {title}
       </h2>
       {body_html}
@@ -68,7 +68,7 @@ def _btn(url, label):
     """Primary CTA button — blue, centred."""
     return f"""
     <p style="text-align:center;margin:28px 0;">
-      <a href="{url}" style="display:inline-block;background:#007451;color:#ffffff;
+      <a href="{url}" style="display:inline-block;background:#1a56db;color:#ffffff;
          padding:13px 32px;text-decoration:none;border-radius:5px;
          font-weight:bold;font-size:0.95em;">{label}</a>
     </p>"""
@@ -77,7 +77,7 @@ def _btn(url, label):
 def _info_box(html_content):
     """Light grey box with a green left accent — for event/project/initiative details."""
     return f"""
-    <div style="background:#f8f9fa;border-left:4px solid #007451;
+    <div style="background:#f8f9fa;border-left:4px solid #1a56db;
                 border-radius:4px;padding:16px 20px;margin:20px 0;">
       {html_content}
     </div>"""
@@ -158,7 +158,7 @@ def send_approval_email(email, initiative_slug=None):
         initiative_link = f"""
             <p>Your initiative has also been published:</p>
             <p style="margin:8px 0 20px;">
-                <a href="{link}" style="color:#007451;">View your initiative →</a>
+                <a href="{link}" style="color:#1a56db;">View your initiative →</a>
             </p>"""
 
     body = f"""
@@ -406,7 +406,7 @@ def send_event_registration_confirmation(user, event):
 
     meeting_link_html = ""
     if event.meeting_link:
-        meeting_link_html = f'<p style="margin:4px 0;"><strong>Meeting Link:</strong> <a href="{event.meeting_link}" style="color:#007451;">Join here</a></p>'
+        meeting_link_html = f'<p style="margin:4px 0;"><strong>Meeting Link:</strong> <a href="{event.meeting_link}" style="color:#1a56db;">Join here</a></p>'
 
     body = f"""
         <p>Dear {user.name},</p>
@@ -487,15 +487,15 @@ def send_bulk_initiatives_digest(initiatives_data, users):
             )
             items_html += f"""
             <div style="margin-bottom:12px;padding:16px 18px;background:#f8f9fa;
-                        border-left:4px solid #007451;border-radius:4px;">
+                        border-left:4px solid #1a56db;border-radius:4px;">
                 <a href="{item['url']}"
-                   style="font-size:1em;font-weight:bold;color:#007451;text-decoration:none;line-height:1.4;">
+                   style="font-size:1em;font-weight:bold;color:#1a56db;text-decoration:none;line-height:1.4;">
                     {item['title']}
                 </a>
                 {desc_block}
                 <p style="margin:10px 0 0;">
                     <a href="{item['url']}"
-                       style="font-size:0.85em;color:#007451;text-decoration:none;font-weight:bold;">
+                       style="font-size:0.85em;color:#1a56db;text-decoration:none;font-weight:bold;">
                         Read more →
                     </a>
                 </p>
@@ -596,16 +596,16 @@ def send_bulk_policies_digest(policies_data, users):
 
             items_html += f"""
             <div style="margin-bottom:12px;padding:16px 18px;background:#f8f9fa;
-                        border-left:4px solid #007451;border-radius:4px;">
+                        border-left:4px solid #1a56db;border-radius:4px;">
                 <a href="{item['url']}"
-                   style="font-size:1em;font-weight:bold;color:#007451;text-decoration:none;line-height:1.4;">
+                   style="font-size:1em;font-weight:bold;color:#1a56db;text-decoration:none;line-height:1.4;">
                     {item['title']}
                 </a>
                 {meta_line}
                 {summary_block}
                 <p style="margin:10px 0 0;">
                     <a href="{item['url']}"
-                       style="font-size:0.85em;color:#007451;text-decoration:none;font-weight:bold;">
+                       style="font-size:0.85em;color:#1a56db;text-decoration:none;font-weight:bold;">
                         Read more →
                     </a>
                 </p>
@@ -706,16 +706,16 @@ def send_bulk_documents_digest(docs_data, users):
 
             items_html += f"""
             <div style="margin-bottom:12px;padding:16px 18px;background:#f8f9fa;
-                        border-left:4px solid #007451;border-radius:4px;">
+                        border-left:4px solid #1a56db;border-radius:4px;">
                 <a href="{item['url']}"
-                   style="font-size:1em;font-weight:bold;color:#007451;text-decoration:none;line-height:1.4;">
+                   style="font-size:1em;font-weight:bold;color:#1a56db;text-decoration:none;line-height:1.4;">
                     {item['title']}
                 </a>
                 {meta_line}
                 {desc_block}
                 <p style="margin:10px 0 0;">
                     <a href="{item['url']}"
-                       style="font-size:0.85em;color:#007451;text-decoration:none;font-weight:bold;">
+                       style="font-size:0.85em;color:#1a56db;text-decoration:none;font-weight:bold;">
                         View document →
                     </a>
                 </p>

@@ -145,7 +145,7 @@
                                             <small class="text-muted">expert{% if org.member_count != 1 %}s{% endif %}</small>
                                         </td>
                                         <td>
-                                            <a href="{{ url_for('search') }}?q={{ org.organization }}" class="btn btn-sm btn-outline-dark btn-outline-brand">
+                                            <a href="{{ url_for('search', q=org.organization) }}" class="btn btn-sm btn-outline-dark btn-outline-brand">
                                                 View Initiatives
                                             </a>
                                         </td>

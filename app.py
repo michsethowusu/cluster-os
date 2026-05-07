@@ -1585,19 +1585,26 @@ def edit_initiative(id):
 
 @app.route('/search')
 def search():
-    # NEW: Use tag filter instead of text search
     tag_name = request.args.get('tag', '')
+    org_name = request.args.get('q', '').strip()  # used by "View Initiatives" on members page
     initiatives = Initiative.query.filter_by(is_published=True)
-    
+
     if tag_name:
         tag = Tag.query.filter_by(name=tag_name).first()
         if tag:
             initiatives = initiatives.filter(Initiative.tags.contains(tag))
-    
+
+    if org_name:
+        # Filter to initiatives whose author belongs to the given organisation
+        initiatives = initiatives.join(User, User.id == Initiative.user_id).filter(
+            User.organization == org_name
+        )
+
     initiatives = initiatives.order_by(Initiative.created_at.desc()).all()
     tags = Tag.query.order_by(Tag.name).all()  # for dropdown
-    
-    return render_template('search.html', initiatives=initiatives, tags=tags, selected_tag=tag_name)
+
+    return render_template('search.html', initiatives=initiatives, tags=tags,
+                           selected_tag=tag_name, org_filter=org_name)
 
 @app.route('/tags/<tag_name>')
 def tag_view(tag_name):

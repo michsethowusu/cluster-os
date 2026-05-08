@@ -3082,6 +3082,10 @@ def admin_import_members():
 
                     # ── INVITE-ONLY MODE ──────────────────────────────────────
                     if invite_only:
+                        # Skip if already a member
+                        if User.query.filter_by(email=email).first():
+                            errors.append(f"Row {row_num}: {email} is already a member — skipped")
+                            continue
                         # Skip if email is on the blocked list
                         if BlockedEmail.query.filter_by(email=email).first():
                             errors.append(f"Row {row_num}: {email} has unsubscribed — skipped")

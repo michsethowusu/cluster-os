@@ -210,7 +210,7 @@ const memberStateEmailNotice = document.getElementById('memberStateEmailNotice')
 const memberStateJoinNotice  = document.getElementById('memberStateJoinNotice');
 
 function updateMemberStateUI() {
-    const isMemberState = stakeholderSelect && stakeholderSelect.value === 'Member State';
+    const isMemberState = stakeholderSelect && stakeholderSelect.value === 'Government';
     if (initiativeSection) {
         initiativeSection.style.display = isMemberState ? 'none' : '';
     }
@@ -295,7 +295,7 @@ if (contentArea) {
 const form = document.querySelector('form[method="POST"]');
 if (form) {
     form.addEventListener('submit', function (e) {
-        const isMemberState = stakeholderSelect && stakeholderSelect.value === 'Member State';
+        const isMemberState = stakeholderSelect && stakeholderSelect.value === 'Government';
         if (isMemberState) return; // No initiative validation needed for Member State
         const titleWords = titleInput ? countWords(titleInput.value) : 5;
         const shortDescWords = shortDescArea ? countWords(shortDescArea.value) : 10;

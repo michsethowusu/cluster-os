@@ -4609,7 +4609,7 @@ def admin_reprocess_policy(id):
 
 # ===================== TECHNICAL ASSISTANCE NEEDS =====================
 
-MEMBER_STATE_TYPE = 'Member State'
+MEMBER_STATE_TYPE = 'Government'
 
 
 @app.route('/technical-assistance')

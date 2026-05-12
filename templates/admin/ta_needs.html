@@ -1,127 +1,168 @@
-{% extends "base.html" %}
+{% extends "admin/base.html" %}
 
-{% block title %}Technical Assistance Needs — Admin | AU ECED-FLN{% endblock %}
+{% block admin_title %}Technical Assistance Needs{% endblock %}
 
-{% block content %}
-<div class="container mt-5 mb-5">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h3>Technical Assistance Needs</h3>
-            <p class="text-muted mb-0">Review and manage Member State TA need submissions.</p>
-        </div>
-        <a href="{{ url_for('admin_send_queue') }}" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-arrow-left"></i> Back to Send Queue
-        </a>
+{% block admin_actions %}
+<div class="d-flex gap-2">
+    <a href="{{ url_for('technical_assistance') }}" class="btn btn-sm btn-outline-secondary" target="_blank">
+        <i class="bi bi-eye"></i> View Public Page
+    </a>
+    <form method="POST" action="{{ url_for('admin_invite_member_states_ta') }}"
+          onsubmit="return confirm('Send TA Need invitation emails to {{ ta_invite_eligible_count }} eligible Member State member(s) who have not yet submitted?')">
+        <button type="submit" class="btn btn-sm btn-success">
+            <i class="bi bi-envelope-plus"></i> Invite Member States to Submit
+            {% if ta_invite_eligible_count > 0 %}
+            <span class="badge bg-white text-success ms-1">{{ ta_invite_eligible_count }} eligible</span>
+            {% else %}
+            <span class="badge bg-white text-muted ms-1">0 eligible</span>
+            {% endif %}
+        </button>
+    </form>
+</div>
+{% endblock %}
+
+{% block admin_content %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+    {% for category, message in messages %}
+    <div class="alert alert-{{ 'danger' if category == 'error' else ('warning' if category == 'warning' else 'success') }} alert-dismissible fade show">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
+    {% endfor %}
+{% endif %}
+{% endwith %}
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-        {% for category, message in messages %}
-        <div class="alert alert-{{ 'danger' if category == 'error' else ('warning' if category == 'warning' else 'success') }} alert-dismissible fade show">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+<!-- Summary bar -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="stat-card-admin">
+            <div class="text-muted small">Total Submissions</div>
+            <div class="fs-3 fw-bold">{{ ta_needs | length }}</div>
         </div>
-        {% endfor %}
-    {% endif %}
-    {% endwith %}
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card-admin" style="border-left-color: #198754;">
+            <div class="text-muted small">Published</div>
+            <div class="fs-3 fw-bold text-success">{{ ta_needs | selectattr('is_published') | list | length }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card-admin" style="border-left-color: #ffc107;">
+            <div class="text-muted small">Pending Review</div>
+            <div class="fs-3 fw-bold text-warning">{{ ta_needs | rejectattr('is_published') | list | length }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card-admin" style="border-left-color: #198754;">
+            <div class="text-muted small">MS Members Not Yet Submitted</div>
+            <div class="fs-3 fw-bold">{{ ta_invite_eligible_count }}</div>
+        </div>
+    </div>
+</div>
 
-    {% if ta_needs %}
-    <div class="table-responsive">
-        <table class="table table-hover align-middle">
-            <thead class="table-light">
-                <tr>
-                    <th>Title</th>
-                    <th>Country</th>
-                    <th>Submitted by</th>
-                    <th>Date</th>
-                    <th>Status</th>
-                    <th class="text-end">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for ta in ta_needs %}
-                <tr>
-                    <td style="max-width: 280px;">
-                        <a href="{{ url_for('view_ta_need', id=ta.id) }}" class="fw-semibold text-decoration-none text-dark"
-                           style="font-size: 0.92rem;">
-                            {{ ta.title }}
+{% if ta_needs %}
+<div class="table-responsive">
+    <table class="table table-hover align-middle bg-white rounded shadow-sm">
+        <thead class="table-light">
+            <tr>
+                <th>Title</th>
+                <th>Country</th>
+                <th>Submitted by</th>
+                <th>Date</th>
+                <th>Status</th>
+                <th class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ta in ta_needs %}
+            <tr>
+                <td style="max-width: 280px;">
+                    <a href="{{ url_for('view_ta_need', id=ta.id) }}" target="_blank"
+                       class="fw-semibold text-decoration-none text-dark"
+                       style="font-size: 0.92rem;">
+                        {{ ta.title }}
+                        <i class="bi bi-box-arrow-up-right ms-1" style="font-size:0.7rem; opacity:0.5;"></i>
+                    </a>
+                    {% if ta.short_description %}
+                    <div class="text-muted small text-truncate" style="max-width: 260px;">{{ ta.short_description }}</div>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if ta.country %}
+                    <span class="badge" style="background:#007451; color:#fff; font-size:0.78rem;">
+                        <i class="bi bi-geo-alt-fill"></i> {{ ta.country }}
+                    </span>
+                    {% else %}
+                    <span class="text-muted small">—</span>
+                    {% endif %}
+                </td>
+                <td style="font-size: 0.88rem;">
+                    <div class="fw-semibold">{{ ta.author.name }}</div>
+                    <div class="text-muted">{{ ta.author.organization }}</div>
+                    <div class="text-muted" style="font-size:0.78rem;">{{ ta.author.email }}</div>
+                </td>
+                <td class="text-muted small text-nowrap">
+                    {{ ta.created_at.strftime('%b %d, %Y') }}
+                    {% if ta.updated_at and ta.updated_at != ta.created_at %}
+                    <div style="font-size:0.75rem;">Updated {{ ta.updated_at.strftime('%b %d') }}</div>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if ta.is_published %}
+                    <span class="badge bg-success">Published</span>
+                    {% else %}
+                    <span class="badge bg-warning text-dark">Pending Review</span>
+                    {% endif %}
+                </td>
+                <td class="text-end">
+                    <div class="d-flex gap-1 justify-content-end flex-wrap">
+                        <a href="{{ url_for('edit_ta_need', id=ta.id) }}" class="btn btn-outline-primary btn-sm" title="Edit">
+                            <i class="bi bi-pencil"></i>
                         </a>
-                        {% if ta.short_description %}
-                        <div class="text-muted small text-truncate" style="max-width: 260px;">{{ ta.short_description }}</div>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if ta.country %}
-                        <span class="badge" style="background:#007451; color:#fff; font-size:0.78rem;">
-                            <i class="bi bi-geo-alt-fill"></i> {{ ta.country }}
-                        </span>
-                        {% else %}
-                        <span class="text-muted small">—</span>
-                        {% endif %}
-                    </td>
-                    <td style="font-size: 0.88rem;">
-                        <div>{{ ta.author.name }}</div>
-                        <div class="text-muted">{{ ta.author.organization }}</div>
-                    </td>
-                    <td class="text-muted small text-nowrap">
-                        {{ ta.created_at.strftime('%b %d, %Y') }}
-                    </td>
-                    <td>
                         {% if ta.is_published %}
-                        <span class="badge bg-success">Published</span>
+                        <form method="POST" action="{{ url_for('admin_unpublish_ta_need', id=ta.id) }}" class="d-inline">
+                            <button type="submit" class="btn btn-outline-warning btn-sm"
+                                    onclick="return confirm('Unpublish this TA need?')">
+                                <i class="bi bi-eye-slash"></i> Unpublish
+                            </button>
+                        </form>
                         {% else %}
-                        <span class="badge bg-warning text-dark">Pending Review</span>
+                        <form method="POST" action="{{ url_for('admin_approve_ta_need', id=ta.id) }}" class="d-inline">
+                            <button type="submit" class="btn btn-success btn-sm">
+                                <i class="bi bi-check-lg"></i> Approve
+                            </button>
+                        </form>
                         {% endif %}
-                    </td>
-                    <td class="text-end">
-                        <div class="d-flex gap-1 justify-content-end flex-wrap">
-                            <a href="{{ url_for('view_ta_need', id=ta.id) }}" class="btn btn-outline-secondary btn-sm" title="View">
-                                <i class="bi bi-eye"></i>
-                            </a>
-                            <a href="{{ url_for('edit_ta_need', id=ta.id) }}" class="btn btn-outline-primary btn-sm" title="Edit">
-                                <i class="bi bi-pencil"></i>
-                            </a>
-                            {% if ta.is_published %}
-                            <form method="POST" action="{{ url_for('admin_unpublish_ta_need', id=ta.id) }}" class="d-inline">
-                                <button type="submit" class="btn btn-outline-warning btn-sm" title="Unpublish"
-                                        onclick="return confirm('Unpublish this TA need?')">
-                                    <i class="bi bi-eye-slash"></i>
-                                </button>
-                            </form>
-                            {% else %}
-                            <form method="POST" action="{{ url_for('admin_approve_ta_need', id=ta.id) }}" class="d-inline">
-                                <button type="submit" class="btn btn-success btn-sm" title="Approve &amp; Publish">
-                                    <i class="bi bi-check-lg"></i> Approve
-                                </button>
-                            </form>
-                            {% endif %}
-                            <form method="POST" action="{{ url_for('admin_delete_ta_need', id=ta.id) }}" class="d-inline"
-                                  onsubmit="return confirm('Permanently delete this TA need?')">
-                                <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </form>
-                        </div>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+                        <form method="POST" action="{{ url_for('admin_delete_ta_need', id=ta.id) }}" class="d-inline"
+                              onsubmit="return confirm('Permanently delete this TA need?')">
+                            <button type="submit" class="btn btn-outline-danger btn-sm">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 
-    <div class="text-muted small mt-2">
-        {{ ta_needs | length }} submission{{ '' if ta_needs | length == 1 else 's' }} total &mdash;
-        {{ ta_needs | selectattr('is_published') | list | length }} published,
-        {{ ta_needs | rejectattr('is_published') | list | length }} pending review.
-    </div>
-
-    {% else %}
-    <div class="alert alert-info text-center py-5">
-        <i class="bi bi-hand-index display-4 text-muted mb-3 d-block"></i>
-        <h5>No technical assistance needs submitted yet</h5>
-        <p class="text-muted">Member State stakeholders can submit TA needs from the
-            <a href="{{ url_for('technical_assistance') }}">Technical Assistance</a> page.</p>
-    </div>
+{% else %}
+<div class="alert alert-info text-center py-5">
+    <i class="bi bi-hand-index display-4 text-muted mb-3 d-block"></i>
+    <h5>No technical assistance needs submitted yet</h5>
+    <p class="text-muted mb-3">Member State stakeholders can submit TA needs from the public page.</p>
+    {% if ta_invite_eligible_count > 0 %}
+    <form method="POST" action="{{ url_for('admin_invite_member_states_ta') }}"
+          onsubmit="return confirm('Send invitation to {{ ta_invite_eligible_count }} eligible Member State member(s)?')">
+        <button type="submit" class="btn btn-success">
+            <i class="bi bi-envelope-plus"></i> Invite {{ ta_invite_eligible_count }} Member State Member(s) to Submit
+        </button>
+    </form>
     {% endif %}
 </div>
+{% endif %}
+
 {% endblock %}

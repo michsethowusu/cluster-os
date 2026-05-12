@@ -389,6 +389,41 @@ class DocumentSendQueue(db.Model):
     document = db.relationship('DocumentLibrary', backref='send_queue_entry')
 
 
+class TechnicalAssistanceNeed(db.Model):
+    """Technical assistance needs submitted by Member State stakeholders as articles.
+
+    Workflow:
+      1. A Member State stakeholder submits a TA need (title + content, like an initiative).
+      2. Saved with is_published=False → appears in admin approval queue.
+      3. Admin approves → is_published=True, auto-added to TechnicalAssistanceSendQueue.
+    Only users with stakeholder_type == 'Member State' can submit; admin can view all.
+    """
+    id                = db.Column(db.Integer, primary_key=True)
+    title             = db.Column(db.String(200), nullable=False)
+    slug              = db.Column(db.String(200), unique=True, nullable=False)
+    content           = db.Column(db.Text, nullable=False)
+    short_description = db.Column(db.String(300), nullable=True)
+    country           = db.Column(db.String(100), nullable=True)
+    is_published      = db.Column(db.Boolean, default=False)
+    view_count        = db.Column(db.Integer, default=0, nullable=False)
+    created_at        = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at        = db.Column(db.DateTime, default=datetime.utcnow)
+    user_id           = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+
+    author = db.relationship('User', backref='ta_needs')
+
+
+class TechnicalAssistanceSendQueue(db.Model):
+    """Send queue for approved TechnicalAssistanceNeed items."""
+    id        = db.Column(db.Integer, primary_key=True)
+    ta_need_id = db.Column(db.Integer, db.ForeignKey('technical_assistance_need.id'),
+                           nullable=False, unique=True)
+    queued_at = db.Column(db.DateTime, default=datetime.utcnow)
+    sent_at   = db.Column(db.DateTime, nullable=True)
+
+    ta_need = db.relationship('TechnicalAssistanceNeed', backref='send_queue_entry')
+
+
 class DocumentLibrary(db.Model):
     """Member-uploaded documents with AI-extracted metadata.
 
@@ -925,31 +960,54 @@ def logout():
 def register():
     custom_fields = RegistrationField.query.filter_by(is_active=True).order_by(RegistrationField.order).all()
     
+    # Personal email domains that Member States should NOT use
+    _PERSONAL_EMAIL_DOMAINS = {
+        'gmail.com', 'yahoo.com', 'yahoo.fr', 'yahoo.co.uk', 'hotmail.com',
+        'hotmail.fr', 'outlook.com', 'outlook.fr', 'live.com', 'live.fr',
+        'icloud.com', 'me.com', 'mac.com', 'aol.com', 'protonmail.com',
+        'proton.me', 'gmx.com', 'gmx.net', 'mail.com', 'yandex.com',
+        'yandex.ru', 'inbox.com', 'zoho.com', 'tutanota.com', 'fastmail.com',
+    }
+
     if request.method == 'POST':
         email = request.form.get('email', '').lower().strip()
-        
+        stakeholder_type = request.form.get('stakeholder_type', '').strip()
+        is_member_state = (stakeholder_type == 'Member State')
+
         if User.query.filter_by(email=email).first():
             flash('Email already registered.', 'error')
             return redirect(url_for('register'))
-        
-        # Validate initiative fields
+
+        # Member State: require official (non-personal) email
+        if is_member_state:
+            email_domain = email.split('@')[-1] if '@' in email else ''
+            if email_domain in _PERSONAL_EMAIL_DOMAINS:
+                flash(
+                    'Member State stakeholders must register with an official institutional '
+                    'email address (not Gmail, Yahoo, Hotmail, Outlook, etc.).',
+                    'error'
+                )
+                return redirect(url_for('register'))
+
+        # Non-Member-State: require initiative fields
         initiative_title = request.form.get('initiative_title', '').strip()
         initiative_short_desc = request.form.get('initiative_short_description', '').strip()
         initiative_content = request.form.get('initiative_content', '').strip()
 
-        if not initiative_title:
-            flash('Please provide an initiative title.', 'error')
-            return redirect(url_for('register'))
-        if not initiative_content:
-            flash('Please provide initiative content.', 'error')
-            return redirect(url_for('register'))
+        if not is_member_state:
+            if not initiative_title:
+                flash('Please provide an initiative title.', 'error')
+                return redirect(url_for('register'))
+            if not initiative_content:
+                flash('Please provide initiative content.', 'error')
+                return redirect(url_for('register'))
 
         # Auto-approve new registrations immediately
         user = User(
             email=email,
             name=request.form.get('name'),
             organization=request.form.get('organization'),
-            stakeholder_type=request.form.get('stakeholder_type'),
+            stakeholder_type=stakeholder_type,
             country=request.form.get('country'),
             is_approved=True,
             is_admin=False
@@ -957,132 +1015,135 @@ def register():
         db.session.add(user)
         db.session.commit()
 
-        # Build a unique slug for the initiative
-        slug = re.sub(r'[^\w]+', '-', initiative_title.lower()).strip('-')[:190]
-        base_slug = slug
-        counter = 1
-        while Initiative.query.filter_by(slug=slug).first():
-            slug = f"{base_slug}-{counter}"
-            counter += 1
+        # Member State: no initiative required — just welcome them
+        if is_member_state:
+            try:
+                send_approval_email(user.email)
+            except Exception as e:
+                app.logger.error(f"Registration welcome email error: {e}")
 
-        initiative = Initiative(
-            title=initiative_title[:200],
-            slug=slug,
-            content=initiative_content,
-            short_description=initiative_short_desc[:300] if initiative_short_desc else None,
-            user_id=user.id,
-            stakeholder_type=user.stakeholder_type,
-            country=user.country,
-            is_published=True   # Auto-published on registration
-        )
-        db.session.add(initiative)
-        db.session.commit()
+        if not is_member_state:
+            # Build a unique slug for the initiative
+            slug = re.sub(r'[^\w]+', '-', initiative_title.lower()).strip('-')[:190]
+            base_slug = slug
+            counter = 1
+            while Initiative.query.filter_by(slug=slug).first():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
 
-        # Award points for the published initiative
-        award_points(user, 'initiative_published')
+            initiative = Initiative(
+                title=initiative_title[:200],
+                slug=slug,
+                content=initiative_content,
+                short_description=initiative_short_desc[:300] if initiative_short_desc else None,
+                user_id=user.id,
+                stakeholder_type=user.stakeholder_type,
+                country=user.country,
+                is_published=True   # Auto-published on registration
+            )
+            db.session.add(initiative)
+            db.session.commit()
 
-        # Send welcome/approval email
-        try:
-            send_approval_email(user.email, initiative.slug)
-        except Exception as e:
-            app.logger.error(f"Registration welcome email error: {e}")
+            # Award points for the published initiative
+            award_points(user, 'initiative_published')
 
-        # Auto-register new member for the next upcoming published event (if any)
-        now = datetime.utcnow()
-        next_event = Event.query.filter(
-            Event.start_date >= now,
-            Event.is_published == True
-        ).order_by(Event.start_date).first()
+            # Send welcome/approval email
+            try:
+                send_approval_email(user.email, initiative.slug)
+            except Exception as e:
+                app.logger.error(f"Registration welcome email error: {e}")
 
-        if next_event:
-            existing_reg = EventRegistration.query.filter_by(
-                event_id=next_event.id, user_id=user.id
-            ).first()
-            if not existing_reg:
-                reg = EventRegistration(
-                    user_id=user.id,
-                    event_id=next_event.id,
-                    poll_answers={},
-                )
-                db.session.add(reg)
-                db.session.commit()
-                award_points(user, 'event_registered')
-                # Register on Zoom if applicable
-                if next_event.zoom_webinar_id:
-                    try:
-                        register_user_for_webinar(next_event.zoom_webinar_id, user)
-                    except Exception as e:
-                        app.logger.error(f"Auto event Zoom registration error for new user {user.id}: {e}")
-                # Send confirmation email
-                try:
-                    send_event_registration_confirmation(user, next_event)
-                except Exception as e:
-                    app.logger.error(f"Auto event confirmation email error for new user {user.id}: {e}")
-                # Store event info in session so dashboard can show the flash
-                session['new_member_event_title'] = next_event.title
-                session['new_member_event_id'] = next_event.id
+            # Auto-register new member for the next upcoming published event (if any)
+            now = datetime.utcnow()
+            next_event = Event.query.filter(
+                Event.start_date >= now,
+                Event.is_published == True
+            ).order_by(Event.start_date).first()
 
-        # Extract and vet tags + score quality in a background thread
-        # Also adds to send queue if score >= 4 once scored
-        def _process_tags_async(flask_app, initiative_id, content, title, short_desc):
-            with flask_app.app_context():
-                try:
-                    phrases = extract_noun_phrases(content)
-                    vetted_tags = vet_tags_nvidia(phrases)
-                    ini = Initiative.query.get(initiative_id)
-                    for tag_name in vetted_tags:
-                        tag = Tag.query.filter_by(name=tag_name).first()
-                        if not tag:
-                            tag = Tag(name=tag_name, is_vetted=True)
-                            db.session.add(tag)
-                            db.session.flush()
-                        ini.tags.append(tag)
-                        tag.usage_count += 1
+            if next_event:
+                existing_reg = EventRegistration.query.filter_by(
+                    event_id=next_event.id, user_id=user.id
+                ).first()
+                if not existing_reg:
+                    reg = EventRegistration(
+                        user_id=user.id,
+                        event_id=next_event.id,
+                        poll_answers={},
+                    )
+                    db.session.add(reg)
                     db.session.commit()
-                    update_noun_phrase_db(initiative_id, phrases)
-                except Exception as e:
-                    flask_app.logger.error(f"Registration initiative tag processing error: {e}")
-                # Score quality; if >= 4 add to send queue
-                try:
-                    from utils.ai_services import score_initiative_quality, detect_language
-                    score = score_initiative_quality(title, content, short_desc or "")
-                    if score is not None:
-                        ini = Initiative.query.get(initiative_id)
-                        if ini:
-                            ini.quality_score = score
-                            db.session.commit()
-                            if score >= 4:
-                                _enqueue_initiative(flask_app, initiative_id)
-                except Exception as e:
-                    flask_app.logger.error(f"Registration initiative quality scoring error: {e}")
-                # Detect language
-                try:
-                    from utils.ai_services import detect_language
-                    lang = detect_language(title, content)
-                    if lang:
-                        ini = Initiative.query.get(initiative_id)
-                        if ini and not ini.detected_lang:
-                            ini.detected_lang = lang
-                            db.session.commit()
-                except Exception as e:
-                    flask_app.logger.error(f"Registration initiative language detection error: {e}")
+                    award_points(user, 'event_registered')
+                    if next_event.zoom_webinar_id:
+                        try:
+                            register_user_for_webinar(next_event.zoom_webinar_id, user)
+                        except Exception as e:
+                            app.logger.error(f"Auto event Zoom registration error for new user {user.id}: {e}")
+                    try:
+                        send_event_registration_confirmation(user, next_event)
+                    except Exception as e:
+                        app.logger.error(f"Auto event confirmation email error for new user {user.id}: {e}")
+                    session['new_member_event_title'] = next_event.title
+                    session['new_member_event_id'] = next_event.id
 
-        t = threading.Thread(
-            target=_process_tags_async,
-            args=(app, initiative.id, initiative_content, initiative_title, initiative_short_desc),
-            daemon=True
-        )
-        t.start()
+            # Extract and vet tags + score quality in a background thread
+            def _process_tags_async(flask_app, initiative_id, content, title, short_desc):
+                with flask_app.app_context():
+                    try:
+                        phrases = extract_noun_phrases(content)
+                        vetted_tags = vet_tags_nvidia(phrases)
+                        ini = Initiative.query.get(initiative_id)
+                        for tag_name in vetted_tags:
+                            tag = Tag.query.filter_by(name=tag_name).first()
+                            if not tag:
+                                tag = Tag(name=tag_name, is_vetted=True)
+                                db.session.add(tag)
+                                db.session.flush()
+                            ini.tags.append(tag)
+                            tag.usage_count += 1
+                        db.session.commit()
+                        update_noun_phrase_db(initiative_id, phrases)
+                    except Exception as e:
+                        flask_app.logger.error(f"Registration initiative tag processing error: {e}")
+                    try:
+                        from utils.ai_services import score_initiative_quality, detect_language
+                        score = score_initiative_quality(title, content, short_desc or "")
+                        if score is not None:
+                            ini = Initiative.query.get(initiative_id)
+                            if ini:
+                                ini.quality_score = score
+                                db.session.commit()
+                                if score >= 4:
+                                    _enqueue_initiative(flask_app, initiative_id)
+                    except Exception as e:
+                        flask_app.logger.error(f"Registration initiative quality scoring error: {e}")
+                    try:
+                        from utils.ai_services import detect_language
+                        lang = detect_language(title, content)
+                        if lang:
+                            ini = Initiative.query.get(initiative_id)
+                            if ini and not ini.detected_lang:
+                                ini.detected_lang = lang
+                                db.session.commit()
+                    except Exception as e:
+                        flask_app.logger.error(f"Registration initiative language detection error: {e}")
+
+            t = threading.Thread(
+                target=_process_tags_async,
+                args=(app, initiative.id, initiative_content, initiative_title, initiative_short_desc),
+                daemon=True
+            )
+            t.start()
 
         flash(
             'Welcome! Your account has been created and you can now log in.',
             'success'
         )
         return redirect(url_for('login'))
-    
-    stakeholder_types = ['Government', 'NGO / Civil Society', 'Development Partner / Donor', 
-                        'Academic / Research', 'UN Agency', 'Private Sector']
-    
+
+    stakeholder_types = ['Member State', 'Government', 'NGO / Civil Society',
+                         'Development Partner / Donor', 'Academic / Research',
+                         'UN Agency', 'Private Sector']
+
     return render_template('register.html', stakeholder_types=stakeholder_types, custom_fields=custom_fields)
 
 @app.route('/profile/edit', methods=['GET', 'POST'])
@@ -2335,7 +2396,7 @@ def toggle_send_queue_test_mode():
 @app.route('/admin/send-queue')
 @login_required
 def admin_send_queue():
-    """View of all approved initiatives, policy developments, and documents waiting to be sent."""
+    """View of all approved initiatives, policy developments, documents, and TA needs waiting to be sent."""
     if not current_user.is_admin:
         abort(403)
 
@@ -2369,7 +2430,17 @@ def admin_send_queue():
             .order_by(DocumentSendQueue.sent_at.desc())
             .limit(20).all())
 
-    # Build unified sorted lists: each item is a dict with type + entry for the template
+    # Technical Assistance Needs
+    ta_unsent = (TechnicalAssistanceSendQueue.query
+              .filter_by(sent_at=None)
+              .order_by(TechnicalAssistanceSendQueue.queued_at.desc())
+              .all())
+    ta_sent = (TechnicalAssistanceSendQueue.query
+            .filter(TechnicalAssistanceSendQueue.sent_at.isnot(None))
+            .order_by(TechnicalAssistanceSendQueue.sent_at.desc())
+            .limit(20).all())
+
+    # Build unified sorted lists
     def _wrap(entries, kind):
         return [{'type': kind, 'entry': e, 'queued_at': e.queued_at} for e in entries]
     def _wrap_sent(entries, kind):
@@ -2378,28 +2449,46 @@ def admin_send_queue():
     queue_unsent = sorted(
         _wrap(initiative_unsent, 'initiative') +
         _wrap(policy_unsent, 'policy') +
-        _wrap(document_unsent, 'document'),
+        _wrap(document_unsent, 'document') +
+        _wrap(ta_unsent, 'ta_need'),
         key=lambda x: x['queued_at'],
         reverse=True
     )
     queue_sent = sorted(
         _wrap_sent(initiative_sent, 'initiative') +
         _wrap_sent(policy_sent, 'policy') +
-        _wrap_sent(document_sent, 'document'),
+        _wrap_sent(document_sent, 'document') +
+        _wrap_sent(ta_sent, 'ta_need'),
         key=lambda x: x['sent_at'],
         reverse=True
     )[:20]
 
     test_mode = get_setting('send_queue_test_mode', 'false') == 'true'
     test_email = app.config.get('ADMIN_OTP_EMAIL') or ''
+
+    # Count Member State members without a TA submission (for the invite button)
+    member_state_users = User.query.filter_by(
+        stakeholder_type=MEMBER_STATE_TYPE, is_approved=True
+    ).all()
+    submitted_user_ids = {
+        row.user_id for row in TechnicalAssistanceNeed.query.with_entities(
+            TechnicalAssistanceNeed.user_id
+        ).all()
+    }
+    ta_invite_eligible_count = sum(
+        1 for u in member_state_users if u.id not in submitted_user_ids
+    )
+
     return render_template('admin/send_queue.html',
                          queue_unsent=queue_unsent,
                          queue_sent=queue_sent,
                          initiative_unsent=initiative_unsent,
                          policy_unsent=policy_unsent,
                          document_unsent=document_unsent,
+                         ta_unsent=ta_unsent,
                          test_mode=test_mode,
-                         test_email=test_email)
+                         test_email=test_email,
+                         ta_invite_eligible_count=ta_invite_eligible_count)
 
 
 @app.route('/admin/send-queue/send/<int:queue_id>', methods=['POST'])
@@ -3947,8 +4036,9 @@ def admin_edit_member(id):
             flash(f'Member {user.email} updated successfully.', 'success')
             return redirect(url_for('admin_members'))
 
-    stakeholder_types = ['Government', 'NGO / Civil Society', 'Development Partner / Donor',
-                         'Academic / Research', 'UN Agency', 'Private Sector']
+    stakeholder_types = ['Member State', 'Government', 'NGO / Civil Society',
+                         'Development Partner / Donor', 'Academic / Research',
+                         'UN Agency', 'Private Sector']
     return render_template('admin/edit_member.html', user=user, stakeholder_types=stakeholder_types)
 
 # ===================== MEMBER PROJECT SUBMISSION =====================
@@ -4515,6 +4605,355 @@ def admin_reprocess_policy(id):
     t.start()
     flash('Reprocessing started.', 'info')
     return redirect(request.referrer or url_for('admin_approvals'))
+
+
+# ===================== TECHNICAL ASSISTANCE NEEDS =====================
+
+MEMBER_STATE_TYPE = 'Member State'
+
+
+@app.route('/technical-assistance')
+def technical_assistance():
+    """Public listing of all published Technical Assistance Needs submitted by Member States."""
+    page    = request.args.get('page', 1, type=int)
+    country = request.args.get('country', '').strip()
+
+    query = TechnicalAssistanceNeed.query.filter_by(is_published=True)
+    if country:
+        query = query.filter(TechnicalAssistanceNeed.country.ilike(f'%{country}%'))
+
+    pagination = query.order_by(TechnicalAssistanceNeed.created_at.desc()).paginate(
+        page=page, per_page=12, error_out=False
+    )
+
+    countries = (
+        db.session.query(TechnicalAssistanceNeed.country)
+        .filter(TechnicalAssistanceNeed.is_published == True,
+                TechnicalAssistanceNeed.country != None)
+        .distinct().order_by(TechnicalAssistanceNeed.country).all()
+    )
+    countries = [c[0] for c in countries if c[0]]
+
+    # For Member State users, check if they've already submitted a TA need
+    user_has_submitted = False
+    if current_user.is_authenticated and current_user.stakeholder_type == MEMBER_STATE_TYPE:
+        user_has_submitted = TechnicalAssistanceNeed.query.filter_by(
+            user_id=current_user.id
+        ).first() is not None
+
+    return render_template(
+        'technical_assistance.html',
+        ta_needs=pagination.items,
+        pagination=pagination,
+        countries=countries,
+        active_country=country,
+        user_has_submitted=user_has_submitted,
+    )
+
+
+@app.route('/technical-assistance/<int:id>')
+def view_ta_need(id):
+    """Public view of a single published TA need."""
+    ta_need = TechnicalAssistanceNeed.query.filter_by(id=id, is_published=True).first_or_404()
+    if not current_user.is_authenticated or current_user.id != ta_need.user_id:
+        ta_need.view_count = (ta_need.view_count or 0) + 1
+        db.session.commit()
+    return render_template('ta_need_detail.html', ta_need=ta_need)
+
+
+@app.route('/technical-assistance/new', methods=['GET', 'POST'])
+@login_required
+def new_ta_need():
+    """Member State stakeholders submit a technical assistance need."""
+    if current_user.stakeholder_type != MEMBER_STATE_TYPE:
+        abort(403)
+
+    if request.method == 'POST':
+        title = request.form.get('title', '').strip()
+        short_description = request.form.get('short_description', '').strip()
+        content = request.form.get('content', '').strip()
+
+        if not title:
+            flash('Please provide a title.', 'error')
+            return render_template('ta_need_form.html', ta_need=None)
+        if not content:
+            flash('Please provide a description.', 'error')
+            return render_template('ta_need_form.html', ta_need=None)
+
+        # Duplicate guard
+        existing = TechnicalAssistanceNeed.query.filter(
+            TechnicalAssistanceNeed.user_id == current_user.id,
+            db.func.lower(TechnicalAssistanceNeed.title) == title.lower()
+        ).first()
+        if existing:
+            flash('You have already submitted a technical assistance need with this title.', 'warning')
+            return render_template('ta_need_form.html', ta_need=None)
+
+        slug = re.sub(r'[^\w]+', '-', title.lower()).strip('-')[:190]
+        base_slug = slug
+        counter = 1
+        while TechnicalAssistanceNeed.query.filter_by(slug=slug).first():
+            slug = f"{base_slug}-{counter}"
+            counter += 1
+
+        ta_need = TechnicalAssistanceNeed(
+            title=title[:200],
+            slug=slug,
+            content=content,
+            short_description=short_description[:300] if short_description else None,
+            user_id=current_user.id,
+            country=current_user.country,
+            is_published=False,  # Requires admin approval
+        )
+        db.session.add(ta_need)
+        db.session.commit()
+
+        flash('Your technical assistance need has been submitted and will appear after admin review.', 'success')
+        return redirect(url_for('technical_assistance'))
+
+    return render_template('ta_need_form.html', ta_need=None)
+
+
+@app.route('/technical-assistance/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_ta_need(id):
+    ta_need = TechnicalAssistanceNeed.query.get_or_404(id)
+    if ta_need.user_id != current_user.id and not current_user.is_admin:
+        abort(403)
+
+    if request.method == 'POST':
+        ta_need.title = request.form.get('title', '').strip()[:200] or ta_need.title
+        ta_need.short_description = request.form.get('short_description', '').strip()[:300] or None
+        ta_need.content = request.form.get('content', '').strip() or ta_need.content
+        ta_need.updated_at = datetime.utcnow()
+        db.session.commit()
+        flash('Technical assistance need updated.', 'success')
+        return redirect(url_for('view_ta_need', id=ta_need.id))
+
+    return render_template('ta_need_form.html', ta_need=ta_need)
+
+
+# ===================== ADMIN TA NEED ROUTES =====================
+
+@app.route('/admin/ta-needs')
+@login_required
+def admin_ta_needs():
+    """Admin list of all TA needs."""
+    if not current_user.is_admin:
+        abort(403)
+    ta_needs = TechnicalAssistanceNeed.query.order_by(
+        TechnicalAssistanceNeed.created_at.desc()
+    ).all()
+    return render_template('admin/ta_needs.html', ta_needs=ta_needs)
+
+
+@app.route('/admin/ta-need/<int:id>/approve', methods=['POST'])
+@login_required
+def admin_approve_ta_need(id):
+    """Approve and publish a TA need; add to send queue."""
+    if not current_user.is_admin:
+        abort(403)
+    ta_need = TechnicalAssistanceNeed.query.get_or_404(id)
+    ta_need.is_published = True
+    ta_need.updated_at = datetime.utcnow()
+    if not ta_need.send_queue_entry:
+        db.session.add(TechnicalAssistanceSendQueue(ta_need_id=ta_need.id))
+    db.session.commit()
+    flash('Technical assistance need published and added to send queue.', 'success')
+    return redirect(request.referrer or url_for('admin_ta_needs'))
+
+
+@app.route('/admin/ta-need/<int:id>/unpublish', methods=['POST'])
+@login_required
+def admin_unpublish_ta_need(id):
+    if not current_user.is_admin:
+        abort(403)
+    ta_need = TechnicalAssistanceNeed.query.get_or_404(id)
+    ta_need.is_published = False
+    TechnicalAssistanceSendQueue.query.filter_by(ta_need_id=id).delete()
+    db.session.commit()
+    flash('Technical assistance need unpublished and removed from send queue.', 'success')
+    return redirect(request.referrer or url_for('admin_ta_needs'))
+
+
+@app.route('/admin/ta-need/<int:id>/delete', methods=['POST'])
+@login_required
+def admin_delete_ta_need(id):
+    if not current_user.is_admin:
+        abort(403)
+    ta_need = TechnicalAssistanceNeed.query.get_or_404(id)
+    TechnicalAssistanceSendQueue.query.filter_by(ta_need_id=id).delete()
+    db.session.flush()
+    db.session.delete(ta_need)
+    db.session.commit()
+    flash('Technical assistance need deleted.', 'success')
+    return redirect(request.referrer or url_for('admin_ta_needs'))
+
+
+@app.route('/admin/ta-need/invite-member-states', methods=['POST'])
+@login_required
+def admin_invite_member_states_ta():
+    """Send invitation email to all Member State stakeholders who have NOT yet
+    submitted a technical assistance need. Respects test mode."""
+    if not current_user.is_admin:
+        abort(403)
+
+    from utils.email_sender import send_ta_invitation_email
+
+    # All approved Member State users who have no TA need submitted at all
+    member_state_users = User.query.filter_by(
+        stakeholder_type=MEMBER_STATE_TYPE,
+        is_approved=True,
+    ).all()
+
+    submitted_user_ids = {
+        row.user_id for row in TechnicalAssistanceNeed.query.with_entities(
+            TechnicalAssistanceNeed.user_id
+        ).all()
+    }
+
+    eligible = [u for u in member_state_users if u.id not in submitted_user_ids]
+
+    if not eligible:
+        flash('All Member State stakeholders have already submitted a technical assistance need.', 'info')
+        return redirect(url_for('admin_send_queue'))
+
+    test_mode = get_setting('send_queue_test_mode', 'false') == 'true'
+    ta_url = url_for('new_ta_need', _external=True)
+    sent = 0
+    errors = 0
+
+    if test_mode:
+        test_email = app.config.get('ADMIN_OTP_EMAIL') or current_user.email
+        try:
+            send_ta_invitation_email(test_email, 'Test User', ta_url)
+            sent += 1
+        except Exception as e:
+            app.logger.error(f"TA invitation test send error: {e}")
+            errors += 1
+        flash(
+            f'[TEST] Invitation sent to {test_email} only (would cover {len(eligible)} eligible Member State member(s)).',
+            'warning'
+        )
+    else:
+        for user in eligible:
+            if not user.is_subscribed:
+                continue
+            try:
+                send_ta_invitation_email(user.email, user.name, ta_url)
+                sent += 1
+            except Exception as e:
+                app.logger.error(f"TA invitation email error for {user.email}: {e}")
+                errors += 1
+        flash(
+            f'Invitation sent to {sent} Member State member(s) who have not yet submitted a TA need.'
+            + (f' ({errors} failed — check logs)' if errors else ''),
+            'success' if not errors else 'warning'
+        )
+
+    return redirect(url_for('admin_send_queue'))
+
+
+# ===================== TA NEED SEND QUEUE ROUTES =====================
+
+@app.route('/admin/ta-send-queue/send/<int:queue_id>', methods=['POST'])
+@login_required
+def send_ta_queue_item(queue_id):
+    """Send a single TA need from the queue to all subscribed members."""
+    if not current_user.is_admin:
+        abort(403)
+    entry = TechnicalAssistanceSendQueue.query.get_or_404(queue_id)
+    if entry.sent_at:
+        flash('This technical assistance need has already been sent.', 'warning')
+        return redirect(url_for('admin_send_queue'))
+    ta_need = entry.ta_need
+    test_mode = get_setting('send_queue_test_mode', 'false') == 'true'
+    try:
+        from utils.email_sender import send_single_ta_notification
+        ta_url = url_for('view_ta_need', id=ta_need.id, _external=True)
+        ta_data = {
+            'title': ta_need.title,
+            'short_description': ta_need.short_description or '',
+            'url': ta_url,
+            'country': ta_need.country or '',
+            'author': ta_need.author.organization if ta_need.author else '',
+        }
+        if test_mode:
+            test_email = app.config.get('ADMIN_OTP_EMAIL') or current_user.email
+            class _FakeUser:
+                def __init__(self, email): self.email = email
+            send_single_ta_notification(ta_data, [_FakeUser(test_email)])
+            flash(f'[TEST] "{ta_need.title}" sent to {test_email} only. Item stays in queue.', 'warning')
+        else:
+            subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
+            send_single_ta_notification(ta_data, subscribed_users)
+            entry.sent_at = datetime.utcnow()
+            db.session.commit()
+            flash(f'"{ta_need.title}" sent to {len(subscribed_users)} member(s).', 'success')
+    except Exception as e:
+        app.logger.error(f"TA send queue item error: {e}")
+        flash('Failed to send. Check logs.', 'error')
+    return redirect(url_for('admin_send_queue'))
+
+
+@app.route('/admin/ta-send-queue/send-all', methods=['POST'])
+@login_required
+def send_ta_queue_all():
+    """Send ALL unsent TA needs in the queue as a digest email."""
+    if not current_user.is_admin:
+        abort(403)
+    unsent = TechnicalAssistanceSendQueue.query.filter_by(sent_at=None).all()
+    if not unsent:
+        flash('No unsent technical assistance needs in the queue.', 'info')
+        return redirect(url_for('admin_send_queue'))
+    ta_data_list = []
+    for entry in unsent:
+        ta = entry.ta_need
+        ta_url = url_for('view_ta_need', id=ta.id, _external=True)
+        ta_data_list.append({
+            'title': ta.title,
+            'short_description': ta.short_description or '',
+            'url': ta_url,
+            'country': ta.country or '',
+            'author': ta.author.organization if ta.author else '',
+        })
+    test_mode = get_setting('send_queue_test_mode', 'false') == 'true'
+    try:
+        from utils.email_sender import send_bulk_ta_digest
+        if test_mode:
+            test_email = app.config.get('ADMIN_OTP_EMAIL') or current_user.email
+            class _FakeUser:
+                def __init__(self, email): self.email = email
+            send_bulk_ta_digest(ta_data_list, [_FakeUser(test_email)])
+            flash(f'[TEST] {len(unsent)} TA need(s) sent as digest to {test_email} only. Items stay in queue.', 'warning')
+        else:
+            subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
+            send_bulk_ta_digest(ta_data_list, subscribed_users)
+            now = datetime.utcnow()
+            for entry in unsent:
+                entry.sent_at = now
+            db.session.commit()
+            flash(
+                f'{len(unsent)} technical assistance need(s) sent to {len(subscribed_users)} member(s) as a digest.',
+                'success'
+            )
+    except Exception as e:
+        app.logger.error(f"Send all TA queue error: {e}")
+        flash('Failed to send digest. Check logs.', 'error')
+    return redirect(url_for('admin_send_queue'))
+
+
+@app.route('/admin/ta-send-queue/remove/<int:queue_id>', methods=['POST'])
+@login_required
+def remove_ta_queue_item(queue_id):
+    """Remove a TA need from the send queue without sending."""
+    if not current_user.is_admin:
+        abort(403)
+    entry = TechnicalAssistanceSendQueue.query.get_or_404(queue_id)
+    db.session.delete(entry)
+    db.session.commit()
+    flash('Technical assistance need removed from send queue.', 'success')
+    return redirect(url_for('admin_send_queue'))
 
 
 # ===================== API ROUTES =====================

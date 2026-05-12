@@ -87,6 +87,29 @@ with app.app_context():
         '''))
         conn.execute(db.text('ALTER TABLE policy_development ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0'))
         conn.execute(db.text('ALTER TABLE document_library ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0'))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS technical_assistance_need (
+                id SERIAL PRIMARY KEY,
+                title VARCHAR(200) NOT NULL,
+                slug VARCHAR(200) UNIQUE NOT NULL,
+                content TEXT NOT NULL,
+                short_description VARCHAR(300),
+                country VARCHAR(100),
+                is_published BOOLEAN DEFAULT FALSE,
+                view_count INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW(),
+                user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE
+            )
+        '''))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS technical_assistance_send_queue (
+                id SERIAL PRIMARY KEY,
+                ta_need_id INTEGER UNIQUE NOT NULL REFERENCES technical_assistance_need(id) ON DELETE CASCADE,
+                queued_at TIMESTAMP DEFAULT NOW(),
+                sent_at TIMESTAMP
+            )
+        '''))
         conn.commit()
     print('DB ready.')
 "

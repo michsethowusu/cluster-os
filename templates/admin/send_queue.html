@@ -24,7 +24,7 @@
 
     {% set total_unsent = queue_unsent | length %}
     {% if total_unsent %}
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
         {% if initiative_unsent %}
         <form method="POST" action="{{ url_for('send_queue_all') }}"
               onsubmit="return confirm('{% if test_mode %}[TEST] Send {{ initiative_unsent|length }} initiative(s) as a digest to YOUR email only (test mode)?{% else %}Send ALL {{ initiative_unsent|length }} initiative(s) as a digest to all subscribed members?{% endif %}')">
@@ -49,7 +49,26 @@
             </button>
         </form>
         {% endif %}
+        {% if ta_unsent %}
+        <form method="POST" action="{{ url_for('send_ta_queue_all') }}"
+              onsubmit="return confirm('{% if test_mode %}[TEST] Send {{ ta_unsent|length }} TA need(s) as a digest to YOUR email only (test mode)?{% else %}Send ALL {{ ta_unsent|length }} TA need(s) as a digest to all subscribed members?{% endif %}')">
+            <button type="submit" class="btn {% if test_mode %}btn-outline-warning{% else %}btn-outline-success{% endif %} btn-sm">
+                <i class="bi bi-send"></i> Send All TA Needs ({{ ta_unsent|length }}){% if test_mode %} [TEST]{% endif %}
+            </button>
+        </form>
+        {% endif %}
     </div>
+    {% endif %}
+
+    <!-- Invite Member State stakeholders who haven't submitted a TA need -->
+    {% if ta_invite_eligible_count %}
+    <form method="POST" action="{{ url_for('admin_invite_member_states_ta') }}"
+          onsubmit="return confirm('{% if test_mode %}[TEST] Send TA invitation to the test email only (would cover {{ ta_invite_eligible_count }} eligible Member State member(s))?{% else %}Send TA need invitation to {{ ta_invite_eligible_count }} Member State member(s) who haven\'t submitted yet?{% endif %}')">
+        <button type="submit" class="btn {% if test_mode %}btn-warning{% else %}btn-outline-secondary{% endif %} btn-sm">
+            <i class="bi bi-envelope-arrow-up"></i>
+            Invite Member States to Submit TA Need ({{ ta_invite_eligible_count }} pending){% if test_mode %} [TEST]{% endif %}
+        </button>
+    </form>
     {% endif %}
 
 </div>
@@ -98,6 +117,8 @@
                 <span class="badge bg-primary mb-1">Initiative</span>
                 {% elif item.type == 'policy' %}
                 <span class="badge bg-info mb-1">Policy Development</span>
+                {% elif item.type == 'ta_need' %}
+                <span class="badge bg-success mb-1">Technical Assistance Need</span>
                 {% else %}
                 <span class="badge bg-secondary mb-1">Document</span>
                 {% endif %}
@@ -110,6 +131,13 @@
                 {% elif item.type == 'policy' %}
                     {% if entry.policy.country %}
                     <span class="badge bg-secondary mb-1">{{ entry.policy.country }}</span>
+                    {% endif %}
+                {% elif item.type == 'ta_need' %}
+                    {% if entry.ta_need.country %}
+                    <span class="badge bg-secondary mb-1">{{ entry.ta_need.country }}</span>
+                    {% endif %}
+                    {% if entry.ta_need.author %}
+                    <span class="badge bg-light text-dark mb-1">{{ entry.ta_need.author.organization }}</span>
                     {% endif %}
                 {% else %}
                     {% if entry.document.file_type %}
@@ -130,6 +158,10 @@
                     <a href="{{ url_for('view_policy', id=entry.policy.id) }}" target="_blank" class="text-decoration-none">
                         {{ entry.policy.title or entry.policy.source_url[:100] }}
                     </a>
+                    {% elif item.type == 'ta_need' %}
+                    <a href="{{ url_for('view_ta_need', id=entry.ta_need.id) }}" target="_blank" class="text-decoration-none">
+                        {{ entry.ta_need.title }}
+                    </a>
                     {% else %}
                     <a href="{{ url_for('view_document', id=entry.document.id) }}" target="_blank" class="text-decoration-none">
                         {{ entry.document.title or entry.document.filename }}
@@ -144,6 +176,8 @@
                 <p class="mb-1 text-muted small">By {{ entry.initiative.author.name }} ({{ entry.initiative.author.organization }})</p>
                 {% elif item.type == 'policy' and entry.policy.short_summary %}
                 <small class="text-muted">{{ entry.policy.short_summary[:200] }}</small>
+                {% elif item.type == 'ta_need' and entry.ta_need.short_description %}
+                <small class="text-muted">{{ entry.ta_need.short_description[:200] }}</small>
                 {% elif item.type == 'document' and entry.document.description %}
                 <small class="text-muted">{{ entry.document.description[:200] }}</small>
                 {% endif %}
@@ -176,6 +210,19 @@
                     </button>
                 </form>
                 <form method="POST" action="{{ url_for('remove_policy_queue_item', queue_id=entry.id) }}"
+                      onsubmit="return confirm('Remove from queue without sending?')">
+                    <button type="submit" class="btn btn-outline-danger btn-sm">
+                        <i class="bi bi-x-lg"></i> Remove
+                    </button>
+                </form>
+                {% elif item.type == 'ta_need' %}
+                <form method="POST" action="{{ url_for('send_ta_queue_item', queue_id=entry.id) }}"
+                      onsubmit="return confirm('{% if test_mode %}[TEST] Send this TA need to YOUR email only (test mode)?{% else %}Send this TA need to all subscribed members now?{% endif %}')">
+                    <button type="submit" class="btn {% if test_mode %}btn-warning{% else %}btn-success{% endif %} btn-sm">
+                        <i class="bi bi-send"></i> {% if test_mode %}Send Test{% else %}Send Now{% endif %}
+                    </button>
+                </form>
+                <form method="POST" action="{{ url_for('remove_ta_queue_item', queue_id=entry.id) }}"
                       onsubmit="return confirm('Remove from queue without sending?')">
                     <button type="submit" class="btn btn-outline-danger btn-sm">
                         <i class="bi bi-x-lg"></i> Remove
@@ -220,6 +267,8 @@
                 <span class="badge bg-primary mb-1">Initiative</span>
                 {% elif item.type == 'policy' %}
                 <span class="badge bg-info mb-1">Policy Development</span>
+                {% elif item.type == 'ta_need' %}
+                <span class="badge bg-success mb-1">Technical Assistance Need</span>
                 {% else %}
                 <span class="badge bg-secondary mb-1">Document</span>
                 {% endif %}
@@ -232,6 +281,10 @@
                     {% elif item.type == 'policy' %}
                     <a href="{{ url_for('view_policy', id=entry.policy.id) }}" target="_blank" class="text-decoration-none text-muted">
                         {{ entry.policy.title or entry.policy.source_url[:100] }}
+                    </a>
+                    {% elif item.type == 'ta_need' %}
+                    <a href="{{ url_for('view_ta_need', id=entry.ta_need.id) }}" target="_blank" class="text-decoration-none text-muted">
+                        {{ entry.ta_need.title }}
                     </a>
                     {% else %}
                     <a href="{{ url_for('view_document', id=entry.document.id) }}" target="_blank" class="text-decoration-none text-muted">

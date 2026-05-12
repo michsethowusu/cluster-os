@@ -100,12 +100,19 @@
 
                         <div class="mb-3">
                             <label class="form-label">Stakeholder Type *</label>
-                            <select name="stakeholder_type" class="form-select" required>
+                            <select name="stakeholder_type" id="stakeholderTypeSelect" class="form-select" required>
                                 <option value="">Select Type</option>
                                 {% for type in stakeholder_types %}
                                     <option value="{{ type }}">{{ type }}</option>
                                 {% endfor %}
                             </select>
+                        </div>
+
+                        <!-- ── Member State official email notice (shown dynamically) ── -->
+                        <div id="memberStateEmailNotice" class="alert alert-info small py-2 mb-3" style="display:none;">
+                            <i class="bi bi-building me-1"></i>
+                            <strong>Member State stakeholders</strong> must use an <strong>official institutional email address</strong>
+                            (not Gmail, Yahoo, Hotmail, Outlook, or other personal email providers).
                         </div>
 
                         <!-- ── Admin-configured custom fields ── -->
@@ -122,7 +129,8 @@
                             </div>
                         {% endfor %}
 
-                        <!-- ── Initiative Section ── -->
+                        <!-- ── Initiative Section (hidden for Member State) ── -->
+                        <div id="initiativeSection">
                         <hr class="my-4">
                         <h5 class="mb-1">Your ECED-FLN Initiative *</h5>
                         <p class="text-muted small mb-3">
@@ -133,27 +141,24 @@
 
                         <div class="mb-3">
                             <label class="form-label">Initiative Title (min 5 words) *</label>
-                            <input type="text" name="initiative_title" class="form-control"
-                                   placeholder="e.g., Community-Based Early Literacy Programme in Northern Ghana"
-                                   required>
+                            <input type="text" name="initiative_title" id="initiativeTitleInput" class="form-control"
+                                   placeholder="e.g., Community-Based Early Literacy Programme in Northern Ghana">
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Short Description (min 10 words) *
+                            <label class="form-label">Short Description (min 10 words)
                                 <span class="text-muted fw-normal">— shown in search results</span>
                             </label>
-                            <textarea name="initiative_short_description" class="form-control" rows="2"
-                                      placeholder="A brief summary that will appear on member cards and search results."
-                                      required></textarea>
+                            <textarea name="initiative_short_description" id="initiativeShortDesc" class="form-control" rows="2"
+                                      placeholder="A brief summary that will appear on member cards and search results."></textarea>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Full Initiative Description (min 300 words) *
+                            <label class="form-label">Full Initiative Description (min 300 words)
                                 <span class="text-muted fw-normal">(Markdown supported)</span>
                             </label>
-                            <textarea name="initiative_content" class="form-control" rows="8"
-                                      placeholder="Describe the initiative in detail: objectives, target beneficiaries, geographic scope, outcomes, lessons learned, etc."
-                                      required></textarea>
+                            <textarea name="initiative_content" id="initiativeContent" class="form-control" rows="8"
+                                      placeholder="Describe the initiative in detail: objectives, target beneficiaries, geographic scope, outcomes, lessons learned, etc."></textarea>
                             <div class="form-text">
                                 You can use **bold**, *italic*, bullet lists, and headings.
                                 This full description will appear on your initiative's dedicated page.
@@ -164,6 +169,14 @@
                             <i class="bi bi-info-circle me-1"></i>
                             Your account will be created immediately. Your initiative will be published
                             and visible on the platform right away.
+                        </div>
+                        </div><!-- end #initiativeSection -->
+
+                        <!-- ── Member State notice (shown when Member State selected) ── -->
+                        <div id="memberStateJoinNotice" class="alert alert-success small py-2 mb-4" style="display:none;">
+                            <i class="bi bi-check-circle me-1"></i>
+                            As a Member State stakeholder, you can join without submitting an initiative.
+                            After joining, you'll be able to submit your <strong>Technical Assistance Need</strong> from your dashboard.
                         </div>
 
                         <button type="submit" class="btn btn-primary btn-lg w-100">
@@ -190,8 +203,39 @@ function makeCounter(id) {
     return el;
 }
 
+// ── Member State toggle ───────────────────────────────────────────
+const stakeholderSelect = document.getElementById('stakeholderTypeSelect');
+const initiativeSection = document.getElementById('initiativeSection');
+const memberStateEmailNotice = document.getElementById('memberStateEmailNotice');
+const memberStateJoinNotice  = document.getElementById('memberStateJoinNotice');
+
+function updateMemberStateUI() {
+    const isMemberState = stakeholderSelect && stakeholderSelect.value === 'Member State';
+    if (initiativeSection) {
+        initiativeSection.style.display = isMemberState ? 'none' : '';
+    }
+    if (memberStateEmailNotice) {
+        memberStateEmailNotice.style.display = isMemberState ? '' : 'none';
+    }
+    if (memberStateJoinNotice) {
+        memberStateJoinNotice.style.display = isMemberState ? '' : 'none';
+    }
+    // Disable/enable required on initiative fields so browser validation doesn't block submit
+    const initiativeFields = document.querySelectorAll(
+        '#initiativeTitleInput, #initiativeShortDesc, #initiativeContent'
+    );
+    initiativeFields.forEach(el => {
+        if (el) el.required = !isMemberState;
+    });
+}
+
+if (stakeholderSelect) {
+    stakeholderSelect.addEventListener('change', updateMemberStateUI);
+    updateMemberStateUI(); // run on load
+}
+
 // ── Title validation ──────────────────────────────────────────────
-const titleInput = document.querySelector('input[name="initiative_title"]');
+const titleInput = document.getElementById('initiativeTitleInput');
 if (titleInput) {
     const counter = makeCounter('title-counter');
     counter.textContent = '0 / 5 words minimum';
@@ -210,7 +254,7 @@ if (titleInput) {
 }
 
 // ── Short Description validation ─────────────────────────────────
-const shortDescArea = document.querySelector('textarea[name="initiative_short_description"]');
+const shortDescArea = document.getElementById('initiativeShortDesc');
 if (shortDescArea) {
     const counter = makeCounter('short-desc-counter');
     counter.textContent = '0 / 10 words minimum';
@@ -229,7 +273,7 @@ if (shortDescArea) {
 }
 
 // ── Content validation ────────────────────────────────────────────
-const contentArea = document.querySelector('textarea[name="initiative_content"]');
+const contentArea = document.getElementById('initiativeContent');
 if (contentArea) {
     const counter = makeCounter('content-counter');
     counter.textContent = '0 / 300 words minimum';
@@ -251,6 +295,8 @@ if (contentArea) {
 const form = document.querySelector('form[method="POST"]');
 if (form) {
     form.addEventListener('submit', function (e) {
+        const isMemberState = stakeholderSelect && stakeholderSelect.value === 'Member State';
+        if (isMemberState) return; // No initiative validation needed for Member State
         const titleWords = titleInput ? countWords(titleInput.value) : 5;
         const shortDescWords = shortDescArea ? countWords(shortDescArea.value) : 10;
         const contentWords = contentArea ? countWords(contentArea.value) : 300;

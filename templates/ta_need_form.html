@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}{% if ta_need %}Edit{% else %}Submit{% endif %} Technical Assistance Need - AU ECED-FLN{% endblock %}
+
+{% block content %}
+<div class="container mt-5 mb-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header text-white" style="background: #198754;">
+                    <h4 class="mb-0">
+                        <i class="bi bi-flag-fill me-2"></i>
+                        {% if ta_need %}Edit Technical Assistance Need{% else %}Submit Technical Assistance Need{% endif %}
+                    </h4>
+                </div>
+                <div class="card-body p-4">
+                    {% if not ta_need %}
+                    <div class="alert alert-info mb-4" style="font-size: 0.92rem;">
+                        <i class="bi bi-info-circle me-1"></i>
+                        As a <strong>Member State</strong> stakeholder, you can share your country's ECED/FLN technical assistance needs here. Once submitted, our admin team will review and publish it for cluster-wide visibility.
+                    </div>
+                    {% endif %}
+
+                    <form method="POST" action="{% if ta_need %}{{ url_for('edit_ta_need', id=ta_need.id) }}{% else %}{{ url_for('new_ta_need') }}{% endif %}">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Title <span class="text-danger">*</span></label>
+                            <input type="text" name="title" class="form-control"
+                                   value="{{ ta_need.title if ta_need else '' }}"
+                                   placeholder="e.g. Ghana's Request for ECED Curriculum Development Support"
+                                   required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Short Description <span class="text-danger">*</span></label>
+                            <textarea name="short_description" class="form-control" rows="2"
+                                      maxlength="300" required
+                                      placeholder="A brief summary of the technical assistance needed (max 300 characters)…">{{ ta_need.short_description if ta_need else '' }}</textarea>
+                            <div class="form-text">This appears on the listing card. Keep it concise and informative.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Full Description <span class="text-danger">*</span></label>
+                            <textarea name="content" class="form-control" rows="12" required
+                                      placeholder="Describe the technical assistance your country needs. Include context, current gaps, priority areas, expected outcomes, and any relevant background…">{{ ta_need.content if ta_need else '' }}</textarea>
+                            <div class="form-text">
+                                You can use <a href="https://www.markdownguide.org/cheat-sheet/" target="_blank">Markdown</a> for formatting (headings, lists, links, etc.).
+                                Minimum 100 words recommended for a clear and actionable TA need.
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center mt-4">
+                            <a href="{% if ta_need %}{{ url_for('view_ta_need', id=ta_need.id) }}{% else %}{{ url_for('technical_assistance') }}{% endif %}"
+                               class="btn btn-outline-secondary">
+                                Cancel
+                            </a>
+                            <button type="submit" class="btn btn-lg text-white" style="background:#198754;">
+                                <i class="bi bi-send me-1"></i>
+                                {% if ta_need %}Save Changes{% else %}Submit for Review{% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    function countWords(str) {
+        return str.trim().split(/\s+/).filter(w => w.length > 0).length;
+    }
+
+    // ── Title live counter ────────────────────────────────────────────
+    const titleInput = document.querySelector('input[name="title"]');
+    if (titleInput) {
+        const counter = document.createElement('div');
+        counter.className = 'form-text mt-1';
+        titleInput.parentNode.appendChild(counter);
+        function updateTitle() {
+            const words = countWords(titleInput.value);
+            const ok = words >= 5;
+            counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum 5 required');
+            counter.style.color = ok ? '#198754' : '#dc3545';
+            titleInput.classList.toggle('is-invalid', !ok && titleInput.value.length > 0);
+            titleInput.classList.toggle('is-valid', ok);
+        }
+        titleInput.addEventListener('input', updateTitle);
+        updateTitle();
+    }
+
+    // ── Content live counter ──────────────────────────────────────────
+    const contentArea = document.querySelector('textarea[name="content"]');
+    if (contentArea) {
+        const counter = document.createElement('div');
+        counter.className = 'form-text mt-1';
+        contentArea.parentNode.appendChild(counter);
+        function updateContent() {
+            const words = countWords(contentArea.value);
+            const ok = words >= 100;
+            counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — 100 words recommended');
+            counter.style.color = ok ? '#198754' : '#6c757d';
+        }
+        contentArea.addEventListener('input', updateContent);
+        updateContent();
+    }
+
+    // ── Block submit if title too short ───────────────────────────────
+    const form = document.querySelector('form[method="POST"]');
+    if (form) {
+        form.addEventListener('submit', function (e) {
+            const titleWords = titleInput ? countWords(titleInput.value) : 5;
+            if (titleWords < 5) {
+                e.preventDefault();
+                alert('Please provide a title with at least 5 words (currently ' + titleWords + ').');
+            }
+        });
+    }
+})();
+</script>
+{% endblock %}

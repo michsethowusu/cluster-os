@@ -735,3 +735,129 @@ def send_bulk_documents_digest(docs_data, users):
             footer_html=_unsubscribe_footer(user.email)
         )
         send_email(user.email, subject, html)
+
+
+# ===================== TECHNICAL ASSISTANCE NEED EMAILS =====================
+
+def send_single_ta_notification(ta_data, users):
+    """
+    Notify all subscribed members of a newly published Technical Assistance Need.
+    ta_data: dict with keys: title, short_description, url, country, author
+    """
+    if not users or not ta_data:
+        return
+
+    title = ta_data['title']
+    url = ta_data['url']
+    short_description = ta_data.get('short_description', '')
+    country = ta_data.get('country', '')
+    author = ta_data.get('author', '')
+    subject = f"New Technical Assistance Need: {title}"
+
+    meta_parts = []
+    if author:
+        meta_parts.append(f"Submitted by: {author}")
+    if country:
+        meta_parts.append(f"Country: {country}")
+    meta_line = (
+        f'<p style="margin:4px 0 12px;color:#777;font-size:0.88em;">{" | ".join(meta_parts)}</p>'
+        if meta_parts else ""
+    )
+
+    desc_block = (
+        f'<p style="color:#555;font-size:0.95em;line-height:1.6;margin:8px 0 0;">{short_description}</p>'
+        if short_description else ""
+    )
+
+    for user in users:
+        body = f"""
+            <p>A Member State has published a new technical assistance need on the platform:</p>
+            {_info_box(f'<p style="margin:0;font-size:1.05em;font-weight:bold;color:#333;">{title}</p>{meta_line}{desc_block}')}
+            {_btn(url, "View Technical Assistance Need →")}
+            <p style="color:#666;font-size:0.88em;margin:0;">
+                You are receiving this because you are a member of the AU&nbsp;ECED-FLN Cluster Platform.
+            </p>
+        """
+        html = _base_email("New Technical Assistance Need Published", body,
+                           footer_html=_unsubscribe_footer(user.email))
+        send_email(user.email, subject, html)
+
+
+def send_bulk_ta_digest(ta_data_list, users):
+    """
+    Send a digest email listing multiple Technical Assistance Needs.
+    Each item: dict with keys: title, short_description, url, country, author
+    """
+    if not users or not ta_data_list:
+        return
+
+    count = len(ta_data_list)
+    subject = f"{count} New Technical Assistance Need{'s' if count != 1 else ''} – AU ECED-FLN Platform"
+
+    for user in users:
+        items_html = ""
+        for item in ta_data_list:
+            meta_parts = []
+            if item.get('author'):
+                meta_parts.append(f"Submitted by: {item['author']}")
+            if item.get('country'):
+                meta_parts.append(f"Country: {item['country']}")
+            meta_line = (
+                f'<p style="margin:4px 0 8px;color:#777;font-size:0.85em;">{" | ".join(meta_parts)}</p>'
+                if meta_parts else ""
+            )
+            desc_block = (
+                f'<p style="margin:6px 0 0;color:#555;font-size:0.9em;line-height:1.5;">'
+                f'{item["short_description"]}</p>'
+                if item.get("short_description") else ""
+            )
+            items_html += f"""
+            <div style="margin-bottom:12px;padding:16px 18px;background:#f8f9fa;
+                        border-left:4px solid #28a745;border-radius:4px;">
+                <a href="{item['url']}"
+                   style="font-size:1em;font-weight:bold;color:#1a56db;text-decoration:none;line-height:1.4;">
+                    {item['title']}
+                </a>
+                {meta_line}
+                {desc_block}
+                <p style="margin:10px 0 0;">
+                    <a href="{item['url']}"
+                       style="font-size:0.85em;color:#1a56db;text-decoration:none;font-weight:bold;">
+                        Read more →
+                    </a>
+                </p>
+            </div>"""
+
+        body = f"""
+            <p>The following technical assistance need{'s have' if count != 1 else ' has'} been
+            published by Member States on the AU&nbsp;ECED-FLN Cluster Platform:</p>
+            {items_html}
+            <p style="color:#666;font-size:0.88em;margin:20px 0 0;">
+                You are receiving this because you are a member of the AU&nbsp;ECED-FLN Cluster Platform.
+            </p>
+        """
+        html = _base_email(
+            f"{count} New Technical Assistance Need{'s' if count != 1 else ''} Published",
+            body,
+            footer_html=_unsubscribe_footer(user.email)
+        )
+        send_email(user.email, subject, html)
+
+
+def send_ta_invitation_email(email, name, ta_url):
+    """Invite a Member State stakeholder to submit their Technical Assistance Need."""
+    subject = "Submit Your Technical Assistance Need – AU ECED-FLN Platform"
+    body = f"""
+        <p>Dear {name},</p>
+        <p>As a <strong>Member State</strong> stakeholder on the AU ECED-FLN Cluster Platform,
+        you are invited to submit your <strong>Technical Assistance Need</strong>.</p>
+        <p>Member States can describe the specific technical assistance they require in the area
+        of Early Childhood Education &amp; Development or Foundational Learning. This helps
+        partners and development organisations identify where they can provide support.</p>
+        {_btn(ta_url, "Submit Your Technical Assistance Need")}
+        <p style="color:#666;font-size:0.88em;margin:8px 0 0;">
+            You are receiving this as a Member State stakeholder on the AU&nbsp;ECED-FLN Cluster Platform.
+        </p>
+    """
+    html = _base_email("Submit Your Technical Assistance Need", body)
+    send_email(email, subject, html)

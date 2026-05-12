@@ -1,0 +1,111 @@
+from app import app, db
+
+with app.app_context():
+    db.create_all()
+    with db.engine.connect() as conn:
+        conn.execute(db.text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS password_hash VARCHAR(256)'))
+        conn.execute(db.text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS points INTEGER DEFAULT 0'))
+        conn.execute(db.text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS is_subscribed BOOLEAN DEFAULT true'))
+        conn.execute(db.text('ALTER TABLE initiative ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0'))
+        conn.execute(db.text('ALTER TABLE initiative ADD COLUMN IF NOT EXISTS quality_score INTEGER'))
+        conn.execute(db.text('ALTER TABLE initiative ADD COLUMN IF NOT EXISTS detected_lang VARCHAR(10)'))
+        conn.execute(db.text('ALTER TABLE project ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT FALSE'))
+        conn.execute(db.text('ALTER TABLE project ADD COLUMN IF NOT EXISTS start_date TIMESTAMP'))
+        conn.execute(db.text('ALTER TABLE project ADD COLUMN IF NOT EXISTS submitted_by INTEGER'))
+        conn.execute(db.text('ALTER TABLE event ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT FALSE'))
+        conn.execute(db.text('ALTER TABLE event ADD COLUMN IF NOT EXISTS submitted_by INTEGER'))
+        conn.execute(db.text('ALTER TABLE event ADD COLUMN IF NOT EXISTS zoom_webinar_id VARCHAR(100)'))
+        conn.execute(db.text('ALTER TABLE event ADD COLUMN IF NOT EXISTS zoom_recording_url VARCHAR(500)'))
+        conn.execute(db.text('ALTER TABLE event ADD COLUMN IF NOT EXISTS meeting_link VARCHAR(500)'))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS initiative_send_queue (
+                id SERIAL PRIMARY KEY,
+                initiative_id INTEGER UNIQUE NOT NULL REFERENCES initiative(id) ON DELETE CASCADE,
+                queued_at TIMESTAMP DEFAULT NOW(),
+                sent_at TIMESTAMP
+            )
+        '''))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS blocked_email (
+                id SERIAL PRIMARY KEY,
+                email VARCHAR(120) UNIQUE NOT NULL,
+                blocked_at TIMESTAMP DEFAULT NOW()
+            )
+        '''))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS comment (
+                id SERIAL PRIMARY KEY,
+                initiative_id INTEGER NOT NULL REFERENCES initiative(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+                content TEXT NOT NULL,
+                is_approved BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        '''))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS policy_development (
+                id SERIAL PRIMARY KEY,
+                source_url VARCHAR(2000) NOT NULL,
+                title VARCHAR(300),
+                extracted_text TEXT,
+                short_summary VARCHAR(500),
+                country VARCHAR(100),
+                published_date DATE,
+                is_published BOOLEAN DEFAULT FALSE,
+                processing_status VARCHAR(50) DEFAULT 'pending',
+                processing_error VARCHAR(500),
+                submitted_by INTEGER REFERENCES "user"(id),
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        '''))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS policy_tags (
+                policy_id INTEGER NOT NULL REFERENCES policy_development(id) ON DELETE CASCADE,
+                tag_id INTEGER NOT NULL REFERENCES tag(id) ON DELETE CASCADE,
+                PRIMARY KEY (policy_id, tag_id)
+            )
+        '''))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS policy_send_queue (
+                id SERIAL PRIMARY KEY,
+                policy_id INTEGER UNIQUE NOT NULL REFERENCES policy_development(id) ON DELETE CASCADE,
+                queued_at TIMESTAMP DEFAULT NOW(),
+                sent_at TIMESTAMP
+            )
+        '''))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS document_send_queue (
+                id SERIAL PRIMARY KEY,
+                document_id INTEGER UNIQUE NOT NULL REFERENCES document_library(id) ON DELETE CASCADE,
+                queued_at TIMESTAMP DEFAULT NOW(),
+                sent_at TIMESTAMP
+            )
+        '''))
+        conn.execute(db.text('ALTER TABLE policy_development ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0'))
+        conn.execute(db.text('ALTER TABLE document_library ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0'))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS technical_assistance_need (
+                id SERIAL PRIMARY KEY,
+                title VARCHAR(200) NOT NULL,
+                slug VARCHAR(200) UNIQUE NOT NULL,
+                content TEXT NOT NULL,
+                short_description VARCHAR(300),
+                country VARCHAR(100),
+                is_published BOOLEAN DEFAULT FALSE,
+                view_count INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW(),
+                user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE
+            )
+        '''))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS technical_assistance_send_queue (
+                id SERIAL PRIMARY KEY,
+                ta_need_id INTEGER UNIQUE NOT NULL REFERENCES technical_assistance_need(id) ON DELETE CASCADE,
+                queued_at TIMESTAMP DEFAULT NOW(),
+                sent_at TIMESTAMP
+            )
+        '''))
+        conn.commit()
+    print('DB ready.')

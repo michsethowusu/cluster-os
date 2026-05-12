@@ -74,13 +74,18 @@
                         <button type="submit" class="btn btn-primary">
                             <i class="bi bi-check-lg"></i> Save Changes
                         </button>
-                        <form method="POST" action="{{ url_for('admin_delete_document', id=doc.id) }}"
-                              onsubmit="return confirm('Delete this document permanently?')">
-                            <button type="submit" class="btn btn-outline-danger">
-                                <i class="bi bi-trash"></i> Delete
-                            </button>
-                        </form>
+                        <button type="button" class="btn btn-outline-danger"
+                                data-confirm="Delete this document permanently?"
+                                onclick="if(confirm(this.dataset.confirm)) document.getElementById('delete-form').submit()">
+                            <i class="bi bi-trash"></i> Delete
+                        </button>
                     </div>
+                </form>
+
+                {# Delete form sits outside the edit form to avoid invalid nested <form> tags #}
+                <form id="delete-form" method="POST"
+                      action="{{ url_for('admin_delete_document', id=doc.id) }}"
+                      class="d-none">
                 </form>
             </div>
         </div>
@@ -104,4 +109,3 @@
 </div>
 
 {% endblock %}
-

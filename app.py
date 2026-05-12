@@ -386,7 +386,7 @@ class DocumentSendQueue(db.Model):
     queued_at   = db.Column(db.DateTime, default=datetime.utcnow)
     sent_at     = db.Column(db.DateTime, nullable=True)
 
-    document = db.relationship('DocumentLibrary', backref='send_queue_entry')
+    document = db.relationship('DocumentLibrary', backref=db.backref('send_queue_entry', cascade='all, delete-orphan', uselist=False))
 
 
 class TechnicalAssistanceNeed(db.Model):

@@ -4738,13 +4738,19 @@ def edit_ta_need(id):
 @app.route('/admin/ta-needs')
 @login_required
 def admin_ta_needs():
-    """Admin list of all TA needs."""
     if not current_user.is_admin:
         abort(403)
     ta_needs = TechnicalAssistanceNeed.query.order_by(
         TechnicalAssistanceNeed.created_at.desc()
     ).all()
-    return render_template('admin/ta_needs.html', ta_needs=ta_needs)
+    submitted_user_ids = {t.user_id for t in ta_needs}
+    eligible_query = User.query.filter_by(stakeholder_type=MEMBER_STATE_TYPE, is_approved=True)
+    if submitted_user_ids:
+        eligible_query = eligible_query.filter(~User.id.in_(submitted_user_ids))
+    ta_invite_eligible_count = eligible_query.count()
+    return render_template('admin/ta_needs.html',
+                           ta_needs=ta_needs,
+                           ta_invite_eligible_count=ta_invite_eligible_count)
 
 
 @app.route('/admin/ta-need/<int:id>/approve', methods=['POST'])

@@ -64,6 +64,15 @@
             </div>
         </div>
     </div>
+    <div class="col-md-4 mb-4">
+        <div class="card text-white" style="background-color: #198754;">
+            <div class="card-body">
+                <h5 class="card-title">Pending TA Needs</h5>
+                <p class="card-text display-6">{{ pending_ta_needs | default(0) }}</p>
+                <a href="{{ url_for('admin_ta_needs') }}" class="text-white">Review →</a>
+            </div>
+        </div>
+    </div>
 
     <div class="col-md-4 mb-4">
         <div class="card shadow-sm border-0" style="border-left: 5px solid #6f42c1 !important;">
@@ -102,6 +111,15 @@
                   id="bulk-score-form">
                 <button type="submit" class="btn btn-outline-warning" id="bulk-score-btn">
                     <i class="bi bi-stars"></i> Score Unscored Initiatives
+                </button>
+            </form>
+            <form action="{{ url_for('admin_invite_member_states_ta') }}" method="POST" class="d-inline"
+                  onsubmit="return confirm('Send TA Need invitation to {{ ta_invite_eligible_count | default(0) }} eligible Member State member(s)?')">
+                <button type="submit" class="btn btn-outline-success">
+                    <i class="bi bi-envelope-plus"></i> Invite Member States to Submit TA Need
+                    {% if ta_invite_eligible_count | default(0) > 0 %}
+                    <span class="badge bg-success ms-1">{{ ta_invite_eligible_count }}</span>
+                    {% endif %}
                 </button>
             </form>
         </div>

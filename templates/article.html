@@ -180,17 +180,6 @@
                 </div>
             </div>
 
-            <!-- Discussion quick-link -->
-            <div class="card mb-3 border-0 shadow-sm">
-                <div class="card-body text-center">
-                    <i class="bi bi-chat-dots text-primary" style="font-size:1.5rem;"></i>
-                    <p class="mt-1 mb-2 text-muted small">Join the cluster-wide discussion feed</p>
-                    <a href="{{ url_for('discussions') }}" class="btn btn-outline-primary btn-sm w-100">
-                        View Discussions
-                    </a>
-                </div>
-            </div>
-
             <!-- Request to Learn More -->
             {% if current_user.is_authenticated and initiative.user_id != current_user.id %}
             <div class="card mb-3 border-0 shadow-sm">

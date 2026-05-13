@@ -107,5 +107,17 @@ with app.app_context():
                 sent_at TIMESTAMP
             )
         '''))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS learn_more_request (
+                id              SERIAL PRIMARY KEY,
+                requester_id    INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+                initiative_id   INTEGER NOT NULL REFERENCES initiative(id) ON DELETE CASCADE,
+                created_at      TIMESTAMP DEFAULT NOW()
+            )
+        '''))
+        conn.execute(db.text('''
+            CREATE INDEX IF NOT EXISTS ix_learn_more_requester_initiative_month
+            ON learn_more_request (requester_id, initiative_id, created_at)
+        '''))
         conn.commit()
     print('DB ready.')

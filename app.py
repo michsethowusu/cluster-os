@@ -424,6 +424,28 @@ class TechnicalAssistanceSendQueue(db.Model):
     ta_need = db.relationship('TechnicalAssistanceNeed', backref='send_queue_entry')
 
 
+class LearnMoreRequest(db.Model):
+    """Tracks 'Request to Learn More' clicks on initiatives.
+
+    Each authenticated user may send at most one such request per initiative
+    per calendar month.  The record is used both to enforce the rate-limit and
+    to surface counts in the member-export CSV.
+    """
+    __tablename__ = 'learn_more_request'
+
+    id              = db.Column(db.Integer, primary_key=True)
+    requester_id    = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'),
+                                nullable=False)
+    initiative_id   = db.Column(db.Integer, db.ForeignKey('initiative.id', ondelete='CASCADE'),
+                                nullable=False)
+    created_at      = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    requester  = db.relationship('User',       foreign_keys=[requester_id],
+                                 backref='learn_more_sent')
+    initiative = db.relationship('Initiative', foreign_keys=[initiative_id],
+                                 backref='learn_more_requests')
+
+
 class DocumentLibrary(db.Model):
     """Member-uploaded documents with AI-extracted metadata.
 
@@ -1491,6 +1513,87 @@ def admin_delete_comment(id):
     db.session.commit()
     flash('Comment deleted.', 'success')
     return redirect(request.referrer or url_for('admin_approvals', type='comments'))
+
+
+# ===================== LEARN MORE REQUEST =====================
+
+@app.route('/initiative/<slug>/learn-more', methods=['POST'])
+@login_required
+def learn_more_request(slug):
+    """Send a 'Learn More' request email to the initiative publisher.
+
+    Rate-limited to one request per user per initiative per calendar month.
+    Returns JSON so the modal can react without a page reload.
+    """
+    initiative = Initiative.query.filter_by(slug=slug, is_published=True).first_or_404()
+
+    # Don't let authors request their own initiative
+    if initiative.user_id == current_user.id:
+        return jsonify(success=False, error='You are the publisher of this initiative.'), 400
+
+    # Enforce one-per-month rate-limit
+    now = datetime.utcnow()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    existing = LearnMoreRequest.query.filter(
+        LearnMoreRequest.requester_id == current_user.id,
+        LearnMoreRequest.initiative_id == initiative.id,
+        LearnMoreRequest.created_at >= month_start
+    ).first()
+
+    if existing:
+        return jsonify(
+            success=False,
+            error='You have already sent a Learn More request for this initiative this month.'
+        ), 429
+
+    # Persist the request
+    lmr = LearnMoreRequest(
+        requester_id=current_user.id,
+        initiative_id=initiative.id,
+    )
+    db.session.add(lmr)
+    db.session.commit()
+
+    # Build and send the notification email to the publisher
+    publisher = initiative.author
+    requester = current_user
+
+    initiative_url = url_for('view_initiative', slug=initiative.slug, _external=True)
+    initiative_title = initiative.ai_title or initiative.title
+
+    subject = f"[AU ECED-FLN] Learn More Request: {initiative_title}"
+    body = f"""Dear {publisher.name},
+
+A cluster member has expressed interest in learning more about your initiative and would like to connect with you.
+
+Initiative: {initiative_title}
+{initiative_url}
+
+--- Contact Details ---
+Name:         {requester.name}
+Organisation: {requester.organization}
+Position:     {getattr(requester, 'position', '') or '(not specified)'}
+Email:        {requester.email}
+Country:      {requester.country}
+
+Please feel free to reach out to them directly to continue the conversation.
+
+Best regards,
+AU ECED-FLN Cluster Secretariat
+"""
+
+    try:
+        send_member_notification(
+            to_email=publisher.email,
+            subject=subject,
+            body=body,
+        )
+    except Exception as e:
+        app.logger.error(f"Learn-more email error (initiative {initiative.id}): {e}")
+        # Don't roll back — the request is logged; the email failure is non-critical.
+
+    return jsonify(success=True)
+
 
 # ===================== DISCUSSIONS (NEWSFEED) =====================
 
@@ -3270,6 +3373,7 @@ def admin_export_members():
         'is_approved', 'is_subscribed', 'points', 'created_at',
         'initiatives_published', 'initiatives_total',
         'event_registrations', 'project_participations',
+        'learn_more_requests_sent', 'learn_more_requests_received',
     ])
 
     for user in members:
@@ -3277,6 +3381,12 @@ def admin_export_members():
         initiatives_total     = Initiative.query.filter_by(user_id=user.id).count()
         event_regs            = EventRegistration.query.filter_by(user_id=user.id).count()
         project_parts         = ProjectParticipation.query.filter_by(user_id=user.id).count()
+        lm_sent               = LearnMoreRequest.query.filter_by(requester_id=user.id).count()
+        # Requests received = learn-more requests on initiatives this user published
+        lm_received           = (LearnMoreRequest.query
+                                 .join(Initiative, LearnMoreRequest.initiative_id == Initiative.id)
+                                 .filter(Initiative.user_id == user.id)
+                                 .count())
 
         writer.writerow([
             user.id,
@@ -3293,6 +3403,8 @@ def admin_export_members():
             initiatives_total,
             event_regs,
             project_parts,
+            lm_sent,
+            lm_received,
         ])
 
     output.seek(0)

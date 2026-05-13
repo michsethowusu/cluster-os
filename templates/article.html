@@ -190,6 +190,19 @@
                     </a>
                 </div>
             </div>
+
+            <!-- Request to Learn More -->
+            {% if current_user.is_authenticated and initiative.user_id != current_user.id %}
+            <div class="card mb-3 border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <i class="bi bi-envelope-paper text-primary" style="font-size:1.5rem;"></i>
+                    <p class="mt-1 mb-2 text-muted small">Interested in this initiative?</p>
+                    <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#learnMoreModal">
+                        <i class="bi bi-envelope"></i> Request to Learn More
+                    </button>
+                </div>
+            </div>
+            {% endif %}
             
             <!-- Related Initiatives -->
             <div class="card border-0 shadow-sm">
@@ -265,6 +278,112 @@ async function translateArticle(sourceLang) {
         status.style.display = 'none';
     }
 }
+</script>
+{% endif %}
+
+{% if current_user.is_authenticated and initiative.user_id != current_user.id %}
+<!-- ===== LEARN MORE MODAL ===== -->
+<div class="modal fade" id="learnMoreModal" tabindex="-1" aria-labelledby="learnMoreModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold" id="learnMoreModalLabel">
+                    <i class="bi bi-envelope-paper text-primary me-2"></i>Request to Learn More
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Default: confirmation view -->
+                <div id="lmConfirmView">
+                    <p class="mb-2">
+                        Clicking <strong>Proceed</strong> will notify the publisher of this initiative
+                        that you'd like to connect. Your contact details will be shared with them so
+                        they can follow up directly.
+                    </p>
+                    <div class="bg-light rounded p-3 mb-3" style="font-size:0.9rem;">
+                        <div class="row g-1">
+                            <div class="col-5 text-muted">Name</div>
+                            <div class="col-7 fw-semibold">{{ current_user.name }}</div>
+                            <div class="col-5 text-muted">Organisation</div>
+                            <div class="col-7">{{ current_user.organization }}</div>
+                            <div class="col-5 text-muted">Email</div>
+                            <div class="col-7">{{ current_user.email }}</div>
+                            <div class="col-5 text-muted">Country</div>
+                            <div class="col-7">{{ current_user.country }}</div>
+                        </div>
+                    </div>
+                    <p class="text-muted small mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        You may send one such request per initiative per month.
+                    </p>
+                </div>
+
+                <!-- Success view (hidden initially) -->
+                <div id="lmSuccessView" style="display:none;" class="text-center py-3">
+                    <i class="bi bi-check-circle-fill text-success" style="font-size:2.5rem;"></i>
+                    <p class="mt-3 mb-0 fw-semibold">Your request has been sent!</p>
+                    <p class="text-muted small mt-1">The publisher will receive your contact details and may reach out to you directly.</p>
+                </div>
+
+                <!-- Error view (hidden initially) -->
+                <div id="lmErrorView" style="display:none;" class="text-center py-3">
+                    <i class="bi bi-exclamation-circle-fill text-warning" style="font-size:2.5rem;"></i>
+                    <p class="mt-3 mb-0 fw-semibold" id="lmErrorMsg">Something went wrong.</p>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0" id="lmFooter">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="lmProceedBtn" onclick="submitLearnMore()">
+                    <span id="lmProceedSpinner" class="spinner-border spinner-border-sm me-1" style="display:none;" role="status"></span>
+                    Proceed
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function submitLearnMore() {
+    const btn     = document.getElementById('lmProceedBtn');
+    const spinner = document.getElementById('lmProceedSpinner');
+
+    btn.disabled = true;
+    spinner.style.display = 'inline-block';
+
+    try {
+        const resp = await fetch('{{ url_for("learn_more_request", slug=initiative.slug) }}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+        });
+        const data = await resp.json();
+
+        document.getElementById('lmConfirmView').style.display = 'none';
+        document.getElementById('lmFooter').style.display = 'none';
+
+        if (data.success) {
+            document.getElementById('lmSuccessView').style.display = 'block';
+        } else {
+            document.getElementById('lmErrorMsg').textContent = data.error || 'Something went wrong. Please try again.';
+            document.getElementById('lmErrorView').style.display = 'block';
+        }
+    } catch (err) {
+        document.getElementById('lmConfirmView').style.display = 'none';
+        document.getElementById('lmErrorMsg').textContent = 'Network error. Please try again.';
+        document.getElementById('lmErrorView').style.display = 'block';
+        document.getElementById('lmFooter').style.display = 'none';
+    }
+}
+
+// Reset modal state when it's closed and reopened
+document.getElementById('learnMoreModal').addEventListener('hidden.bs.modal', function () {
+    document.getElementById('lmConfirmView').style.display = 'block';
+    document.getElementById('lmSuccessView').style.display = 'none';
+    document.getElementById('lmErrorView').style.display = 'none';
+    document.getElementById('lmFooter').style.display = 'flex';
+    const btn = document.getElementById('lmProceedBtn');
+    btn.disabled = false;
+    document.getElementById('lmProceedSpinner').style.display = 'none';
+});
 </script>
 {% endif %}
 {% endblock %}

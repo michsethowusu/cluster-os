@@ -1559,7 +1559,7 @@ def learn_more_request(slug):
     requester = current_user
 
     initiative_url = url_for('view_initiative', slug=initiative.slug, _external=True)
-    initiative_title = initiative.ai_title or initiative.title
+    initiative_title = initiative.title
 
     subject = f"[AU ECED-FLN] Learn More Request: {initiative_title}"
     body = f"""Dear {publisher.name},

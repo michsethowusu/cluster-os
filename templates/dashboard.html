@@ -126,9 +126,14 @@
                         <a href="{{ url_for('new_initiative') }}" class="btn btn-primary btn-sm">
                             <i class="bi bi-file-earmark-plus"></i> New Initiative
                         </a>
-                        <a href="{{ url_for('new_question') }}" class="btn btn-outline-secondary btn-sm">
-                            <i class="bi bi-question-circle"></i> Ask a Question
+                        <a href="{{ url_for('upload_document') }}" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-upload"></i> Upload a Document
                         </a>
+                        {% if current_user.stakeholder_type == 'Government' %}
+                        <a href="{{ url_for('new_ta_need') }}" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-hand-index"></i> Submit TA Need Request
+                        </a>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -139,7 +144,6 @@
                     <ul class="list-unstyled mb-0">
                         <li class="mb-2"><a href="{{ url_for('projects') }}"><i class="bi bi-kanban"></i> All Projects</a></li>
                         <li class="mb-2"><a href="{{ url_for('events') }}"><i class="bi bi-calendar-event"></i> Events</a></li>
-                        <li class="mb-2"><a href="{{ url_for('forum') }}"><i class="bi bi-question-circle"></i> Q&amp;A Forum</a></li>
                         <li class="mb-2"><a href="{{ url_for('search') }}"><i class="bi bi-search"></i> Explore Initiatives</a></li>
                     </ul>
                 </div>

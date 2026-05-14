@@ -1321,17 +1321,15 @@ def new_initiative():
             user_id=current_user.id,
             stakeholder_type=current_user.stakeholder_type,
             country=current_user.country,
-            is_published=True   # Auto-published for existing approved members
+            is_published=False  # Held until AI quality score is confirmed >= 4
         )
         
         db.session.add(initiative)
         db.session.commit()
 
-        # Award points immediately since it's auto-published
-        award_points(current_user, 'initiative_published')
-
-        # Score content quality in background; if >= 4, add to send queue
-        def _score_async(flask_app, initiative_id, title, content, short_desc):
+        # Score content quality in background; publish + award points if >= 4,
+        # otherwise leave unpublished so it lands in the admin approval queue.
+        def _score_async(flask_app, initiative_id, title, content, short_desc, author_id):
             with flask_app.app_context():
                 try:
                     from utils.ai_services import score_initiative_quality
@@ -1340,11 +1338,48 @@ def new_initiative():
                         ini = Initiative.query.get(initiative_id)
                         if ini:
                             ini.quality_score = score
-                            db.session.commit()
                             if score >= 4:
+                                # Good quality — auto-publish and reward the author
+                                ini.is_published = True
+                                db.session.commit()
+                                author = User.query.get(author_id)
+                                if author:
+                                    award_points(author, 'initiative_published')
                                 _enqueue_initiative(flask_app, initiative_id)
+                            else:
+                                # Below threshold — leave unpublished, notify author
+                                db.session.commit()
+                                author = User.query.get(author_id)
+                                if author:
+                                    try:
+                                        send_initiative_pending_email(author, title)
+                                    except Exception as mail_err:
+                                        flask_app.logger.error(
+                                            f"Pending email error (initiative {initiative_id}): {mail_err}"
+                                        )
+                    else:
+                        # Scoring failed — fall back to auto-publish so nothing gets silently lost
+                        ini = Initiative.query.get(initiative_id)
+                        if ini:
+                            ini.is_published = True
+                            db.session.commit()
+                            author = User.query.get(author_id)
+                            if author:
+                                award_points(author, 'initiative_published')
+                            _enqueue_initiative(flask_app, initiative_id)
                 except Exception as e:
                     flask_app.logger.error(f"Quality scoring error (initiative {initiative_id}): {e}")
+                    # On unexpected error, publish defensively so content isn't lost
+                    try:
+                        ini = Initiative.query.get(initiative_id)
+                        if ini and not ini.is_published:
+                            ini.is_published = True
+                            db.session.commit()
+                            author = User.query.get(author_id)
+                            if author:
+                                award_points(author, 'initiative_published')
+                    except Exception:
+                        pass
                 # Detect language
                 try:
                     from utils.ai_services import detect_language
@@ -1359,7 +1394,7 @@ def new_initiative():
 
         threading.Thread(
             target=_score_async,
-            args=(app, initiative.id, title, content, short_description),
+            args=(app, initiative.id, title, content, short_description, current_user.id),
             daemon=True
         ).start()
 
@@ -1383,7 +1418,7 @@ def new_initiative():
         except Exception as e:
             app.logger.error(f"Tag processing error: {e}")
         
-        flash('Initiative published successfully.', 'success')
+        flash('Your initiative has been submitted and is being reviewed. It will be published shortly if it meets our quality standards.', 'success')
         return redirect(url_for('dashboard'))
     
     return render_template('article_form.html', initiative=None)

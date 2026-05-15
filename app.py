@@ -427,7 +427,7 @@ class TechnicalAssistanceSendQueue(db.Model):
 class LearnMoreRequest(db.Model):
     """Tracks 'Request to Learn More' clicks on initiatives.
 
-    Each authenticated user may send at most one such request per initiative
+    Each authenticated user may send at most three such requests per initiative
     per calendar month.  The record is used both to enforce the rate-limit and
     to surface counts in the member-export CSV.
     """
@@ -1557,7 +1557,7 @@ def admin_delete_comment(id):
 def learn_more_request(slug):
     """Send a 'Learn More' request email to the initiative publisher.
 
-    Rate-limited to one request per user per initiative per calendar month.
+    Rate-limited to three requests per user per initiative per calendar month.
     Returns JSON so the modal can react without a page reload.
     """
     initiative = Initiative.query.filter_by(slug=slug, is_published=True).first_or_404()
@@ -1566,19 +1566,19 @@ def learn_more_request(slug):
     if initiative.user_id == current_user.id:
         return jsonify(success=False, error='You are the publisher of this initiative.'), 400
 
-    # Enforce one-per-month rate-limit
+    # Enforce five-per-month rate-limit
     now = datetime.utcnow()
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    existing = LearnMoreRequest.query.filter(
+    existing_count = LearnMoreRequest.query.filter(
         LearnMoreRequest.requester_id == current_user.id,
         LearnMoreRequest.initiative_id == initiative.id,
         LearnMoreRequest.created_at >= month_start
-    ).first()
+    ).count()
 
-    if existing:
+    if existing_count >= 3:
         return jsonify(
             success=False,
-            error='You have already sent a Learn More request for this initiative this month.'
+            error='You have reached the limit of 3 Learn More requests for this initiative this month.'
         ), 429
 
     # Persist the request

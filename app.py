@@ -1497,8 +1497,16 @@ def view_initiative(slug):
                    .limit(4)
                    .all())
 
+    already_requested = False
+    if current_user.is_authenticated and initiative.user_id != current_user.id:
+        already_requested = LearnMoreRequest.query.filter(
+            LearnMoreRequest.requester_id == current_user.id,
+            LearnMoreRequest.initiative_id == initiative.id,
+        ).first() is not None
+
     return render_template('article.html', initiative=initiative,
-                           comments=comments, related=related)
+                           comments=comments, related=related,
+                           already_requested=already_requested)
 
 # ===================== COMMENT ROUTES =====================
 

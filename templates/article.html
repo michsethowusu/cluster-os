@@ -186,7 +186,8 @@
                 <div class="card-body text-center">
                     <i class="bi bi-envelope-paper text-primary" style="font-size:1.5rem;"></i>
                     <p class="mt-1 mb-2 text-muted small">Interested in this initiative?</p>
-                    <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#learnMoreModal">
+                    <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#learnMoreModal"
+                            {% if already_requested %}onclick="showAlreadySent()"{% endif %}>
                         <i class="bi bi-envelope"></i> Request to Learn More
                     </button>
                 </div>
@@ -373,6 +374,20 @@ document.getElementById('learnMoreModal').addEventListener('hidden.bs.modal', fu
     btn.disabled = false;
     document.getElementById('lmProceedSpinner').style.display = 'none';
 });
+
+function showAlreadySent() {
+    // Wait for modal to open then switch to the info view
+    document.getElementById('learnMoreModal').addEventListener('shown.bs.modal', function handler() {
+        document.getElementById('lmConfirmView').style.display = 'none';
+        document.getElementById('lmFooter').style.display = 'none';
+        const errorView = document.getElementById('lmErrorView');
+        document.getElementById('lmErrorMsg').textContent = 'You have already sent a Learn More request for this initiative.';
+        errorView.style.display = 'block';
+        // Use info icon styling instead of warning
+        errorView.querySelector('i').className = 'bi bi-info-circle-fill text-primary';
+        this.removeEventListener('shown.bs.modal', handler);
+    });
+}
 </script>
 {% endif %}
 {% endblock %}

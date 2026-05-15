@@ -1557,7 +1557,8 @@ def admin_delete_comment(id):
 def learn_more_request(slug):
     """Send a 'Learn More' request email to the initiative publisher.
 
-    Rate-limited to three requests per user per initiative per calendar month.
+    Rate-limited to 3 requests per user per calendar month across all initiatives,
+    with at most one request per initiative (no time bound).
     Returns JSON so the modal can react without a page reload.
     """
     initiative = Initiative.query.filter_by(slug=slug, is_published=True).first_or_404()
@@ -1566,19 +1567,32 @@ def learn_more_request(slug):
     if initiative.user_id == current_user.id:
         return jsonify(success=False, error='You are the publisher of this initiative.'), 400
 
-    # Enforce five-per-month rate-limit
+    # Enforce rate-limits
     now = datetime.utcnow()
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    existing_count = LearnMoreRequest.query.filter(
+
+    # Check 1: already requested this specific initiative (no time bound)
+    already_requested = LearnMoreRequest.query.filter(
         LearnMoreRequest.requester_id == current_user.id,
         LearnMoreRequest.initiative_id == initiative.id,
+    ).first()
+
+    if already_requested:
+        return jsonify(
+            success=False,
+            error='You have already sent a Learn More request for this initiative.'
+        ), 429
+
+    # Check 2: total requests this month across all initiatives >= 3
+    monthly_count = LearnMoreRequest.query.filter(
+        LearnMoreRequest.requester_id == current_user.id,
         LearnMoreRequest.created_at >= month_start
     ).count()
 
-    if existing_count >= 3:
+    if monthly_count >= 3:
         return jsonify(
             success=False,
-            error='You have reached the limit of 3 Learn More requests for this initiative this month.'
+            error='You have reached your limit of 3 Learn More requests for this month.'
         ), 429
 
     # Persist the request

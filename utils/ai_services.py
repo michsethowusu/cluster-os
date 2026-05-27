@@ -14,7 +14,7 @@ def call_nvidia_api(prompt, max_tokens=300, temperature=0.7):
         "Content-Type": "application/json"
     }
     payload = {
-        "model": "meta/llama-3.1-70b-instruct",
+        "model": "meta/llama-3.3-70b-instruct",
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": max_tokens,
         "temperature": temperature

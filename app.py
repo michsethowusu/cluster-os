@@ -3415,26 +3415,11 @@ def admin_import_members():
                 def _send_batch(flask_app, recipients, mode,
                                 ev=None, ev_url=None, subj=None, body=None):
                     with flask_app.app_context():
-                        api_key = os.environ.get('BREVO_API_KEY', '')
                         for i in range(0, len(recipients), BATCH_SIZE):
                             batch = recipients[i:i + BATCH_SIZE]
                             for em, nm in batch:
                                 try:
                                     if mode == 'invite':
-                                        # Brevo check here in the thread — never blocks the HTTP worker
-                                        if api_key:
-                                            try:
-                                                import requests as _requests
-                                                brevo_resp = _requests.get(
-                                                    f'https://api.brevo.com/v3/contacts/{em}',
-                                                    headers={'api-key': api_key, 'Accept': 'application/json'},
-                                                    timeout=5,
-                                                )
-                                                if brevo_resp.status_code == 200:
-                                                    flask_app.logger.info(f"Invite skipped (already in Brevo): {em}")
-                                                    continue
-                                            except Exception as brevo_err:
-                                                flask_app.logger.warning(f"Brevo check failed for {em}: {brevo_err}")
                                         send_invitation_email(em, nm)
                                     elif mode == 'event':
                                         from utils.email_sender import send_event_invitation_email

@@ -3281,6 +3281,7 @@ def admin_import_members():
                 imported = 0
                 invited  = 0
                 errors   = []
+                seen_emails = set()
                 for row_num, row in enumerate(csv_reader, start=2):
                     # In non-import modes only email+name are required
                     if custom_message_mode or invite_only or event_invite_mode:
@@ -3293,6 +3294,10 @@ def admin_import_members():
                         continue
                     email = row['email'].lower().strip()
                     name  = row['name'].strip()
+                    if email in seen_emails:
+                        errors.append(f"Row {row_num}: {email} is a duplicate in this file — skipped")
+                        continue
+                    seen_emails.add(email)
 
                     # ── EVENT INVITE MODE ─────────────────────────────────────
                     if event_invite_mode:

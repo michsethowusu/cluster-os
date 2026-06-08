@@ -3311,7 +3311,9 @@ def admin_import_members():
                 # For normal import we need the full set of fields.
                 valid_rows  = []   # list of dicts: {email, name, ...row}
                 for row_num, row in enumerate(csv_reader, start=2):
-                    if custom_message_mode or invite_only or event_invite_mode:
+                    if invite_only:
+                        required = ['email', 'organization']
+                    elif custom_message_mode or event_invite_mode:
                         required = ['email', 'name']
                     else:
                         required = ['email', 'name', 'organization', 'stakeholder_type', 'country']
@@ -3320,7 +3322,7 @@ def admin_import_members():
                         errors.append(f"Row {row_num}: Missing fields {missing}")
                         continue
                     email = row['email'].lower().strip()
-                    name  = row['name'].strip()
+                    name  = row.get('name', '').strip()
                     # Deduplicate within the file
                     if email in seen_emails:
                         errors.append(f"Row {row_num}: {email} is a duplicate in this file — skipped")
@@ -3395,16 +3397,16 @@ def admin_import_members():
                         to_send.append((email, name))
 
                 elif invite_only:
-                    # Only fast local DB checks here — Brevo check happens in the thread
                     for r in valid_rows:
                         email, name, row_num = r['_email'], r['_name'], r['_row_num']
+                        org = r.get('organization', '').strip()
                         if User.query.filter_by(email=email).first():
                             errors.append(f"Row {row_num}: {email} is already a member — skipped")
                             continue
                         if BlockedEmail.query.filter_by(email=email).first():
                             errors.append(f"Row {row_num}: {email} has unsubscribed — skipped")
                             continue
-                        to_send.append((email, name))
+                        to_send.append((email, name, org))
 
                 skipped = len(valid_rows) - len(to_send)
 
@@ -3417,17 +3419,20 @@ def admin_import_members():
                     with flask_app.app_context():
                         for i in range(0, len(recipients), BATCH_SIZE):
                             batch = recipients[i:i + BATCH_SIZE]
-                            for em, nm in batch:
+                            for item in batch:
                                 try:
                                     if mode == 'invite':
-                                        send_invitation_email(em, nm)
+                                        em, nm, org = item
+                                        send_invitation_email(em, nm, organization=org)
                                     elif mode == 'event':
+                                        em, nm = item
                                         from utils.email_sender import send_event_invitation_email
                                         send_event_invitation_email(em, nm, ev, ev_url)
                                     elif mode == 'custom':
+                                        em, nm = item
                                         send_custom_bulk_email(em, nm, subj, body)
                                 except Exception as ex:
-                                    flask_app.logger.error(f"Batch send error for {em}: {ex}")
+                                    flask_app.logger.error(f"Batch send error for {item[0]}: {ex}")
                             if i + BATCH_SIZE < len(recipients):
                                 time.sleep(BATCH_PAUSE)
 

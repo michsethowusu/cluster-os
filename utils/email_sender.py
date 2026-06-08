@@ -229,26 +229,37 @@ def send_import_welcome_email(user):
     send_email(user.email, subject, html)
 
 
-def send_invitation_email(email, name):
-    """Send an invitation email to someone who hasn't registered yet."""
+def send_invitation_email(email, name, organization=None):
+    """Send a formal invitation email to an organisation representative."""
     register_url = _url('/register')
-    subject = "You're invited to join the AU ECED-FLN Cluster Platform"
+    # Use org name in salutation if no individual name provided
+    salutation = name if name and name.strip() else (organization if organization else 'Colleague')
+    org_line = (
+        f"on behalf of <strong>{organization}</strong> " if organization else ""
+    )
+    subject = f"Invitation for Experts from {organization} to Join the AU ECED-FLN Cluster Platform" if organization else "Invitation to Join the AU ECED-FLN Cluster Platform"
     body = f"""
-        <p>Dear {name},</p>
-        <p>You have been invited to join the <strong>African Union Early Childhood Education and
-        Development &amp; Foundational Learning (ECED-FLN) Cluster Platform</strong> — a network
-        connecting experts and organisations across Africa working to accelerate Early Childhood
-        Education and Foundational Learning.</p>
-        <p>As a member you will be able to:</p>
+        <p>Dear {salutation},</p>
+        <p>The <strong>African Union Cluster on Early Childhood Education and Development &amp;
+        Foundational Learning (ECED-FLN)</strong> is pleased to invite experts {org_line}to join
+        its digital collaboration platform.</p>
+        <p>The platform brings together experts, practitioners, and organisations from across Africa
+        to share knowledge, coordinate initiatives, and advance early childhood education and
+        foundational learning across the continent.</p>
+        <p>As a member your organisation will be able to:</p>
         <ul style="padding-left:20px;margin:8px 0 16px;">
             <li>Share and explore ECED-FLN initiatives from across the continent</li>
             <li>Participate in the Q&amp;A forum and contribute recommendations</li>
-            <li>Register for cluster events and complete polls</li>
-            <li>Connect with other experts in the network</li>
+            <li>Register for cluster events and engage in polls</li>
+            <li>Connect with other experts and organisations in the network</li>
         </ul>
+        <p>We look forward to your participation.</p>
         {_btn(register_url, "Register Now")}
+        <p style="margin:24px 0 0;color:#555;font-size:0.9em;">Should you have any questions,
+        please do not hesitate to contact us at
+        <a href="mailto:cluster@eced-au.org" style="color:#1a56db;">cluster@eced-au.org</a>.</p>
     """
-    html = _base_email("You're Invited to the AU ECED-FLN Cluster Platform", body,
+    html = _base_email("Invitation to Join the AU ECED-FLN Cluster Platform", body,
                        footer_html=_unsubscribe_footer(email))
     send_email(email, subject, html)
 

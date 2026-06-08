@@ -3424,7 +3424,8 @@ def admin_import_members():
                                         # Brevo check here in the thread — never blocks the HTTP worker
                                         if api_key:
                                             try:
-                                                brevo_resp = requests.get(
+                                                import requests as _requests
+                                                brevo_resp = _requests.get(
                                                     f'https://api.brevo.com/v3/contacts/{em}',
                                                     headers={'api-key': api_key, 'Accept': 'application/json'},
                                                     timeout=5,

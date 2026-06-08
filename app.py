@@ -3395,9 +3395,7 @@ def admin_import_members():
                         to_send.append((email, name))
 
                 elif invite_only:
-                    # Check our DB and Brevo so we never re-invite existing members
-                    # or people we have already contacted before.
-                    api_key = os.environ.get('BREVO_API_KEY', '')
+                    # Only fast local DB checks here — Brevo check happens in the thread
                     for r in valid_rows:
                         email, name, row_num = r['_email'], r['_name'], r['_row_num']
                         if User.query.filter_by(email=email).first():
@@ -3406,19 +3404,6 @@ def admin_import_members():
                         if BlockedEmail.query.filter_by(email=email).first():
                             errors.append(f"Row {row_num}: {email} has unsubscribed — skipped")
                             continue
-                        # Check Brevo: if the contact already exists they've been emailed before
-                        if api_key:
-                            try:
-                                brevo_resp = __import__('requests').get(
-                                    f'https://api.brevo.com/v3/contacts/{email}',
-                                    headers={'api-key': api_key, 'Accept': 'application/json'},
-                                    timeout=5,
-                                )
-                                if brevo_resp.status_code == 200:
-                                    errors.append(f"Row {row_num}: {email} already contacted via Brevo — skipped")
-                                    continue
-                            except Exception as brevo_err:
-                                app.logger.warning(f"Brevo check failed for {email}: {brevo_err}")
                         to_send.append((email, name))
 
                 skipped = len(valid_rows) - len(to_send)
@@ -3430,17 +3415,31 @@ def admin_import_members():
                 def _send_batch(flask_app, recipients, mode,
                                 ev=None, ev_url=None, subj=None, body=None):
                     with flask_app.app_context():
+                        api_key = os.environ.get('BREVO_API_KEY', '')
                         for i in range(0, len(recipients), BATCH_SIZE):
                             batch = recipients[i:i + BATCH_SIZE]
                             for em, nm in batch:
                                 try:
-                                    if mode == 'event':
+                                    if mode == 'invite':
+                                        # Brevo check here in the thread — never blocks the HTTP worker
+                                        if api_key:
+                                            try:
+                                                brevo_resp = requests.get(
+                                                    f'https://api.brevo.com/v3/contacts/{em}',
+                                                    headers={'api-key': api_key, 'Accept': 'application/json'},
+                                                    timeout=5,
+                                                )
+                                                if brevo_resp.status_code == 200:
+                                                    flask_app.logger.info(f"Invite skipped (already in Brevo): {em}")
+                                                    continue
+                                            except Exception as brevo_err:
+                                                flask_app.logger.warning(f"Brevo check failed for {em}: {brevo_err}")
+                                        send_invitation_email(em, nm)
+                                    elif mode == 'event':
                                         from utils.email_sender import send_event_invitation_email
                                         send_event_invitation_email(em, nm, ev, ev_url)
                                     elif mode == 'custom':
                                         send_custom_bulk_email(em, nm, subj, body)
-                                    elif mode == 'invite':
-                                        send_invitation_email(em, nm)
                                 except Exception as ex:
                                     flask_app.logger.error(f"Batch send error for {em}: {ex}")
                             if i + BATCH_SIZE < len(recipients):

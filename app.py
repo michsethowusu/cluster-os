@@ -16,6 +16,7 @@ import click
 import threading
 import uuid
 import mistune
+import time
 from config import Config
 
 app = Flask(__name__)
@@ -501,6 +502,30 @@ def set_setting(key, value):
         db.session.add(setting)
     db.session.commit()
 
+
+
+def _brevo_already_contacted(email):
+    """Return True if Brevo already has this email as a contact (i.e. we have emailed them before).
+    Returns False on any API error so we do not silently block people."""
+    api_key = os.environ.get("BREVO_API_KEY") or app.config.get("BREVO_API_KEY", "")
+    if not api_key:
+        return False
+    try:
+        import requests as _requests
+        resp = _requests.get(
+            f"https://api.brevo.com/v3/contacts/{email}",
+            headers={"api-key": api_key, "Accept": "application/json"},
+            timeout=5,
+        )
+        if resp.status_code == 200:
+            return True
+        if resp.status_code == 404:
+            return False
+        app.logger.warning(f"Brevo contact lookup unexpected status {resp.status_code} for {email}")
+        return False
+    except Exception as e:
+        app.logger.warning(f"Brevo contact lookup failed for {email}: {e}")
+        return False
 
 def _enqueue_initiative(flask_app_or_none, initiative_id):
     """Add an initiative to the send queue if not already there and not already sent.
@@ -3278,12 +3303,14 @@ def admin_import_members():
             try:
                 stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
                 csv_reader = csv.DictReader(stream)
-                imported = 0
-                invited  = 0
-                errors   = []
+                errors      = []
                 seen_emails = set()
+
+                # ── Collect valid rows from CSV (no sending yet) ──────────────
+                # For email-only modes we just need email+name.
+                # For normal import we need the full set of fields.
+                valid_rows  = []   # list of dicts: {email, name, ...row}
                 for row_num, row in enumerate(csv_reader, start=2):
-                    # In non-import modes only email+name are required
                     if custom_message_mode or invite_only or event_invite_mode:
                         required = ['email', 'name']
                     else:
@@ -3294,107 +3321,157 @@ def admin_import_members():
                         continue
                     email = row['email'].lower().strip()
                     name  = row['name'].strip()
+                    # Deduplicate within the file
                     if email in seen_emails:
                         errors.append(f"Row {row_num}: {email} is a duplicate in this file — skipped")
                         continue
                     seen_emails.add(email)
+                    valid_rows.append({'_row_num': row_num, '_email': email, '_name': name, **row})
 
-                    # ── EVENT INVITE MODE ─────────────────────────────────────
-                    if event_invite_mode:
-                        if not selected_event:
-                            flash('Please select an event for event invitation mode.', 'error')
-                            return redirect(request.url)
-                        # Skip if email is on the blocked list
+                # ── NORMAL IMPORT MODE (synchronous — creates DB records) ─────
+                if not (invite_only or custom_message_mode or event_invite_mode):
+                    imported = 0
+                    valid_types = ['Government', 'NGO / Civil Society', 'Development Partner / Donor',
+                                   'Academic / Research', 'UN Agency', 'Private Sector']
+                    for r in valid_rows:
+                        email = r['_email']
+                        name  = r['_name']
+                        row_num = r['_row_num']
+                        if User.query.filter_by(email=email).first():
+                            errors.append(f"Row {row_num}: Email already exists")
+                            continue
+                        if r['stakeholder_type'].strip() not in valid_types:
+                            errors.append(f"Row {row_num}: Invalid stakeholder_type")
+                            continue
+                        user = User(
+                            email=email,
+                            name=name,
+                            organization=r['organization'].strip(),
+                            stakeholder_type=r['stakeholder_type'].strip(),
+                            country=r['country'].strip(),
+                            is_approved=True,
+                            is_admin=False
+                        )
+                        db.session.add(user)
+                        db.session.flush()
+                        if not BlockedEmail.query.filter_by(email=email).first():
+                            try:
+                                send_import_welcome_email(user)
+                            except Exception as e:
+                                app.logger.error(f"Import welcome email error for {user.email}: {e}")
+                        imported += 1
+                    db.session.commit()
+                    flash(f'Imported {imported} members. Errors: {len(errors)}', 'info' if errors else 'success')
+                    if errors:
+                        for err in errors[:5]:
+                            flash(err, 'error')
+                    return redirect(url_for('admin_import_members'))
+
+                # ── EMAIL MODES: filter recipients then send in background ────
+                # Apply per-mode eligibility checks synchronously so we can give
+                # accurate counts/errors before handing off to the background thread.
+                to_send = []   # list of (email, name) tuples that passed all checks
+
+                if event_invite_mode:
+                    if not selected_event:
+                        flash('Please select an event for event invitation mode.', 'error')
+                        return redirect(request.url)
+                    for r in valid_rows:
+                        email, name, row_num = r['_email'], r['_name'], r['_row_num']
                         if BlockedEmail.query.filter_by(email=email).first():
                             errors.append(f"Row {row_num}: {email} has unsubscribed — skipped")
                             continue
-                        try:
-                            from utils.email_sender import send_event_invitation_email
-                            send_event_invitation_email(email, name, selected_event, event_invite_url)
-                            invited += 1
-                        except Exception as e:
-                            app.logger.error(f"Event invite email error for {email}: {e}")
-                            errors.append(f"Row {row_num}: Failed to send event invite to {email}")
-                        continue
+                        to_send.append((email, name))
 
-                    # ── CUSTOM MESSAGE MODE ───────────────────────────────────
-                    if custom_message_mode:
-                        if not custom_subject or not custom_body:
-                            flash('Custom subject and message body are required in Custom Message mode.', 'error')
-                            return redirect(request.url)
-                        # Skip if email is on the blocked list
+                elif custom_message_mode:
+                    if not custom_subject or not custom_body:
+                        flash('Custom subject and message body are required in Custom Message mode.', 'error')
+                        return redirect(request.url)
+                    for r in valid_rows:
+                        email, name, row_num = r['_email'], r['_name'], r['_row_num']
                         if BlockedEmail.query.filter_by(email=email).first():
                             errors.append(f"Row {row_num}: {email} has unsubscribed — skipped")
                             continue
-                        try:
-                            send_custom_bulk_email(email, name, custom_subject, custom_body)
-                            invited += 1
-                        except Exception as e:
-                            app.logger.error(f"Custom message email error for {email}: {e}")
-                            errors.append(f"Row {row_num}: Failed to send message to {email}")
-                        continue
+                        to_send.append((email, name))
 
-                    # ── INVITE-ONLY MODE ──────────────────────────────────────
-                    if invite_only:
-                        # Skip if already a member
+                elif invite_only:
+                    # Check our DB and Brevo so we never re-invite existing members
+                    # or people we have already contacted before.
+                    api_key = os.environ.get('BREVO_API_KEY', '')
+                    for r in valid_rows:
+                        email, name, row_num = r['_email'], r['_name'], r['_row_num']
                         if User.query.filter_by(email=email).first():
                             errors.append(f"Row {row_num}: {email} is already a member — skipped")
                             continue
-                        # Skip if email is on the blocked list
                         if BlockedEmail.query.filter_by(email=email).first():
                             errors.append(f"Row {row_num}: {email} has unsubscribed — skipped")
                             continue
-                        try:
-                            send_invitation_email(email, name)
-                            invited += 1
-                        except Exception as e:
-                            app.logger.error(f"Invitation email error for {email}: {e}")
-                            errors.append(f"Row {row_num}: Failed to send invitation to {email}")
-                        continue
+                        # Check Brevo: if the contact already exists they've been emailed before
+                        if api_key:
+                            try:
+                                brevo_resp = __import__('requests').get(
+                                    f'https://api.brevo.com/v3/contacts/{email}',
+                                    headers={'api-key': api_key, 'Accept': 'application/json'},
+                                    timeout=5,
+                                )
+                                if brevo_resp.status_code == 200:
+                                    errors.append(f"Row {row_num}: {email} already contacted via Brevo — skipped")
+                                    continue
+                            except Exception as brevo_err:
+                                app.logger.warning(f"Brevo check failed for {email}: {brevo_err}")
+                        to_send.append((email, name))
 
-                    # ── NORMAL IMPORT MODE ────────────────────────────────────
-                    # Check duplicate
-                    if User.query.filter_by(email=email).first():
-                        errors.append(f"Row {row_num}: Email already exists")
-                        continue
-                    # Validate stakeholder_type
-                    valid_types = ['Government', 'NGO / Civil Society', 'Development Partner / Donor', 
-                                   'Academic / Research', 'UN Agency', 'Private Sector']
-                    if row['stakeholder_type'].strip() not in valid_types:
-                        errors.append(f"Row {row_num}: Invalid stakeholder_type")
-                        continue
-                    # Create user — always approved when imported by admin
-                    user = User(
-                        email=email,
-                        name=name,
-                        organization=row['organization'].strip(),
-                        stakeholder_type=row['stakeholder_type'].strip(),
-                        country=row['country'].strip(),
-                        is_approved=True,
-                        is_admin=False
+                skipped = len(valid_rows) - len(to_send)
+
+                # ── Fire sending in a background thread in batches of 50 ──────
+                BATCH_SIZE  = 50
+                BATCH_PAUSE = 1.0   # seconds between batches
+
+                def _send_batch(flask_app, recipients, mode,
+                                ev=None, ev_url=None, subj=None, body=None):
+                    with flask_app.app_context():
+                        for i in range(0, len(recipients), BATCH_SIZE):
+                            batch = recipients[i:i + BATCH_SIZE]
+                            for em, nm in batch:
+                                try:
+                                    if mode == 'event':
+                                        from utils.email_sender import send_event_invitation_email
+                                        send_event_invitation_email(em, nm, ev, ev_url)
+                                    elif mode == 'custom':
+                                        send_custom_bulk_email(em, nm, subj, body)
+                                    elif mode == 'invite':
+                                        send_invitation_email(em, nm)
+                                except Exception as ex:
+                                    flask_app.logger.error(f"Batch send error for {em}: {ex}")
+                            if i + BATCH_SIZE < len(recipients):
+                                time.sleep(BATCH_PAUSE)
+
+                if to_send:
+                    mode_key = 'event' if event_invite_mode else ('custom' if custom_message_mode else 'invite')
+                    t = threading.Thread(
+                        target=_send_batch,
+                        args=(app, to_send, mode_key),
+                        kwargs=dict(
+                            ev=selected_event,
+                            ev_url=event_invite_url,
+                            subj=custom_subject,
+                            body=custom_body,
+                        ),
+                        daemon=True,
                     )
-                    db.session.add(user)
-                    db.session.flush()
-                    # Always send welcome email to imported members (unless blocked)
-                    if not BlockedEmail.query.filter_by(email=email).first():
-                        try:
-                            send_import_welcome_email(user)
-                        except Exception as e:
-                            app.logger.error(f"Import welcome email error for {user.email}: {e}")
-                    imported += 1
-                db.session.commit()
-                if event_invite_mode:
-                    flash(f'Sent {invited} event invitation(s). Errors: {len(errors)}', 'info' if errors else 'success')
-                elif custom_message_mode:
-                    flash(f'Sent {invited} custom message(s). Errors: {len(errors)}', 'info' if errors else 'success')
-                elif invite_only:
-                    flash(f'Sent {invited} invitation(s). Errors: {len(errors)}', 'info' if errors else 'success')
-                else:
-                    flash(f'Imported {imported} members. Errors: {len(errors)}', 'info' if errors else 'success')
+                    t.start()
+
+                label = 'event invitation' if event_invite_mode else ('message' if custom_message_mode else 'invitation')
+                flash(
+                    f'Queued {len(to_send)} {label}(s) for sending in the background '
+                    f'({skipped} skipped, {len(errors)} error(s)).',
+                    'info' if errors else 'success'
+                )
                 if errors:
                     for err in errors[:5]:
                         flash(err, 'error')
                 return redirect(url_for('admin_import_members'))
+
             except Exception as e:
                 flash(f'Error processing file: {str(e)}', 'error')
                 return redirect(request.url)

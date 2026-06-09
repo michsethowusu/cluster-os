@@ -2686,34 +2686,56 @@ def send_queue_item(queue_id):
     if entry.sent_at:
         flash('This initiative has already been sent.', 'warning')
         return redirect(url_for('admin_send_queue'))
+ 
     initiative = entry.initiative
     test_mode = get_setting('send_queue_test_mode', 'false') == 'true'
-    try:
-        initiative_url = url_for('view_initiative', slug=initiative.slug, _external=True)
-        if test_mode:
-            test_email = app.config.get('ADMIN_OTP_EMAIL') or current_user.email
-            from utils.email_sender import User as _U
-            class _FakeUser:
-                def __init__(self, email): self.email = email
-            send_single_initiative_notification({
-                'title': initiative.title,
-                'short_description': initiative.short_description or '',
-                'url': initiative_url,
-            }, [_FakeUser(test_email)])
-            flash(f'[TEST] "{initiative.title}" sent to {test_email} only. Item stays in queue.', 'warning')
-        else:
-            subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
-            send_single_initiative_notification({
-                'title': initiative.title,
-                'short_description': initiative.short_description or '',
-                'url': initiative_url,
-            }, subscribed_users)
-            entry.sent_at = datetime.utcnow()
-            db.session.commit()
-            flash(f'"{initiative.title}" sent to {len(subscribed_users)} member(s).', 'success')
-    except Exception as e:
-        app.logger.error(f"Send queue item error: {e}")
-        flash('Failed to send. Check logs.', 'error')
+    initiative_url = url_for('view_initiative', slug=initiative.slug, _external=True)
+    ini_data = {
+        'title': initiative.title,
+        'short_description': initiative.short_description or '',
+        'url': initiative_url,
+    }
+    test_email = app.config.get('ADMIN_OTP_EMAIL') or current_user.email
+ 
+    def _do_send(flask_app, _queue_id, _ini_data, _is_test, _test_email):
+        with flask_app.app_context():
+            try:
+                if _is_test:
+                    class _FakeUser:
+                        def __init__(self, e): self.email = e
+                    send_single_initiative_notification(_ini_data, [_FakeUser(_test_email)])
+                else:
+                    subscribed_users = User.query.filter_by(
+                        is_approved=True, is_subscribed=True
+                    ).all()
+                    send_single_initiative_notification(_ini_data, subscribed_users)
+                    _entry = InitiativeSendQueue.query.get(_queue_id)
+                    if _entry:
+                        _entry.sent_at = datetime.utcnow()
+                        db.session.commit()
+            except Exception as e:
+                flask_app.logger.error(f"Background send_queue_item error (id={_queue_id}): {e}")
+ 
+    threading.Thread(
+        target=_do_send,
+        args=(app, queue_id, ini_data, test_mode, test_email),
+        daemon=True,
+    ).start()
+ 
+    if test_mode:
+        flash(
+            f'[TEST] "{initiative.title}" is being sent to {test_email} in the background. '
+            f'Item stays in queue.',
+            'warning',
+        )
+    else:
+        subscribed_count = User.query.filter_by(
+            is_approved=True, is_subscribed=True
+        ).count()
+        flash(
+            f'"{initiative.title}" is being sent to {subscribed_count} member(s) in the background.',
+            'success',
+        )
     return redirect(url_for('admin_send_queue'))
 
 
@@ -2787,33 +2809,64 @@ def send_policy_queue_item(queue_id):
     if entry.sent_at:
         flash('This policy development has already been sent.', 'warning')
         return redirect(url_for('admin_send_queue'))
+ 
     policy = entry.policy
     test_mode = get_setting('send_queue_test_mode', 'false') == 'true'
-    try:
-        policy_url = url_for('view_policy', id=policy.id, _external=True)
-        policy_data = {
-            'title': policy.title or policy.source_url[:100],
-            'short_summary': policy.short_summary or '',
-            'url': policy_url,
-            'country': policy.country or '',
-            'published_date': policy.published_date.strftime('%B %d, %Y') if policy.published_date else '',
-        }
-        if test_mode:
-            test_email = app.config.get('ADMIN_OTP_EMAIL') or current_user.email
-            class _FakeUser:
-                def __init__(self, email): self.email = email
-            send_single_policy_notification(policy_data, [_FakeUser(test_email)])
-            flash(f'[TEST] "{policy_data["title"]}" sent to {test_email} only. Item stays in queue.', 'warning')
-        else:
-            subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
-            send_single_policy_notification(policy_data, subscribed_users)
-            entry.sent_at = datetime.utcnow()
-            db.session.commit()
-            flash(f'"{policy_data["title"]}" sent to {len(subscribed_users)} member(s).', 'success')
-    except Exception as e:
-        app.logger.error(f"Policy send queue item error: {e}")
-        flash('Failed to send. Check logs.', 'error')
+    policy_url = url_for('view_policy', id=policy.id, _external=True)
+    policy_data = {
+        'title': policy.title or policy.source_url[:100],
+        'short_summary': policy.short_summary or '',
+        'url': policy_url,
+        'country': policy.country or '',
+        'published_date': (
+            policy.published_date.strftime('%B %d, %Y') if policy.published_date else ''
+        ),
+    }
+    test_email = app.config.get('ADMIN_OTP_EMAIL') or current_user.email
+ 
+    def _do_send(flask_app, _queue_id, _policy_data, _is_test, _test_email):
+        with flask_app.app_context():
+            try:
+                if _is_test:
+                    class _FakeUser:
+                        def __init__(self, e): self.email = e
+                    send_single_policy_notification(_policy_data, [_FakeUser(_test_email)])
+                else:
+                    subscribed_users = User.query.filter_by(
+                        is_approved=True, is_subscribed=True
+                    ).all()
+                    send_single_policy_notification(_policy_data, subscribed_users)
+                    _entry = PolicySendQueue.query.get(_queue_id)
+                    if _entry:
+                        _entry.sent_at = datetime.utcnow()
+                        db.session.commit()
+            except Exception as e:
+                flask_app.logger.error(
+                    f"Background send_policy_queue_item error (id={_queue_id}): {e}"
+                )
+ 
+    threading.Thread(
+        target=_do_send,
+        args=(app, queue_id, policy_data, test_mode, test_email),
+        daemon=True,
+    ).start()
+ 
+    if test_mode:
+        flash(
+            f'[TEST] "{policy_data["title"]}" is being sent to {test_email} in the background. '
+            f'Item stays in queue.',
+            'warning',
+        )
+    else:
+        subscribed_count = User.query.filter_by(
+            is_approved=True, is_subscribed=True
+        ).count()
+        flash(
+            f'"{policy_data["title"]}" is being sent to {subscribed_count} member(s) in the background.',
+            'success',
+        )
     return redirect(url_for('admin_send_queue'))
+
 
 
 @app.route('/admin/policy-send-queue/send-all', methods=['POST'])
@@ -2887,32 +2940,60 @@ def send_document_queue_item(queue_id):
     if entry.sent_at:
         flash('This document has already been sent.', 'warning')
         return redirect(url_for('admin_send_queue'))
+ 
     doc = entry.document
     test_mode = get_setting('send_queue_test_mode', 'false') == 'true'
-    try:
-        doc_url = url_for('view_document', id=doc.id, _external=True)
-        doc_data = {
-            'title': doc.title or doc.filename,
-            'description': doc.description or '',
-            'url': doc_url,
-            'year_published': str(doc.year_published) if doc.year_published else '',
-            'file_type': doc.file_type or '',
-        }
-        if test_mode:
-            test_email = app.config.get('ADMIN_OTP_EMAIL') or current_user.email
-            class _FakeUser:
-                def __init__(self, email): self.email = email
-            send_single_document_notification(doc_data, [_FakeUser(test_email)])
-            flash(f'[TEST] "{doc_data["title"]}" sent to {test_email} only. Item stays in queue.', 'warning')
-        else:
-            subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
-            send_single_document_notification(doc_data, subscribed_users)
-            entry.sent_at = datetime.utcnow()
-            db.session.commit()
-            flash(f'"{doc_data["title"]}" sent to {len(subscribed_users)} member(s).', 'success')
-    except Exception as e:
-        app.logger.error(f"Document send queue item error: {e}")
-        flash('Failed to send. Check logs.', 'error')
+    doc_url = url_for('view_document', id=doc.id, _external=True)
+    doc_data = {
+        'title': doc.title or doc.filename,
+        'description': doc.description or '',
+        'url': doc_url,
+        'year_published': str(doc.year_published) if doc.year_published else '',
+        'file_type': doc.file_type or '',
+    }
+    test_email = app.config.get('ADMIN_OTP_EMAIL') or current_user.email
+ 
+    def _do_send(flask_app, _queue_id, _doc_data, _is_test, _test_email):
+        with flask_app.app_context():
+            try:
+                if _is_test:
+                    class _FakeUser:
+                        def __init__(self, e): self.email = e
+                    send_single_document_notification(_doc_data, [_FakeUser(_test_email)])
+                else:
+                    subscribed_users = User.query.filter_by(
+                        is_approved=True, is_subscribed=True
+                    ).all()
+                    send_single_document_notification(_doc_data, subscribed_users)
+                    _entry = DocumentSendQueue.query.get(_queue_id)
+                    if _entry:
+                        _entry.sent_at = datetime.utcnow()
+                        db.session.commit()
+            except Exception as e:
+                flask_app.logger.error(
+                    f"Background send_document_queue_item error (id={_queue_id}): {e}"
+                )
+ 
+    threading.Thread(
+        target=_do_send,
+        args=(app, queue_id, doc_data, test_mode, test_email),
+        daemon=True,
+    ).start()
+ 
+    if test_mode:
+        flash(
+            f'[TEST] "{doc_data["title"]}" is being sent to {test_email} in the background. '
+            f'Item stays in queue.',
+            'warning',
+        )
+    else:
+        subscribed_count = User.query.filter_by(
+            is_approved=True, is_subscribed=True
+        ).count()
+        flash(
+            f'"{doc_data["title"]}" is being sent to {subscribed_count} member(s) in the background.',
+            'success',
+        )
     return redirect(url_for('admin_send_queue'))
 
 
@@ -5114,33 +5195,61 @@ def send_ta_queue_item(queue_id):
     if entry.sent_at:
         flash('This technical assistance need has already been sent.', 'warning')
         return redirect(url_for('admin_send_queue'))
+ 
     ta_need = entry.ta_need
     test_mode = get_setting('send_queue_test_mode', 'false') == 'true'
-    try:
-        from utils.email_sender import send_single_ta_notification
-        ta_url = url_for('view_ta_need', id=ta_need.id, _external=True)
-        ta_data = {
-            'title': ta_need.title,
-            'short_description': ta_need.short_description or '',
-            'url': ta_url,
-            'country': ta_need.country or '',
-            'author': ta_need.author.organization if ta_need.author else '',
-        }
-        if test_mode:
-            test_email = app.config.get('ADMIN_OTP_EMAIL') or current_user.email
-            class _FakeUser:
-                def __init__(self, email): self.email = email
-            send_single_ta_notification(ta_data, [_FakeUser(test_email)])
-            flash(f'[TEST] "{ta_need.title}" sent to {test_email} only. Item stays in queue.', 'warning')
-        else:
-            subscribed_users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
-            send_single_ta_notification(ta_data, subscribed_users)
-            entry.sent_at = datetime.utcnow()
-            db.session.commit()
-            flash(f'"{ta_need.title}" sent to {len(subscribed_users)} member(s).', 'success')
-    except Exception as e:
-        app.logger.error(f"TA send queue item error: {e}")
-        flash('Failed to send. Check logs.', 'error')
+    ta_url = url_for('view_ta_need', id=ta_need.id, _external=True)
+    ta_data = {
+        'title': ta_need.title,
+        'short_description': ta_need.short_description or '',
+        'url': ta_url,
+        'country': ta_need.country or '',
+        'author': ta_need.author.organization if ta_need.author else '',
+    }
+    test_email = app.config.get('ADMIN_OTP_EMAIL') or current_user.email
+ 
+    def _do_send(flask_app, _queue_id, _ta_data, _is_test, _test_email):
+        with flask_app.app_context():
+            try:
+                from utils.email_sender import send_single_ta_notification
+                if _is_test:
+                    class _FakeUser:
+                        def __init__(self, e): self.email = e
+                    send_single_ta_notification(_ta_data, [_FakeUser(_test_email)])
+                else:
+                    subscribed_users = User.query.filter_by(
+                        is_approved=True, is_subscribed=True
+                    ).all()
+                    send_single_ta_notification(_ta_data, subscribed_users)
+                    _entry = TechnicalAssistanceSendQueue.query.get(_queue_id)
+                    if _entry:
+                        _entry.sent_at = datetime.utcnow()
+                        db.session.commit()
+            except Exception as e:
+                flask_app.logger.error(
+                    f"Background send_ta_queue_item error (id={_queue_id}): {e}"
+                )
+ 
+    threading.Thread(
+        target=_do_send,
+        args=(app, queue_id, ta_data, test_mode, test_email),
+        daemon=True,
+    ).start()
+ 
+    if test_mode:
+        flash(
+            f'[TEST] "{ta_need.title}" is being sent to {test_email} in the background. '
+            f'Item stays in queue.',
+            'warning',
+        )
+    else:
+        subscribed_count = User.query.filter_by(
+            is_approved=True, is_subscribed=True
+        ).count()
+        flash(
+            f'"{ta_need.title}" is being sent to {subscribed_count} member(s) in the background.',
+            'success',
+        )
     return redirect(url_for('admin_send_queue'))
 
 

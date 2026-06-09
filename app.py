@@ -3417,6 +3417,7 @@ def admin_import_members():
                 def _send_batch(flask_app, recipients, mode,
                                 ev=None, ev_url=None, subj=None, body=None):
                     with flask_app.app_context():
+                        flask_app.logger.info(f"Background send started: {len(recipients)} recipients, mode={mode}")
                         for i in range(0, len(recipients), BATCH_SIZE):
                             batch = recipients[i:i + BATCH_SIZE]
                             for item in batch:

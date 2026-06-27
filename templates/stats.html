@@ -6,19 +6,6 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
 <style>
-    .metric-card {
-        background: #fff;
-        border-radius: 12px;
-        padding: 22px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.08);
-        height: 100%;
-        text-align: center;
-        transition: transform 0.3s;
-    }
-    .metric-card:hover { transform: translateY(-5px); }
-    .metric-card .metric-value { font-size: 2.5rem; font-weight: 700; color: var(--au-blue); line-height: 1; }
-    .metric-card .metric-label { color: #6c757d; font-size: 0.9rem; margin-top: 6px; }
-    .metric-card .metric-icon { font-size: 1.5rem; color: var(--au-green); margin-bottom: 8px; }
     .panel-card {
         background: #fff;
         border-radius: 12px;
@@ -45,32 +32,28 @@
 <div class="container mt-5">
     <!-- Headline metrics -->
     <div class="row g-3 mb-4">
-        <div class="col-6 col-md-3">
-            <div class="metric-card">
-                <div class="metric-icon"><i class="bi bi-people-fill"></i></div>
-                <div class="metric-value">{{ headline.members }}</div>
-                <div class="metric-label">Members</div>
+        <div class="col-6 col-md-3 mb-3">
+            <div class="stats-card text-center">
+                <div class="stats-number">{{ headline.members }}</div>
+                <div class="text-muted">Members</div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
-            <div class="metric-card">
-                <div class="metric-icon"><i class="bi bi-flag-fill"></i></div>
-                <div class="metric-value">{{ headline.countries }}</div>
-                <div class="metric-label">Countries</div>
+        <div class="col-6 col-md-3 mb-3">
+            <div class="stats-card text-center">
+                <div class="stats-number">{{ headline.countries }}</div>
+                <div class="text-muted">Countries</div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
-            <div class="metric-card">
-                <div class="metric-icon"><i class="bi bi-building"></i></div>
-                <div class="metric-value">{{ headline.organizations }}</div>
-                <div class="metric-label">Organizations</div>
+        <div class="col-6 col-md-3 mb-3">
+            <div class="stats-card text-center">
+                <div class="stats-number">{{ headline.organizations }}</div>
+                <div class="text-muted">Organizations</div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
-            <div class="metric-card">
-                <div class="metric-icon"><i class="bi bi-lightbulb-fill"></i></div>
-                <div class="metric-value">{{ headline.initiatives }}</div>
-                <div class="metric-label">Initiatives</div>
+        <div class="col-6 col-md-3 mb-3">
+            <div class="stats-card text-center">
+                <div class="stats-number">{{ headline.initiatives }}</div>
+                <div class="text-muted">Initiatives</div>
             </div>
         </div>
     </div>

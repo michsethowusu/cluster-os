@@ -4,10 +4,6 @@
 
 {% block extra_css %}
 <style>
-    .lb-hero {
-        background: linear-gradient(135deg, #007451 0%, #0066cc 100%);
-        color: #fff; padding: 45px 0; text-align: center;
-    }
     .lb-table th { color: #6c757d; font-weight: 600; font-size: 0.85rem; text-transform: uppercase; }
     .lb-table td { vertical-align: middle; }
     .rank-badge {
@@ -22,10 +18,10 @@
 {% endblock %}
 
 {% block content %}
-<div class="lb-hero">
-    <div class="container">
-        <h1 class="fw-bold"><i class="bi bi-people-fill"></i> Our Contributors</h1>
-        <p class="lead mb-0">The top individuals advancing {{ site.name }} across Africa.</p>
+<div class="bg-white py-5 border-bottom">
+    <div class="container text-center">
+        <h1 class="display-5 text-dark fw-bold mb-2"><i class="bi bi-people-fill text-success"></i> Our Contributors</h1>
+        <p class="lead text-muted mb-0">The top individuals advancing {{ site.name }} across Africa.</p>
     </div>
 </div>
 

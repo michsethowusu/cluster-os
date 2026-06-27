@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+
+{% block title %}Statistics & Participation — AU ECED-FLN Cluster{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<style>
+    .stats-hero {
+        background: linear-gradient(135deg, #007451 0%, #0066cc 100%);
+        color: #fff;
+        padding: 50px 0 60px;
+    }
+    .stats-hero h1 { font-weight: 700; }
+    .metric-card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 22px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        height: 100%;
+        text-align: center;
+        transition: transform 0.3s;
+    }
+    .metric-card:hover { transform: translateY(-5px); }
+    .metric-card .metric-value { font-size: 2.2rem; font-weight: 700; color: var(--au-blue); line-height: 1; }
+    .metric-card .metric-label { color: #6c757d; font-size: 0.9rem; margin-top: 6px; }
+    .metric-card .metric-icon { font-size: 1.5rem; color: var(--au-green); margin-bottom: 8px; }
+    .panel-card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 25px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        height: 100%;
+    }
+    .panel-card h5 { font-weight: 700; color: #343a40; margin-bottom: 18px; }
+    #participationMap { height: 460px; border-radius: 10px; z-index: 1; }
+    .table-stats th { color: #6c757d; font-weight: 600; font-size: 0.85rem; text-transform: uppercase; }
+    .table-stats td { vertical-align: middle; }
+    .section-title { font-weight: 700; color: #007451; margin: 10px 0 22px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="stats-hero">
+    <div class="container text-center">
+        <h1><i class="bi bi-globe-africa"></i> Participation Across Africa</h1>
+        <p class="lead mb-0">A live snapshot of the ECED-FLN Cluster community, contributions, and reach.</p>
+    </div>
+</div>
+
+<div class="container" style="margin-top: -35px;">
+    <!-- Headline metrics -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-4 col-lg-2">
+            <div class="metric-card">
+                <div class="metric-icon"><i class="bi bi-people-fill"></i></div>
+                <div class="metric-value">{{ headline.members }}</div>
+                <div class="metric-label">Members</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-lg-2">
+            <div class="metric-card">
+                <div class="metric-icon"><i class="bi bi-flag-fill"></i></div>
+                <div class="metric-value">{{ headline.countries }}</div>
+                <div class="metric-label">Countries</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-lg-2">
+            <div class="metric-card">
+                <div class="metric-icon"><i class="bi bi-building"></i></div>
+                <div class="metric-value">{{ headline.organizations }}</div>
+                <div class="metric-label">Organizations</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-lg-2">
+            <div class="metric-card">
+                <div class="metric-icon"><i class="bi bi-lightbulb-fill"></i></div>
+                <div class="metric-value">{{ headline.initiatives }}</div>
+                <div class="metric-label">Initiatives</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-lg-2">
+            <div class="metric-card">
+                <div class="metric-icon"><i class="bi bi-calendar-event-fill"></i></div>
+                <div class="metric-value">{{ headline.events }}</div>
+                <div class="metric-label">Events</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-lg-2">
+            <div class="metric-card">
+                <div class="metric-icon"><i class="bi bi-folder-fill"></i></div>
+                <div class="metric-value">{{ headline.projects }}</div>
+                <div class="metric-label">Projects</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Map + country table -->
+    <div class="row g-4 mb-4">
+        <div class="col-lg-8">
+            <div class="panel-card">
+                <h5><i class="bi bi-geo-alt-fill text-success"></i> Member Participation Map</h5>
+                <div id="participationMap"></div>
+                {% if not map_points %}
+                <p class="text-muted small mt-3 mb-0">No country data to display yet.</p>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="panel-card">
+                <h5><i class="bi bi-list-ol"></i> Members by Country</h5>
+                <div style="max-height: 420px; overflow-y: auto;">
+                    <table class="table table-stats table-sm">
+                        <thead><tr><th>Country</th><th class="text-end">Members</th></tr></thead>
+                        <tbody>
+                        {% for row in country_table %}
+                            <tr><td>{{ row.country }}</td><td class="text-end fw-bold">{{ row.count }}</td></tr>
+                        {% endfor %}
+                        {% if other_count %}
+                            <tr class="text-muted"><td>Other / outside Africa</td><td class="text-end">{{ other_count }}</td></tr>
+                        {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stakeholder breakdown + growth -->
+    <div class="row g-4 mb-4">
+        <div class="col-lg-5">
+            <div class="panel-card">
+                <h5><i class="bi bi-pie-chart-fill"></i> Members by Stakeholder Type</h5>
+                <canvas id="stakeholderChart" height="260"></canvas>
+            </div>
+        </div>
+        <div class="col-lg-7">
+            <div class="panel-card">
+                <h5><i class="bi bi-graph-up-arrow"></i> Community Growth Over Time</h5>
+                <canvas id="growthChart" height="260"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Site usage analytics -->
+    <h3 class="section-title"><i class="bi bi-activity"></i> Site Usage</h3>
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="metric-card">
+                <div class="metric-icon"><i class="bi bi-eye-fill"></i></div>
+                <div class="metric-value">{{ analytics.total_views }}</div>
+                <div class="metric-label">Total Page Views</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="metric-card">
+                <div class="metric-icon"><i class="bi bi-person-badge-fill"></i></div>
+                <div class="metric-value">{{ analytics.total_visitors }}</div>
+                <div class="metric-label">Unique Visitors</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="metric-card">
+                <div class="metric-icon"><i class="bi bi-calendar3"></i></div>
+                <div class="metric-value">{{ analytics.views_30d }}</div>
+                <div class="metric-label">Views (30 days)</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="metric-card">
+                <div class="metric-icon"><i class="bi bi-person-walking"></i></div>
+                <div class="metric-value">{{ analytics.visitors_30d }}</div>
+                <div class="metric-label">Visitors (30 days)</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-5">
+        <div class="col-lg-12">
+            <div class="panel-card mb-4">
+                <h5><i class="bi bi-bar-chart-line-fill"></i> Daily Page Views (Last 30 Days)</h5>
+                <canvas id="dailyChart" height="90"></canvas>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="panel-card">
+                <h5><i class="bi bi-file-earmark-text-fill"></i> Top Pages (30 days)</h5>
+                <table class="table table-stats table-sm">
+                    <thead><tr><th>Page</th><th class="text-end">Views</th></tr></thead>
+                    <tbody>
+                    {% for p in top_pages %}
+                        <tr><td><code>{{ p.path }}</code></td><td class="text-end fw-bold">{{ p.views }}</td></tr>
+                    {% else %}
+                        <tr><td colspan="2" class="text-muted">No data yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="panel-card">
+                <h5><i class="bi bi-box-arrow-in-right"></i> Top Referrers</h5>
+                <table class="table table-stats table-sm">
+                    <thead><tr><th>Source</th><th class="text-end">Views</th></tr></thead>
+                    <tbody>
+                    {% for r in top_referrers %}
+                        <tr><td>{{ r.host }}</td><td class="text-end fw-bold">{{ r.views }}</td></tr>
+                    {% else %}
+                        <tr><td colspan="2" class="text-muted">No external referrers recorded yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    const mapPoints = {{ map_points | tojson }};
+    const stakeholders = {{ stakeholders | tojson }};
+    const growthLabels = {{ growth_labels | tojson }};
+    const growthValues = {{ growth_values | tojson }};
+    const dailyLabels = {{ daily_labels | tojson }};
+    const dailyValues = {{ daily_values | tojson }};
+
+    const AU_GREEN = '#007451', AU_BLUE = '#0066cc', AU_GOLD = '#ffcc00';
+
+    // ---- Bubble map ----
+    const map = L.map('participationMap', { scrollWheelZoom: false, zoomControl: true })
+        .setView([2.0, 18.0], 3);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19
+    }).addTo(map);
+
+    const maxCount = mapPoints.reduce((m, p) => Math.max(m, p.count), 1);
+    mapPoints.forEach(function (p) {
+        const radius = 8 + Math.sqrt(p.count / maxCount) * 30;
+        L.circleMarker([p.lat, p.lng], {
+            radius: radius, color: AU_GREEN, weight: 1.5,
+            fillColor: AU_BLUE, fillOpacity: 0.55
+        }).addTo(map).bindPopup('<strong>' + p.country + '</strong><br>' + p.count + ' member(s)');
+    });
+
+    // ---- Stakeholder doughnut ----
+    const palette = ['#007451', '#0066cc', '#ffcc00', '#e8590c', '#6f42c1', '#20c997', '#d63384', '#6c757d'];
+    new Chart(document.getElementById('stakeholderChart'), {
+        type: 'doughnut',
+        data: {
+            labels: stakeholders.map(s => s.type),
+            datasets: [{ data: stakeholders.map(s => s.count), backgroundColor: palette, borderWidth: 2, borderColor: '#fff' }]
+        },
+        options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 14, font: { size: 11 } } } } }
+    });
+
+    // ---- Growth line ----
+    new Chart(document.getElementById('growthChart'), {
+        type: 'line',
+        data: {
+            labels: growthLabels,
+            datasets: [{
+                label: 'Cumulative members', data: growthValues,
+                borderColor: AU_GREEN, backgroundColor: 'rgba(0,116,81,0.12)',
+                fill: true, tension: 0.3, pointRadius: 2
+            }]
+        },
+        options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    });
+
+    // ---- Daily views bar ----
+    new Chart(document.getElementById('dailyChart'), {
+        type: 'bar',
+        data: {
+            labels: dailyLabels,
+            datasets: [{ label: 'Page views', data: dailyValues, backgroundColor: AU_BLUE, borderRadius: 3 }]
+        },
+        options: {
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, ticks: { precision: 0 } },
+                x: { ticks: { maxTicksLimit: 10, font: { size: 10 } } }
+            }
+        }
+    });
+})();
+</script>
+{% endblock %}

@@ -185,6 +185,22 @@ def send_initiative_approved_email(user, initiative_slug, initiative_title):
     send_email(user.email, subject, html)
 
 
+def send_certificate_email(user, cert_url, site_name):
+    """Notify a contributor that their printable certificate page is ready."""
+    subject = f"Your contributor certificate is ready – {site_name}"
+    body = f"""
+        <p>Dear {user.name},</p>
+        <p>Thank you for contributing to <strong>{site_name}</strong>! In recognition of your
+        published contribution, we have created a personal contributor certificate in your name.</p>
+        <p>You can view, print, or share it any time:</p>
+        {_btn(cert_url, "View Your Certificate")}
+        <p style="color:#666;font-size:0.9em;margin-top:16px;">This is a live page — it stays
+        up to date as you contribute more.</p>
+    """
+    html = _base_email("Your Contributor Certificate", body)
+    send_email(user.email, subject, html)
+
+
 def send_initiative_pending_email(user, initiative_title):
     """Notify a user that their imported initiative is pending review."""
     login_url = _url('/login')

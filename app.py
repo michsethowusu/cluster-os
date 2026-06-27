@@ -50,6 +50,7 @@ from utils.email_sender import (
     send_bulk_policies_digest,
     send_single_document_notification,
     send_bulk_documents_digest,
+    send_certificate_email,
 )
 from utils.ai_services import generate_title_description, vet_tags_nvidia, rank_members_by_query, clean_tags_for_polls, score_initiative_quality, detect_language
 from utils.nlp import extract_noun_phrases, update_noun_phrase_db
@@ -119,6 +120,27 @@ class Setting(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     key = db.Column(db.String(100), unique=True, nullable=False)
     value = db.Column(db.String(500))
+
+
+class PageView(db.Model):
+    """Lightweight site-usage analytics — one row per HTML page request."""
+    id = db.Column(db.Integer, primary_key=True)
+    path = db.Column(db.String(300), nullable=False, index=True)
+    visitor_id = db.Column(db.String(36), index=True)   # anonymous cookie id
+    is_authenticated = db.Column(db.Boolean, default=False)
+    referrer_host = db.Column(db.String(255))            # external referrer host only
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+
+class Certificate(db.Model):
+    """Contributor certificate, issued (in individual-first mode) the first time a
+    member has a published article. Rendered as a printable page at /certificate/<token>."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), unique=True, nullable=False)
+    token = db.Column(db.String(32), unique=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('certificate', uselist=False))
 
 
 class Initiative(db.Model):
@@ -503,6 +525,103 @@ def set_setting(key, value):
     db.session.commit()
 
 
+# ===================== SITE CONFIG / FRONT-END OVERRIDES =====================
+
+DEFAULT_SITE_NAME = 'AU ECED-FLN'
+DEFAULT_SITE_TAGLINE = ('Accelerating Early Childhood Education and Development & '
+                        'Foundational Learning across Africa.')
+
+# Canonical primary-nav items. Site admins can hide or rename each one; the
+# `members` item is also auto-relabelled in individual-first mode.
+NAV_ITEMS = [
+    {'key': 'home',        'endpoint': 'index',     'label': 'Home'},
+    {'key': 'initiatives', 'endpoint': 'search',    'label': 'Initiatives'},
+    {'key': 'documents',   'endpoint': 'documents', 'label': 'Policy Documents'},
+    {'key': 'events',      'endpoint': 'events',    'label': 'Events'},
+    {'key': 'members',     'endpoint': 'members',   'label': 'Stakeholders'},
+    {'key': 'stats',       'endpoint': 'stats',     'label': 'Stats'},
+    {'key': 'about',       'url': 'https://ecedcluster.africa/', 'label': 'About Us', 'external': True},
+]
+
+
+def is_individual_mode():
+    return get_setting('individual_mode', 'false').lower() == 'true'
+
+
+def get_menu_overrides():
+    """Return {key: {'hidden': bool, 'label': str}} from the stored JSON, safely."""
+    try:
+        return json.loads(get_setting('menu_overrides', '') or '{}')
+    except (ValueError, TypeError):
+        return {}
+
+
+def build_nav():
+    """Resolve the visible primary-nav items, applying admin show/hide/rename
+    overrides and individual-first defaults."""
+    overrides = get_menu_overrides()
+    individual = is_individual_mode()
+    nav = []
+    for item in NAV_ITEMS:
+        ov = overrides.get(item['key'], {})
+        if ov.get('hidden'):
+            continue
+        label = (ov.get('label') or '').strip() or item['label']
+        # Sensible default rename for the directory in individual-first mode
+        if item['key'] == 'members' and individual and not (ov.get('label') or '').strip():
+            label = 'Contributors'
+        try:
+            href = item['url'] if item.get('external') else url_for(item['endpoint'])
+        except Exception:
+            continue
+        nav.append({
+            'key': item['key'], 'label': label, 'href': href,
+            'external': item.get('external', False),
+        })
+    return nav
+
+
+@app.context_processor
+def inject_site_config():
+    """Expose site branding + computed nav to every template. Resilient by design."""
+    try:
+        site = {
+            'name': get_setting('site_name', DEFAULT_SITE_NAME) or DEFAULT_SITE_NAME,
+            'tagline': get_setting('site_tagline', DEFAULT_SITE_TAGLINE) or DEFAULT_SITE_TAGLINE,
+            'individual_mode': is_individual_mode(),
+        }
+        return {'site': site, 'nav': build_nav()}
+    except Exception:
+        return {
+            'site': {'name': DEFAULT_SITE_NAME, 'tagline': DEFAULT_SITE_TAGLINE,
+                     'individual_mode': False},
+            'nav': [],
+        }
+
+
+# ===================== CONTRIBUTOR CERTIFICATES =====================
+
+def grant_certificate(user, send_notification=True):
+    """Idempotently issue a contributor certificate for `user`.
+    Returns (certificate, created_bool). Sends a notification email only on first issue."""
+    if hasattr(user, '_get_current_object'):
+        user = user._get_current_object()
+    existing = Certificate.query.filter_by(user_id=user.id).first()
+    if existing:
+        return existing, False
+    cert = Certificate(user_id=user.id, token=uuid.uuid4().hex, created_at=datetime.utcnow())
+    db.session.add(cert)
+    db.session.commit()
+    if send_notification:
+        try:
+            cert_url = (Config.APP_URL or '').rstrip('/') + url_for('certificate', token=cert.token)
+            site_name = get_setting('site_name', DEFAULT_SITE_NAME) or DEFAULT_SITE_NAME
+            send_certificate_email(user, cert_url, site_name)
+        except Exception as e:
+            app.logger.error(f"Certificate email error for user {user.id}: {e}")
+    return cert, True
+
+
 
 def _brevo_already_contacted(email):
     """Return True if Brevo already has this email as a contact (i.e. we have emailed them before).
@@ -878,15 +997,79 @@ def award_points(user, activity=None, commit=True):
     # 2. Update the user's score with the undeniable truth from the DB
     user.points = total_points
     db.session.add(user)
-    
+
     if commit:
         db.session.commit()
+
+    # 3. Individual-first mode: issue a contributor certificate the first time
+    #    a member has a published article (fires once; idempotent).
+    if activity in ('initiative_published', 'initiative_approved'):
+        try:
+            if is_individual_mode() and Initiative.query.filter_by(
+                    user_id=user.id, is_published=True).count() > 0:
+                grant_certificate(user)
+        except Exception as e:
+            app.logger.error(f"Certificate grant error for user {getattr(user, 'id', '?')}: {e}")
 
 # ===================== USER LOADER =====================
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
+
+# ===================== SITE-USAGE ANALYTICS =====================
+
+@app.after_request
+def _track_page_view(response):
+    """Record one PageView per successful HTML GET. Resilient — analytics
+    failures must never break a page render."""
+    try:
+        if request.method != 'GET':
+            return response
+        path = request.path or '/'
+        if path == '/favicon.ico' or path.startswith(('/static', '/api', '/health')):
+            return response
+        if response.status_code >= 400:
+            return response
+        if not (response.content_type or '').startswith('text/html'):
+            return response
+
+        # Identify visitor with a long-lived anonymous cookie
+        vid = request.cookies.get('vid')
+        new_vid = None
+        if not vid:
+            vid = uuid.uuid4().hex
+            new_vid = vid
+
+        # Keep only genuine external referrers
+        ref_host = None
+        if request.referrer:
+            try:
+                from urllib.parse import urlparse
+                host = (request.host or '').split(':')[0].lower()
+                rh = (urlparse(request.referrer).hostname or '').lower()
+                if rh and rh != host:
+                    ref_host = rh[:255]
+            except Exception:
+                ref_host = None
+
+        db.session.add(PageView(
+            path=path[:300],
+            visitor_id=vid,
+            is_authenticated=bool(getattr(current_user, 'is_authenticated', False)),
+            referrer_host=ref_host,
+            created_at=datetime.utcnow(),
+        ))
+        db.session.commit()
+
+        if new_vid:
+            response.set_cookie(
+                'vid', new_vid, max_age=60 * 60 * 24 * 730,
+                samesite='Lax', httponly=True, secure=request.is_secure
+            )
+    except Exception:
+        db.session.rollback()
+    return response
 
 # ===================== PUBLIC ROUTES =====================
 
@@ -1050,10 +1233,13 @@ def register():
                 return redirect(url_for('register'))
 
         # Auto-approve new registrations immediately
+        # In individual-first mode the organisation field is removed from the form;
+        # fall back to a neutral default so the (non-null) column is always satisfied.
+        organization = (request.form.get('organization') or '').strip() or 'Independent'
         user = User(
             email=email,
             name=request.form.get('name'),
-            organization=request.form.get('organization'),
+            organization=organization,
             stakeholder_type=stakeholder_type,
             country=request.form.get('country'),
             is_approved=True,
@@ -1966,6 +2152,34 @@ def vote_recommendation(id):
 
 @app.route('/members')
 def members():
+    # Individual-first mode: replace the organisation directory with a top-100
+    # leaderboard of individual contributors and their countries.
+    if is_individual_mode():
+        top_users = (User.query.filter_by(is_approved=True, is_admin=False)
+                     .order_by(User.points.desc(), User.name.asc()).limit(100).all())
+        ids = [u.id for u in top_users]
+        contrib = dict(
+            db.session.query(Initiative.user_id, db.func.count(Initiative.id))
+            .filter(Initiative.user_id.in_(ids), Initiative.is_published == True)
+            .group_by(Initiative.user_id).all()
+        ) if ids else {}
+        # Ensure displayed contributors have a certificate so the leaderboard always
+        # links to one. Granted silently here (no email); new publishes still trigger
+        # the email notification via award_points().
+        certs = dict(
+            db.session.query(Certificate.user_id, Certificate.token)
+            .filter(Certificate.user_id.in_(ids)).all()
+        ) if ids else {}
+        for u in top_users:
+            if contrib.get(u.id, 0) > 0 and u.id not in certs:
+                cert, _ = grant_certificate(u, send_notification=False)
+                certs[u.id] = cert.token
+        individuals = [{
+            'name': u.name, 'country': u.country, 'points': u.points or 0,
+            'contributions': contrib.get(u.id, 0), 'cert_token': certs.get(u.id),
+        } for u in top_users]
+        return render_template('members_individual.html', individuals=individuals)
+
     type_filter = request.args.get('type', '').strip()
     query = db.session.query(
         User.organization,
@@ -1976,6 +2190,16 @@ def members():
         query = query.filter(User.stakeholder_type == type_filter)
     orgs = query.group_by(User.organization, User.stakeholder_type).all()
     return render_template('members.html', organizations=orgs, active_type=type_filter)
+
+
+@app.route('/certificate/<token>')
+def certificate(token):
+    """Public, printable contributor certificate page."""
+    cert = Certificate.query.filter_by(token=token).first_or_404()
+    member = cert.user
+    initiatives = (Initiative.query.filter_by(user_id=member.id, is_published=True)
+                   .order_by(Initiative.created_at.desc()).all())
+    return render_template('certificate.html', cert=cert, member=member, initiatives=initiatives)
 
 @app.route('/leaderboard')
 def leaderboard():
@@ -1999,6 +2223,171 @@ def leaderboard():
     .limit(10).all()
 
     return render_template('leaderboard.html', org_stats=org_stats, expert_stats=expert_stats)
+
+
+# ===================== STATS / PARTICIPATION =====================
+
+# Approximate (lat, lng) centroids for the African countries offered in the
+# registration dropdown — used to plot the participation bubble map.
+AFRICA_CENTROIDS = {
+    'Algeria': (28.0, 1.6), 'Angola': (-11.2, 17.9), 'Benin': (9.3, 2.3),
+    'Botswana': (-22.3, 24.7), 'Burkina Faso': (12.2, -1.6), 'Burundi': (-3.4, 29.9),
+    'Cabo Verde': (16.0, -24.0), 'Cameroon': (7.4, 12.4),
+    'Central African Republic': (6.6, 20.9), 'Chad': (15.4, 18.7),
+    'Comoros': (-11.6, 43.3), 'Congo (Brazzaville)': (-0.2, 15.8),
+    'Congo (DRC)': (-4.0, 21.8), 'Djibouti': (11.8, 42.6), 'Egypt': (26.8, 30.8),
+    'Equatorial Guinea': (1.6, 10.3), 'Eritrea': (15.2, 39.8), 'Eswatini': (-26.5, 31.5),
+    'Ethiopia': (9.1, 40.5), 'Gabon': (-0.8, 11.6), 'Gambia': (13.4, -15.3),
+    'Ghana': (7.9, -1.0), 'Guinea': (9.9, -9.7), 'Guinea-Bissau': (11.8, -15.2),
+    'Ivory Coast': (7.5, -5.5), 'Kenya': (0.2, 37.9), 'Lesotho': (-29.6, 28.2),
+    'Liberia': (6.4, -9.4), 'Libya': (26.3, 17.2), 'Madagascar': (-18.8, 46.9),
+    'Malawi': (-13.3, 34.3), 'Mali': (17.6, -4.0), 'Mauritania': (21.0, -10.9),
+    'Mauritius': (-20.3, 57.6), 'Morocco': (31.8, -7.1), 'Mozambique': (-18.7, 35.5),
+    'Namibia': (-22.6, 18.5), 'Niger': (17.6, 8.1), 'Nigeria': (9.1, 8.7),
+    'Rwanda': (-1.9, 29.9), 'São Tomé and Príncipe': (0.2, 6.6), 'Senegal': (14.5, -14.5),
+    'Seychelles': (-4.7, 55.5), 'Sierra Leone': (8.5, -11.8), 'Somalia': (5.2, 46.2),
+    'South Africa': (-30.6, 22.9), 'South Sudan': (7.9, 29.7), 'Sudan': (12.9, 30.2),
+    'Tanzania': (-6.4, 34.9), 'Togo': (8.6, 0.8), 'Tunisia': (33.9, 9.5),
+    'Uganda': (1.4, 32.3), 'Zambia': (-13.1, 27.8), 'Zimbabwe': (-19.0, 29.2),
+}
+
+# Common name variants from older/imported data → canonical dropdown name.
+_COUNTRY_ALIASES = {
+    "cote d'ivoire": 'Ivory Coast', "côte d'ivoire": 'Ivory Coast',
+    'drc': 'Congo (DRC)', 'dr congo': 'Congo (DRC)',
+    'democratic republic of the congo': 'Congo (DRC)',
+    'republic of the congo': 'Congo (Brazzaville)', 'congo': 'Congo (Brazzaville)',
+    'congo-brazzaville': 'Congo (Brazzaville)',
+    'cape verde': 'Cabo Verde', 'swaziland': 'Eswatini',
+    'sao tome and principe': 'São Tomé and Príncipe',
+    'the gambia': 'Gambia', 'tanzania, united republic of': 'Tanzania',
+}
+_CENTROID_LOWER = {k.lower(): k for k in AFRICA_CENTROIDS}
+
+
+def _normalize_country(raw):
+    """Map a free-text country value to a canonical dropdown name, or None."""
+    if not raw:
+        return None
+    key = raw.strip().lower()
+    if key in _CENTROID_LOWER:
+        return _CENTROID_LOWER[key]
+    return _COUNTRY_ALIASES.get(key)
+
+
+@app.route('/stats')
+def stats():
+    from sqlalchemy import func, distinct
+
+    # ---- Headline counts -------------------------------------------------
+    total_members = User.query.filter_by(is_approved=True).count()
+    org_count = db.session.query(
+        func.count(distinct(func.lower(func.trim(User.organization))))
+    ).filter(
+        User.is_approved == True, User.organization != None,
+        func.trim(User.organization) != ''
+    ).scalar() or 0
+    headline = {
+        'members': total_members,
+        'organizations': org_count,
+        'initiatives': Initiative.query.filter_by(is_published=True).count(),
+        'events': Event.query.filter_by(is_published=True).count(),
+        'projects': Project.query.filter_by(is_published=True).count(),
+        'documents': DocumentLibrary.query.filter_by(is_published=True).count(),
+    }
+
+    # ---- Participation by country ---------------------------------------
+    country_rows = db.session.query(
+        User.country, func.count(User.id)
+    ).filter(User.is_approved == True).group_by(User.country).all()
+
+    by_country = {}
+    other_count = 0
+    for raw, count in country_rows:
+        canon = _normalize_country(raw)
+        if canon:
+            by_country[canon] = by_country.get(canon, 0) + count
+        else:
+            other_count += count
+
+    map_points = [
+        {'country': c, 'count': n, 'lat': AFRICA_CENTROIDS[c][0], 'lng': AFRICA_CENTROIDS[c][1]}
+        for c, n in by_country.items()
+    ]
+    map_points.sort(key=lambda p: p['count'], reverse=True)
+    country_table = list(map_points)  # same data, used for the summary table
+    headline['countries'] = len(by_country)
+
+    # ---- Stakeholder breakdown ------------------------------------------
+    stake_rows = db.session.query(
+        User.stakeholder_type, func.count(User.id)
+    ).filter(User.is_approved == True).group_by(User.stakeholder_type).all()
+    stakeholders = sorted(
+        [{'type': (t or 'Unspecified'), 'count': n} for t, n in stake_rows],
+        key=lambda r: r['count'], reverse=True
+    )
+
+    # ---- Member growth over time (cumulative, by month) -----------------
+    dates = [d for (d,) in db.session.query(User.created_at)
+             .filter(User.is_approved == True, User.created_at != None).all()]
+    monthly = {}
+    for d in dates:
+        monthly[d.strftime('%Y-%m')] = monthly.get(d.strftime('%Y-%m'), 0) + 1
+    growth_labels, growth_values, running = [], [], 0
+    for ym in sorted(monthly):
+        running += monthly[ym]
+        growth_labels.append(ym)
+        growth_values.append(running)
+
+    # ---- Site-usage analytics -------------------------------------------
+    now = datetime.utcnow()
+    since30 = now - timedelta(days=30)
+    analytics = {
+        'total_views': db.session.query(func.count(PageView.id)).scalar() or 0,
+        'total_visitors': db.session.query(
+            func.count(distinct(PageView.visitor_id))).scalar() or 0,
+        'views_30d': db.session.query(func.count(PageView.id))
+            .filter(PageView.created_at >= since30).scalar() or 0,
+        'visitors_30d': db.session.query(func.count(distinct(PageView.visitor_id)))
+            .filter(PageView.created_at >= since30).scalar() or 0,
+    }
+
+    # Daily views for the last 30 days (zero-filled)
+    daily_rows = db.session.query(
+        func.date(PageView.created_at), func.count(PageView.id)
+    ).filter(PageView.created_at >= since30).group_by(func.date(PageView.created_at)).all()
+    daily_map = {str(d): n for d, n in daily_rows}
+    daily_labels, daily_values = [], []
+    for i in range(29, -1, -1):
+        day = (now - timedelta(days=i)).strftime('%Y-%m-%d')
+        daily_labels.append(day)
+        daily_values.append(daily_map.get(day, 0))
+
+    top_pages = [
+        {'path': p, 'views': n} for p, n in db.session.query(
+            PageView.path, func.count(PageView.id)
+        ).filter(PageView.created_at >= since30)
+         .group_by(PageView.path).order_by(func.count(PageView.id).desc()).limit(10).all()
+    ]
+    top_referrers = [
+        {'host': h, 'views': n} for h, n in db.session.query(
+            PageView.referrer_host, func.count(PageView.id)
+        ).filter(PageView.referrer_host != None)
+         .group_by(PageView.referrer_host).order_by(func.count(PageView.id).desc()).limit(8).all()
+    ]
+
+    return render_template(
+        'stats.html',
+        headline=headline,
+        map_points=map_points,
+        country_table=country_table,
+        other_count=other_count,
+        stakeholders=stakeholders,
+        growth_labels=growth_labels, growth_values=growth_values,
+        analytics=analytics,
+        daily_labels=daily_labels, daily_values=daily_values,
+        top_pages=top_pages, top_referrers=top_referrers,
+    )
 
 # ===================== EVENTS AND POLLS =====================
 
@@ -3091,6 +3480,48 @@ def admin_settings():
     # Get current auto_approve setting
     auto_approve = get_setting('auto_approve_members', 'true').lower() == 'true'
     return render_template('admin/settings.html', stats=stats, config=Config, auto_approve=auto_approve)
+
+@app.route('/admin/appearance', methods=['GET', 'POST'])
+@login_required
+def admin_appearance():
+    """Front-end overrides: site name/tagline, menu show/hide/rename, individual-first mode."""
+    if not current_user.is_admin:
+        abort(403)
+    if request.method == 'POST':
+        set_setting('site_name', (request.form.get('site_name') or '').strip() or DEFAULT_SITE_NAME)
+        set_setting('site_tagline', (request.form.get('site_tagline') or '').strip() or DEFAULT_SITE_TAGLINE)
+        set_setting('individual_mode', 'true' if request.form.get('individual_mode') else 'false')
+
+        overrides = {}
+        for item in NAV_ITEMS:
+            key = item['key']
+            entry = {}
+            if request.form.get(f'show_{key}') is None:   # checkbox absent => hidden
+                entry['hidden'] = True
+            label = (request.form.get(f'label_{key}') or '').strip()
+            if label and label != item['label']:
+                entry['label'] = label
+            if entry:
+                overrides[key] = entry
+        set_setting('menu_overrides', json.dumps(overrides))
+        flash('Appearance settings updated.', 'success')
+        return redirect(url_for('admin_appearance'))
+
+    overrides = get_menu_overrides()
+    nav_config = [{
+        'key': item['key'],
+        'default_label': item['label'],
+        'label': overrides.get(item['key'], {}).get('label', ''),
+        'shown': not overrides.get(item['key'], {}).get('hidden', False),
+        'external': item.get('external', False),
+    } for item in NAV_ITEMS]
+    return render_template(
+        'admin/appearance.html',
+        site_name=get_setting('site_name', DEFAULT_SITE_NAME),
+        site_tagline=get_setting('site_tagline', DEFAULT_SITE_TAGLINE),
+        individual_mode=is_individual_mode(),
+        nav_config=nav_config,
+    )
 
 @app.route('/admin/fields', methods=['GET', 'POST'])
 @login_required

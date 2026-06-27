@@ -119,5 +119,26 @@ with app.app_context():
             CREATE INDEX IF NOT EXISTS ix_learn_more_requester_initiative_month
             ON learn_more_request (requester_id, initiative_id, created_at)
         '''))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS page_view (
+                id SERIAL PRIMARY KEY,
+                path VARCHAR(300) NOT NULL,
+                visitor_id VARCHAR(36),
+                is_authenticated BOOLEAN DEFAULT FALSE,
+                referrer_host VARCHAR(255),
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        '''))
+        conn.execute(db.text('CREATE INDEX IF NOT EXISTS ix_page_view_created_at ON page_view (created_at)'))
+        conn.execute(db.text('CREATE INDEX IF NOT EXISTS ix_page_view_visitor_id ON page_view (visitor_id)'))
+        conn.execute(db.text('CREATE INDEX IF NOT EXISTS ix_page_view_path ON page_view (path)'))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS certificate (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER UNIQUE NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+                token VARCHAR(32) UNIQUE NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        '''))
         conn.commit()
     print('DB ready.')

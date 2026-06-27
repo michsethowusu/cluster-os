@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Contributors — {{ site.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .lb-hero {
+        background: linear-gradient(135deg, #007451 0%, #0066cc 100%);
+        color: #fff; padding: 45px 0; text-align: center;
+    }
+    .lb-table th { color: #6c757d; font-weight: 600; font-size: 0.85rem; text-transform: uppercase; }
+    .lb-table td { vertical-align: middle; }
+    .rank-badge {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 34px; height: 34px; border-radius: 50%; font-weight: 700;
+        background: #e9ecef; color: #495057;
+    }
+    .rank-1 { background: #ffcc00; color: #5a4b00; }
+    .rank-2 { background: #d4d7da; color: #333; }
+    .rank-3 { background: #e8b88a; color: #5a3b1a; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="lb-hero">
+    <div class="container">
+        <h1 class="fw-bold"><i class="bi bi-people-fill"></i> Our Contributors</h1>
+        <p class="lead mb-0">The top individuals advancing {{ site.name }} across Africa.</p>
+    </div>
+</div>
+
+<div class="container my-5">
+    <div class="stats-card">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="mb-0">Top {{ individuals|length }} Contributors</h4>
+            <a href="{{ url_for('register') }}" class="btn btn-primary btn-sm">Join &amp; Contribute</a>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover lb-table align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:70px;">Rank</th>
+                        <th>Contributor</th>
+                        <th>Country</th>
+                        <th class="text-center">Contributions</th>
+                        <th class="text-end">Points</th>
+                        <th class="text-end">Certificate</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ind in individuals %}
+                    <tr>
+                        <td><span class="rank-badge rank-{{ loop.index }}">{{ loop.index }}</span></td>
+                        <td><strong>{{ ind.name }}</strong></td>
+                        <td>{% if ind.country %}<i class="bi bi-geo-alt text-success"></i> {{ ind.country }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                        <td class="text-center">{{ ind.contributions }}</td>
+                        <td class="text-end fw-bold text-primary">{{ ind.points }}</td>
+                        <td class="text-end">
+                            {% if ind.cert_token %}
+                                <a href="{{ url_for('certificate', token=ind.cert_token) }}" class="btn btn-sm btn-outline-success" target="_blank">
+                                    <i class="bi bi-award"></i> View
+                                </a>
+                            {% else %}
+                                <span class="text-muted small">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="6" class="text-center text-muted py-4">No contributors yet — be the first!</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

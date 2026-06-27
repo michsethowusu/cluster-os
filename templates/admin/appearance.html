@@ -1,0 +1,92 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}Appearance & Front-end{% endblock %}
+
+{% block admin_content %}
+<form method="POST" action="{{ url_for('admin_appearance') }}">
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Branding -->
+        <div class="card mb-4">
+            <div class="card-header"><h5 class="mb-0"><i class="bi bi-palette"></i> Branding</h5></div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Site Name</label>
+                    <input type="text" name="site_name" class="form-control" value="{{ site_name }}">
+                    <div class="form-text">Shown in the navbar brand, footer, page titles, and certificates.</div>
+                </div>
+                <div class="mb-0">
+                    <label class="form-label">Footer Tagline</label>
+                    <textarea name="site_tagline" class="form-control" rows="2">{{ site_tagline }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Menu items -->
+        <div class="card mb-4">
+            <div class="card-header"><h5 class="mb-0"><i class="bi bi-list"></i> Menu Items</h5></div>
+            <div class="card-body">
+                <p class="text-muted small">Show or hide each menu item, and optionally rename it. Leave the
+                    name blank to keep the default label.</p>
+                <table class="table align-middle">
+                    <thead class="table-light">
+                        <tr><th>Show</th><th>Menu item</th><th>Custom label</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for item in nav_config %}
+                        <tr>
+                            <td>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="show_{{ item.key }}"
+                                           {% if item.shown %}checked{% endif %}>
+                                </div>
+                            </td>
+                            <td>
+                                <strong>{{ item.default_label }}</strong>
+                                {% if item.external %}<span class="badge bg-light text-dark">external</span>{% endif %}
+                            </td>
+                            <td>
+                                <input type="text" name="label_{{ item.key }}" class="form-control form-control-sm"
+                                       value="{{ item.label }}" placeholder="{{ item.default_label }}">
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save Appearance Settings</button>
+    </div>
+
+    <div class="col-lg-4">
+        <!-- Individual-first mode -->
+        <div class="card mb-4 border-success">
+            <div class="card-header bg-success text-white">
+                <h6 class="mb-0"><i class="bi bi-person-vcard"></i> Individual-First Mode</h6>
+            </div>
+            <div class="card-body">
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="individual_mode" name="individual_mode"
+                           {% if individual_mode %}checked{% endif %}>
+                    <label class="form-check-label fw-bold" for="individual_mode">Enable individual-first mode</label>
+                </div>
+                <p class="small text-muted mb-0">When enabled:</p>
+                <ul class="small text-muted mb-0">
+                    <li>The <strong>organisation</strong> field is removed from signup.</li>
+                    <li>The organisation directory is replaced by a <strong>top-100 individual contributors</strong> leaderboard (with countries).</li>
+                    <li>Anyone with a published article is issued a <strong>printable contributor certificate</strong> and notified by email.</li>
+                </ul>
+            </div>
+        </div>
+        <div class="card bg-light">
+            <div class="card-body">
+                <h6>Note</h6>
+                <p class="small text-muted mb-0">Changes apply immediately across the site. The
+                    "Contributors" menu item is just the renamed Stakeholders item — rename it above if you prefer.</p>
+            </div>
+        </div>
+    </div>
+</div>
+</form>
+{% endblock %}

@@ -153,7 +153,13 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'admin_settings' %}active{% endif %}" 
+                        <a class="nav-link {% if request.endpoint == 'admin_appearance' %}active{% endif %}"
+                           href="{{ url_for('admin_appearance') }}">
+                            <i class="bi bi-palette"></i> Appearance
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_settings' %}active{% endif %}"
                            href="{{ url_for('admin_settings') }}">
                             <i class="bi bi-gear-wide-connected"></i> Settings
                         </a>

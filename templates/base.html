@@ -190,33 +190,20 @@
     <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container">
             <a class="navbar-brand" href="{{ url_for('index') }}">
-                <i class="bi bi-globe-africa"></i> AU ECED-FLN
+                <i class="bi bi-globe-africa"></i> {{ site.name }}
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
+                    {% for item in nav %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('index') }}">Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('search') }}">Initiatives</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('documents') }}">Policy Documents</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('events') }}">Events</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('members') }}">Stakeholders</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="https://ecedcluster.africa/" target="_blank" rel="noopener noreferrer">
-                            About Us <i class="bi bi-box-arrow-up-right" style="font-size: 0.75rem;"></i>
+                        <a class="nav-link" href="{{ item.href }}"{% if item.external %} target="_blank" rel="noopener noreferrer"{% endif %}>
+                            {{ item.label }}{% if item.external %} <i class="bi bi-box-arrow-up-right" style="font-size: 0.75rem;"></i>{% endif %}
                         </a>
                     </li>
+                    {% endfor %}
                 </ul>
                 <ul class="navbar-nav">
                     {% if current_user.is_authenticated %}
@@ -265,11 +252,11 @@
         <div class="container">
             <div class="row">
                 <div class="col-md-6">
-                    <h5>African Union ECED-FLN Cluster</h5>
-                    <p>Accelerating Early Childhood Education and Development & Foundational Learning across Africa.</p>
+                    <h5>{{ site.name }}</h5>
+                    <p>{{ site.tagline }}</p>
                 </div>
                 <div class="col-md-6 text-md-end">
-                    <p>&copy; 2026 AU ECED-FLN Cluster. This platform is open source.</p>
+                    <p>&copy; 2026 {{ site.name }}. This platform is open source.</p>
                 </div>
             </div>
         </div>

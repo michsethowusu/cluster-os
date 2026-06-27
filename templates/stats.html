@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Statistics & Participation — AU ECED-FLN Cluster{% endblock %}
+{% block title %}Participation — {{ site.name }}{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -136,77 +136,6 @@
         </div>
     </div>
 
-    <!-- Site usage analytics -->
-    <h3 class="section-title"><i class="bi bi-activity"></i> Site Usage</h3>
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-md-3">
-            <div class="metric-card">
-                <div class="metric-icon"><i class="bi bi-eye-fill"></i></div>
-                <div class="metric-value">{{ analytics.total_views }}</div>
-                <div class="metric-label">Total Page Views</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="metric-card">
-                <div class="metric-icon"><i class="bi bi-person-badge-fill"></i></div>
-                <div class="metric-value">{{ analytics.total_visitors }}</div>
-                <div class="metric-label">Unique Visitors</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="metric-card">
-                <div class="metric-icon"><i class="bi bi-calendar3"></i></div>
-                <div class="metric-value">{{ analytics.views_30d }}</div>
-                <div class="metric-label">Views (30 days)</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="metric-card">
-                <div class="metric-icon"><i class="bi bi-person-walking"></i></div>
-                <div class="metric-value">{{ analytics.visitors_30d }}</div>
-                <div class="metric-label">Visitors (30 days)</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row g-4 mb-5">
-        <div class="col-lg-12">
-            <div class="panel-card mb-4">
-                <h5><i class="bi bi-bar-chart-line-fill"></i> Daily Page Views (Last 30 Days)</h5>
-                <canvas id="dailyChart" height="90"></canvas>
-            </div>
-        </div>
-        <div class="col-lg-6">
-            <div class="panel-card">
-                <h5><i class="bi bi-file-earmark-text-fill"></i> Top Pages (30 days)</h5>
-                <table class="table table-stats table-sm">
-                    <thead><tr><th>Page</th><th class="text-end">Views</th></tr></thead>
-                    <tbody>
-                    {% for p in top_pages %}
-                        <tr><td><code>{{ p.path }}</code></td><td class="text-end fw-bold">{{ p.views }}</td></tr>
-                    {% else %}
-                        <tr><td colspan="2" class="text-muted">No data yet.</td></tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        <div class="col-lg-6">
-            <div class="panel-card">
-                <h5><i class="bi bi-box-arrow-in-right"></i> Top Referrers</h5>
-                <table class="table table-stats table-sm">
-                    <thead><tr><th>Source</th><th class="text-end">Views</th></tr></thead>
-                    <tbody>
-                    {% for r in top_referrers %}
-                        <tr><td>{{ r.host }}</td><td class="text-end fw-bold">{{ r.views }}</td></tr>
-                    {% else %}
-                        <tr><td colspan="2" class="text-muted">No external referrers recorded yet.</td></tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
 </div>
 {% endblock %}
 
@@ -220,8 +149,6 @@
     const stakeholders = {{ stakeholders | tojson }};
     const growthLabels = {{ growth_labels | tojson }};
     const growthValues = {{ growth_values | tojson }};
-    const dailyLabels = {{ daily_labels | tojson }};
-    const dailyValues = {{ daily_values | tojson }};
 
     const AU_GREEN = '#007451', AU_BLUE = '#0066cc', AU_GOLD = '#ffcc00';
 
@@ -264,22 +191,6 @@
             }]
         },
         options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-    });
-
-    // ---- Daily views bar ----
-    new Chart(document.getElementById('dailyChart'), {
-        type: 'bar',
-        data: {
-            labels: dailyLabels,
-            datasets: [{ label: 'Page views', data: dailyValues, backgroundColor: AU_BLUE, borderRadius: 3 }]
-        },
-        options: {
-            plugins: { legend: { display: false } },
-            scales: {
-                y: { beginAtZero: true, ticks: { precision: 0 } },
-                x: { ticks: { maxTicksLimit: 10, font: { size: 10 } } }
-            }
-        }
     });
 })();
 </script>

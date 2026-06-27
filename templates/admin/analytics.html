@@ -1,0 +1,105 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}Site Analytics{% endblock %}
+
+{% block admin_content %}
+<!-- Summary cards -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="stat-card-admin">
+            <div class="text-muted small"><i class="bi bi-eye-fill"></i> Total Page Views</div>
+            <div class="h3 mb-0 fw-bold text-primary">{{ analytics.total_views }}</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="stat-card-admin">
+            <div class="text-muted small"><i class="bi bi-person-badge-fill"></i> Unique Visitors</div>
+            <div class="h3 mb-0 fw-bold text-primary">{{ analytics.total_visitors }}</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="stat-card-admin">
+            <div class="text-muted small"><i class="bi bi-calendar3"></i> Views (30 days)</div>
+            <div class="h3 mb-0 fw-bold text-primary">{{ analytics.views_30d }}</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="stat-card-admin">
+            <div class="text-muted small"><i class="bi bi-person-walking"></i> Visitors (30 days)</div>
+            <div class="h3 mb-0 fw-bold text-primary">{{ analytics.visitors_30d }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Daily views -->
+<div class="card mb-4">
+    <div class="card-header"><h5 class="mb-0"><i class="bi bi-bar-chart-line-fill"></i> Daily Page Views (Last 30 Days)</h5></div>
+    <div class="card-body">
+        <canvas id="dailyChart" height="90"></canvas>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-file-earmark-text-fill"></i> Top Pages (30 days)</h6></div>
+            <div class="card-body">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light"><tr><th>Page</th><th class="text-end">Views</th></tr></thead>
+                    <tbody>
+                    {% for p in top_pages %}
+                        <tr><td><code>{{ p.path }}</code></td><td class="text-end fw-bold">{{ p.views }}</td></tr>
+                    {% else %}
+                        <tr><td colspan="2" class="text-muted">No data yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-box-arrow-in-right"></i> Top Referrers</h6></div>
+            <div class="card-body">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light"><tr><th>Source</th><th class="text-end">Views</th></tr></thead>
+                    <tbody>
+                    {% for r in top_referrers %}
+                        <tr><td>{{ r.host }}</td><td class="text-end fw-bold">{{ r.views }}</td></tr>
+                    {% else %}
+                        <tr><td colspan="2" class="text-muted">No external referrers recorded yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<p class="text-muted small">Analytics are collected from anonymous page-view cookies (no personal data) and
+   began on first deploy of this feature.</p>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    const dailyLabels = {{ daily_labels | tojson }};
+    const dailyValues = {{ daily_values | tojson }};
+    new Chart(document.getElementById('dailyChart'), {
+        type: 'bar',
+        data: {
+            labels: dailyLabels,
+            datasets: [{ label: 'Page views', data: dailyValues, backgroundColor: '#0066cc', borderRadius: 3 }]
+        },
+        options: {
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, ticks: { precision: 0 } },
+                x: { ticks: { maxTicksLimit: 10, font: { size: 10 } } }
+            }
+        }
+    });
+})();
+</script>
+{% endblock %}

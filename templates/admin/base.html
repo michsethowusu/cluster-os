@@ -159,6 +159,12 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_analytics' %}active{% endif %}"
+                           href="{{ url_for('admin_analytics') }}">
+                            <i class="bi bi-graph-up"></i> Site Analytics
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'admin_settings' %}active{% endif %}"
                            href="{{ url_for('admin_settings') }}">
                             <i class="bi bi-gear-wide-connected"></i> Settings

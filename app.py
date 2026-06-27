@@ -539,7 +539,7 @@ NAV_ITEMS = [
     {'key': 'documents',   'endpoint': 'documents', 'label': 'Policy Documents'},
     {'key': 'events',      'endpoint': 'events',    'label': 'Events'},
     {'key': 'members',     'endpoint': 'members',   'label': 'Stakeholders'},
-    {'key': 'stats',       'endpoint': 'stats',     'label': 'Stats'},
+    {'key': 'stats',       'endpoint': 'stats',     'label': 'Participation'},
     {'key': 'about',       'url': 'https://ecedcluster.africa/', 'label': 'About Us', 'external': True},
 ]
 
@@ -2339,7 +2339,26 @@ def stats():
         growth_labels.append(ym)
         growth_values.append(running)
 
-    # ---- Site-usage analytics -------------------------------------------
+    return render_template(
+        'stats.html',
+        headline=headline,
+        map_points=map_points,
+        country_table=country_table,
+        other_count=other_count,
+        stakeholders=stakeholders,
+        growth_labels=growth_labels, growth_values=growth_values,
+    )
+
+
+@app.route('/admin/analytics')
+@login_required
+def admin_analytics():
+    """Admin-only site-usage analytics: page views, unique visitors, daily trend,
+    top pages, and top referrers."""
+    if not current_user.is_admin:
+        abort(403)
+    from sqlalchemy import func, distinct
+
     now = datetime.utcnow()
     since30 = now - timedelta(days=30)
     analytics = {
@@ -2377,13 +2396,7 @@ def stats():
     ]
 
     return render_template(
-        'stats.html',
-        headline=headline,
-        map_points=map_points,
-        country_table=country_table,
-        other_count=other_count,
-        stakeholders=stakeholders,
-        growth_labels=growth_labels, growth_values=growth_values,
+        'admin/analytics.html',
         analytics=analytics,
         daily_labels=daily_labels, daily_values=daily_values,
         top_pages=top_pages, top_referrers=top_referrers,

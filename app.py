@@ -2291,9 +2291,6 @@ def stats():
         'members': total_members,
         'organizations': org_count,
         'initiatives': Initiative.query.filter_by(is_published=True).count(),
-        'events': Event.query.filter_by(is_published=True).count(),
-        'projects': Project.query.filter_by(is_published=True).count(),
-        'documents': DocumentLibrary.query.filter_by(is_published=True).count(),
     }
 
     # ---- Participation by country ---------------------------------------

@@ -44,10 +44,10 @@
     <!-- Stats Section -->
     <div class="row mb-5">
         <div class="col-md-3 mb-3">
-            <a href="{{ url_for('members') }}" class="text-decoration-none">
+            <a href="{{ url_for('stats') }}" class="text-decoration-none">
                 <div class="stats-card text-center" style="cursor:pointer;">
-                    <div class="stats-number">{{ stats.total_members }}</div>
-                    <div class="text-muted">Stakeholders</div>
+                    <div class="stats-number">{{ stats.total_countries }}</div>
+                    <div class="text-muted">Countries</div>
                 </div>
             </a>
         </div>
@@ -62,16 +62,16 @@
         <div class="col-md-3 mb-3">
             <a href="{{ url_for('members') }}" class="text-decoration-none">
                 <div class="stats-card text-center" style="cursor:pointer;">
-                    <div class="stats-number">{{ stats.stakeholders|length }}</div>
-                    <div class="text-muted">Stakeholder Types</div>
+                    <div class="stats-number">{{ stats.total_organizations }}</div>
+                    <div class="text-muted">Organizations</div>
                 </div>
             </a>
         </div>
         <div class="col-md-3 mb-3">
             <a href="{{ url_for('members') }}" class="text-decoration-none">
                 <div class="stats-card text-center" style="cursor:pointer;">
-                    <div class="stats-number">{{ stats.total_organizations }}</div>
-                    <div class="text-muted">Organizations</div>
+                    <div class="stats-number">{{ stats.total_members }}</div>
+                    <div class="text-muted">Practitioners</div>
                 </div>
             </a>
         </div>

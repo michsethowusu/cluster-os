@@ -1087,6 +1087,7 @@ def index():
         'total_members': User.query.filter_by(is_approved=True).count(),
         'total_initiatives': Initiative.query.filter_by(is_published=True).count(),
         'total_organizations': org_count or 0,
+        'total_countries': count_participating_countries(),
         'stakeholders': {}
     }
     
@@ -2273,6 +2274,12 @@ def _normalize_country(raw):
     if key in _CENTROID_LOWER:
         return _CENTROID_LOWER[key]
     return _COUNTRY_ALIASES.get(key)
+
+
+def count_participating_countries():
+    """Number of distinct African countries represented by approved members."""
+    rows = db.session.query(User.country).filter(User.is_approved == True).all()
+    return len({_normalize_country(c) for (c,) in rows if _normalize_country(c)})
 
 
 @app.route('/stats')

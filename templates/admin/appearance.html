@@ -3,7 +3,7 @@
 {% block admin_title %}Appearance & Front-end{% endblock %}
 
 {% block admin_content %}
-<form method="POST" action="{{ url_for('admin_appearance') }}">
+<form method="POST" action="{{ url_for('admin_appearance') }}" enctype="multipart/form-data">
 <div class="row">
     <div class="col-lg-8">
         <!-- Branding -->
@@ -13,11 +13,55 @@
                 <div class="mb-3">
                     <label class="form-label">Site Name</label>
                     <input type="text" name="site_name" class="form-control" value="{{ site_name }}">
-                    <div class="form-text">Shown in the navbar brand, footer, page titles, and certificates.</div>
+                    <div class="form-text">Used everywhere — navbar text logo, footer, page titles,
+                        certificates, and outgoing email branding.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Footer Text</label>
+                    <textarea name="site_tagline" class="form-control" rows="2">{{ site_tagline }}</textarea>
+                    <div class="form-text">The description paragraph shown in the footer.</div>
                 </div>
                 <div class="mb-0">
-                    <label class="form-label">Footer Tagline</label>
-                    <textarea name="site_tagline" class="form-control" rows="2">{{ site_tagline }}</textarea>
+                    <label class="form-label">Footer Bottom Line</label>
+                    <input type="text" name="footer_note" class="form-control" value="{{ footer_note }}"
+                           placeholder="© 2026 {{ site_name }}. This platform is open source.">
+                    <div class="form-text">Leave blank to use the default copyright line.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Front page header -->
+        <div class="card mb-4">
+            <div class="card-header"><h5 class="mb-0"><i class="bi bi-image"></i> Front Page Header</h5></div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Header Title</label>
+                    <input type="text" name="hero_heading" class="form-control" value="{{ hero_heading }}"
+                           placeholder="{{ default_hero_heading }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Header Text</label>
+                    <textarea name="hero_text" class="form-control" rows="2"
+                              placeholder="{{ default_hero_text }}">{{ hero_text }}</textarea>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Header Image</label>
+                    <div class="d-flex align-items-center gap-3 mb-2">
+                        <img src="{{ url_for('static', filename=hero_image or default_hero_image) }}"
+                             alt="Current header image" class="rounded shadow-sm"
+                             style="width:80px;height:80px;object-fit:cover;">
+                        <div class="small text-muted">
+                            {% if hero_image %}Custom image set.{% else %}Using the default image.{% endif %}
+                        </div>
+                    </div>
+                    <input type="file" name="hero_image" class="form-control" accept="image/*">
+                    <div class="form-text">PNG, JPG, GIF, WEBP, or SVG. Leave empty to keep the current image.</div>
+                    {% if hero_image %}
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" name="reset_hero_image" id="reset_hero_image">
+                        <label class="form-check-label small" for="reset_hero_image">Reset to default image</label>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>

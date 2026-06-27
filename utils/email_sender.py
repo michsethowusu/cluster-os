@@ -9,6 +9,19 @@ def _url(path):
     return f"{base}{path}"
 
 
+def _site_name():
+    """Resolve the admin-configurable site name for email branding.
+    Prefers the live DB setting, falls back to the SITE_NAME env var, then a default."""
+    try:
+        from app import get_setting
+        name = get_setting('site_name', None)
+        if name:
+            return name
+    except Exception:
+        pass
+    return os.environ.get('SITE_NAME') or 'AU ECED-FLN'
+
+
 def _unsubscribe_url(email):
     """Return just the unsubscribe URL for a given email (no HTML wrapping)."""
     import hmac, hashlib
@@ -23,7 +36,7 @@ def _unsubscribe_footer(email):
     unsub_url = _unsubscribe_url(email)
     return f"""
         <p style="color:#aaa;font-size:0.78em;text-align:center;margin:0;">
-            You are receiving this because you are a member of the AU&nbsp;ECED-FLN Cluster Platform.<br>
+            You are receiving this because you are a member of {_site_name()}.<br>
             <a href="{unsub_url}" style="color:#aaa;">Unsubscribe from notifications</a>
         </p>"""
 
@@ -35,8 +48,9 @@ def _base_email(title, body_html, footer_html=""):
     - White body keeps it clean and readable.
     - Light grey footer for unsubscribe / platform credit.
     """
+    site_name = _site_name()
     if not footer_html:
-        footer_html = '<p style="color:#aaa;font-size:0.78em;text-align:center;margin:0;">This email was sent by the AU ECED-FLN Cluster Platform.</p>'
+        footer_html = f'<p style="color:#aaa;font-size:0.78em;text-align:center;margin:0;">This email was sent by {site_name}.</p>'
 
     return f"""<!DOCTYPE html>
 <html>
@@ -47,7 +61,7 @@ def _base_email(title, body_html, footer_html=""):
     <!-- Body -->
     <div style="padding:36px 32px 24px;line-height:1.6;">
       <p style="margin:0 0 24px;font-size:0.75em;color:#aaa;text-transform:uppercase;
-                letter-spacing:1px;font-weight:bold;text-align:center;">AU ECED-FLN Cluster Platform</p>
+                letter-spacing:1px;font-weight:bold;text-align:center;">{site_name}</p>
       <h2 style="margin:0 0 20px;color:#1a56db;font-size:1.25em;font-weight:bold;line-height:1.3;">
         {title}
       </h2>
@@ -98,7 +112,7 @@ def send_email(to_email, subject, html_content, text_content=None):
         sender_name = sender_raw.split('<')[0].strip()
         sender_email = sender_raw.split('<')[1].replace('>', '').strip()
     else:
-        sender_name = 'AU ECED-FLN Platform'
+        sender_name = _site_name()
         sender_email = sender_raw
 
     payload = {

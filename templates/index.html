@@ -21,9 +21,8 @@
     <div class="container">
         <div class="row align-items-center">
             <div class="col-lg-7">
-                <h1 class="display-5 mb-3 text-dark fw-bold">African Union ECED-FLN Cluster</h1>
-                <p class="lead mb-4 text-muted">Connecting experts and organizations to accelerate Early Childhood Education and Development 
-                & Foundational Learning across Africa.</p>
+                <h1 class="display-5 mb-3 text-dark fw-bold">{{ site.hero_heading }}</h1>
+                <p class="lead mb-4 text-muted">{{ site.hero_text }}</p>
                 <div class="mb-2">
                     <a href="{{ url_for('members') }}" class="text-decoration-none text-primary fw-semibold me-4">Stakeholders →</a>
                     <a href="{{ url_for('search') }}" class="text-decoration-none text-primary fw-semibold me-4">Initiatives →</a>
@@ -31,8 +30,8 @@
                 </div>
             </div>
             <div class="col-lg-5 text-center text-lg-end mt-4 mt-lg-0">
-                <img src="{{ url_for('static', filename='images/au-eced-logo.png') }}" 
-                     alt="AU ECED-FLN Cluster" 
+                <img src="{{ url_for('static', filename=site.hero_image) }}"
+                     alt="{{ site.name }}"
                      class="rounded-circle shadow"
                      style="width: 280px; height: 280px; object-fit: cover;">
             </div>

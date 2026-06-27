@@ -530,6 +530,10 @@ def set_setting(key, value):
 DEFAULT_SITE_NAME = 'AU ECED-FLN'
 DEFAULT_SITE_TAGLINE = ('Accelerating Early Childhood Education and Development & '
                         'Foundational Learning across Africa.')
+DEFAULT_HERO_IMAGE = 'images/au-eced-logo.png'   # static-relative path
+DEFAULT_HERO_HEADING = 'African Union ECED-FLN Cluster'
+DEFAULT_HERO_TEXT = ('Connecting experts and organizations to accelerate Early Childhood '
+                     'Education and Development & Foundational Learning across Africa.')
 
 # Canonical primary-nav items. Site admins can hide or rename each one; the
 # `members` item is also auto-relabelled in individual-first mode.
@@ -585,16 +589,24 @@ def build_nav():
 def inject_site_config():
     """Expose site branding + computed nav to every template. Resilient by design."""
     try:
+        name = get_setting('site_name', DEFAULT_SITE_NAME) or DEFAULT_SITE_NAME
         site = {
-            'name': get_setting('site_name', DEFAULT_SITE_NAME) or DEFAULT_SITE_NAME,
+            'name': name,
             'tagline': get_setting('site_tagline', DEFAULT_SITE_TAGLINE) or DEFAULT_SITE_TAGLINE,
             'individual_mode': is_individual_mode(),
+            'hero_image': get_setting('hero_image') or DEFAULT_HERO_IMAGE,
+            'hero_heading': get_setting('hero_heading') or DEFAULT_HERO_HEADING,
+            'hero_text': get_setting('hero_text') or DEFAULT_HERO_TEXT,
+            'footer_note': (get_setting('footer_note')
+                            or f'© 2026 {name}. This platform is open source.'),
         }
         return {'site': site, 'nav': build_nav()}
     except Exception:
         return {
             'site': {'name': DEFAULT_SITE_NAME, 'tagline': DEFAULT_SITE_TAGLINE,
-                     'individual_mode': False},
+                     'individual_mode': False, 'hero_image': DEFAULT_HERO_IMAGE,
+                     'hero_heading': DEFAULT_HERO_HEADING, 'hero_text': DEFAULT_HERO_TEXT,
+                     'footer_note': f'© 2026 {DEFAULT_SITE_NAME}. This platform is open source.'},
             'nav': [],
         }
 
@@ -3505,9 +3517,33 @@ def admin_appearance():
     if not current_user.is_admin:
         abort(403)
     if request.method == 'POST':
-        set_setting('site_name', (request.form.get('site_name') or '').strip() or DEFAULT_SITE_NAME)
+        site_name = (request.form.get('site_name') or '').strip() or DEFAULT_SITE_NAME
+        set_setting('site_name', site_name)
+        # Keep an env copy so context-free email sends pick up the override too.
+        os.environ['SITE_NAME'] = site_name
         set_setting('site_tagline', (request.form.get('site_tagline') or '').strip() or DEFAULT_SITE_TAGLINE)
+        set_setting('footer_note', (request.form.get('footer_note') or '').strip())
         set_setting('individual_mode', 'true' if request.form.get('individual_mode') else 'false')
+
+        # Front-page header text
+        set_setting('hero_heading', (request.form.get('hero_heading') or '').strip())
+        set_setting('hero_text', (request.form.get('hero_text') or '').strip())
+
+        # Front-page header image: reset, or upload a replacement
+        if request.form.get('reset_hero_image'):
+            set_setting('hero_image', '')
+        else:
+            file = request.files.get('hero_image')
+            if file and file.filename:
+                ext = os.path.splitext(file.filename)[1].lower().lstrip('.')
+                if ext in {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'}:
+                    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+                    fname = f"hero_{uuid.uuid4().hex}.{ext}"
+                    file.save(os.path.join(app.config['UPLOAD_FOLDER'], fname))
+                    set_setting('hero_image', f"uploads/{fname}")
+                else:
+                    flash('Header image must be PNG, JPG, GIF, WEBP, or SVG.', 'error')
+                    return redirect(url_for('admin_appearance'))
 
         overrides = {}
         for item in NAV_ITEMS:
@@ -3536,6 +3572,13 @@ def admin_appearance():
         'admin/appearance.html',
         site_name=get_setting('site_name', DEFAULT_SITE_NAME),
         site_tagline=get_setting('site_tagline', DEFAULT_SITE_TAGLINE),
+        footer_note=get_setting('footer_note', ''),
+        hero_heading=get_setting('hero_heading', ''),
+        hero_text=get_setting('hero_text', ''),
+        hero_image=get_setting('hero_image', ''),
+        default_hero_image=DEFAULT_HERO_IMAGE,
+        default_hero_heading=DEFAULT_HERO_HEADING,
+        default_hero_text=DEFAULT_HERO_TEXT,
         individual_mode=is_individual_mode(),
         nav_config=nav_config,
     )

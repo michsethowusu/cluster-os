@@ -243,7 +243,7 @@
                         <tr><td>email</td><td>Yes</td><td>Must match an existing approved member (or be created)</td></tr>
                         <tr><td>name</td><td>Yes *</td><td>Full name (used only when creating a new member)</td></tr>
                         <tr><td>organization</td><td>Yes *</td><td>Organization (used only when creating a new member)</td></tr>
-                        <tr><td>stakeholder_type</td><td>Yes *</td><td>See valid types on the right (used only when creating)</td></tr>
+                        <tr><td>stakeholder_type</td><td>Yes *</td><td>Must match a configured type — manage in <a href="{{ url_for('admin_stakeholder_types') }}">Stakeholder Types</a></td></tr>
                         <tr><td>country</td><td>Yes *</td><td>Country (used only when creating a new member)</td></tr>
                         <tr><td>initiative_title</td><td>Yes</td><td>Title of the initiative</td></tr>
                         <tr><td>initiative_content</td><td>Yes</td><td>Full description / content (Markdown supported)</td></tr>
@@ -260,13 +260,11 @@
         <div class="card mb-3">
             <div class="card-body">
                 <h6>Stakeholder Types</h6>
+                <p class="small text-muted mb-2">Configured via <a href="{{ url_for('admin_stakeholder_types') }}">Stakeholder Types</a>:</p>
                 <ul class="list-unstyled small mb-0">
-                    <li>• Government</li>
-                    <li>• NGO / Civil Society</li>
-                    <li>• Development Partner / Donor</li>
-                    <li>• Academic / Research</li>
-                    <li>• UN Agency</li>
-                    <li>• Private Sector</li>
+                    {% for stype in stakeholder_types %}
+                    <li>• {{ stype }}</li>
+                    {% endfor %}
                 </ul>
             </div>
         </div>

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, abort, session, Response, send_from_directory
 from markupsafe import Markup
 from flask_sqlalchemy import SQLAlchemy
@@ -279,6 +280,21 @@ class Translation(db.Model):
     translation = db.Column(db.Text, nullable=False)
 
 
+class StakeholderType(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+    is_member_state = db.Column(db.Boolean, default=False)
+    is_active = db.Column(db.Boolean, default=True)
+    order = db.Column(db.Integer, default=0)
+
+
+class Label(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(100), unique=True, nullable=False)
+    value = db.Column(db.Text, nullable=False, default='')
+    category = db.Column(db.String(50), default='general')
+
+
 # NEW MODELS FOR EVENTS AND POLLS
 class Event(db.Model):
     id                 = db.Column(db.Integer, primary_key=True)
@@ -525,7 +541,149 @@ def set_setting(key, value):
     db.session.commit()
 
 
+# ===================== STAKEHOLDER TYPES =====================
+
+DEFAULT_STAKEHOLDER_TYPES = [
+    'Member State', 'Government', 'NGO / Civil Society',
+    'Development Partner / Donor', 'Academic / Research',
+    'UN Agency', 'Private Sector'
+]
+
+
+def get_stakeholder_types():
+    try:
+        types = StakeholderType.query.filter_by(is_active=True).order_by(StakeholderType.order).all()
+        if types:
+            return [t.name for t in types]
+    except Exception:
+        pass
+    return DEFAULT_STAKEHOLDER_TYPES
+
+
+def get_member_state_type():
+    try:
+        mst = StakeholderType.query.filter_by(is_member_state=True, is_active=True).first()
+        if mst:
+            return mst.name
+    except Exception:
+        pass
+    return 'Government'
+
+
+def get_label(key, default=''):
+    try:
+        label = Label.query.filter_by(key=key).first()
+        if label and label.value:
+            return label.value
+    except Exception:
+        pass
+    return default
+
+
 # ===================== SITE CONFIG / FRONT-END OVERRIDES =====================
+
+# Canonical label keys with their default English values.
+# Admin can override any of these via the Labels admin page.
+LABEL_DEFAULTS = {
+    # Nav / Auth
+    'nav_dashboard': 'Dashboard',
+    'nav_admin': 'Admin',
+    'nav_logout': 'Logout',
+    'nav_login': 'Login',
+    'nav_join': 'Join Cluster',
+    # Hero CTA links
+    'hero_cta_stakeholders': 'Stakeholders →',
+    'hero_cta_initiatives': 'Initiatives →',
+    'hero_cta_documents': 'Policy Documents →',
+    # Homepage stat cards
+    'stat_countries': 'Countries',
+    'stat_initiatives': 'ECED Initiatives',
+    'stat_organizations': 'Organizations',
+    'stat_members': 'Practitioners',
+    # Homepage sections
+    'section_stakeholder_ecosystem': 'Stakeholder Ecosystem',
+    'section_recent_initiatives': 'Recent Initiatives',
+    'section_view_all': 'View All',
+    'read_more': 'Read More',
+    'cta_title': 'Join the Cluster',
+    'cta_text': 'Share your ECED/FLN initiatives and connect with stakeholders across Africa.',
+    'cta_button': 'Request Access',
+    # Form labels
+    'form_full_name': 'Full Name',
+    'form_email': 'Email Address',
+    'form_organization': 'Organization',
+    'form_country': 'Country',
+    'form_stakeholder_type': 'Stakeholder Type',
+    'form_initiative_title': 'Initiative Title',
+    'form_initiative_content': 'Initiative Content',
+    'form_initiative_short_desc': 'Short Description (min 10 words)',
+    'form_initiative_content': 'Full Initiative Description (min 300 words)',
+    # Actions
+    'btn_save': 'Save',
+    'btn_cancel': 'Cancel',
+    'btn_delete': 'Delete',
+    'btn_edit': 'Edit',
+    'btn_submit': 'Submit',
+    'btn_search': 'Search',
+    # Dashboard
+    'dashboard_title': 'Dashboard',
+    'dashboard_my_initiatives': 'My Initiatives',
+    'dashboard_my_projects': 'My Projects',
+    'dashboard_my_events': 'My Events',
+    # Members
+    'members_title': 'Stakeholders',
+    'members_filter': 'Filter by type',
+    # Pages
+    'page_initiatives': 'Initiatives',
+    'page_documents': 'Policy Documents',
+    'page_events': 'Events',
+    'page_stats': 'Participation',
+    'page_about': 'About Us',
+    # Stats
+    'stats_title': 'Participation',
+    'stats_stakeholder_breakdown': 'Stakeholder Breakdown',
+    'stats_growth': 'Member Growth',
+    # Footer
+    'footer_tagline': 'Accelerating Early Childhood Education and Development & Foundational Learning across Africa.',
+    # Register
+    'register_title': 'Join the Cluster',
+    'register_subtitle': 'Complete the form below to request access to the cluster.',
+    # Admin sidebar
+    'admin_dashboard': 'Dashboard',
+    'admin_approvals': 'Approvals',
+    'admin_comments': 'Comments',
+    'admin_members': 'Members',
+    'admin_initiatives': 'Initiatives',
+    'admin_send_queue': 'Send Queue',
+    'admin_projects': 'Projects',
+    'admin_events': 'Events',
+    'admin_policy': 'Policy Developments',
+    'admin_documents': 'Document Library',
+    'admin_ta_needs': 'TA Needs',
+    'admin_form_fields': 'Form Fields',
+    'admin_appearance': 'Appearance',
+    'admin_labels': 'Labels',
+    'admin_stakeholder_types': 'Stakeholder Types',
+    'admin_analytics': 'Site Analytics',
+    'admin_settings': 'Settings',
+    'admin_import_initiatives': 'Import Initiatives',
+    'admin_import_members': 'Import Members',
+    'admin_export_members': 'Export Members CSV',
+    'admin_view_site': 'View Site',
+    'admin_my_dashboard': 'My Dashboard',
+    'admin_bulk_import': 'Bulk Import',
+    'admin_quick_links': 'Quick Links',
+    'admin_administration': 'Administration',
+    'admin_export': 'Export',
+
+    # Technical Assistance
+    'ta_page_title': 'Member State Technical Assistance Needs',
+    'ta_page_description': 'Technical assistance requests submitted by African Union Member States on Early Childhood Education & Foundational Learning.',
+    'ta_submitted': 'TA Need Submitted',
+    'ta_submit_btn': 'Submit TA Need',
+    'ta_login_prompt': 'Member State? Log in to submit',
+    'ta_submit_info': 'Member States can submit their ECED/FLN technical assistance needs here for cluster-wide visibility.',
+}
 
 DEFAULT_SITE_NAME = 'AU ECED-FLN'
 DEFAULT_SITE_TAGLINE = ('Accelerating Early Childhood Education and Development & '
@@ -585,9 +743,18 @@ def build_nav():
     return nav
 
 
+@app.template_global()
+def label(key, default=''):
+    """Return the admin-overridden value for *key*, or *default* (which falls
+    back to LABEL_DEFAULTS[key] if omitted)."""
+    if not default and key in LABEL_DEFAULTS:
+        default = LABEL_DEFAULTS[key]
+    return get_label(key, default)
+
+
 @app.context_processor
 def inject_site_config():
-    """Expose site branding + computed nav to every template. Resilient by design."""
+    """Expose site branding + computed nav + labels to every template."""
     try:
         name = get_setting('site_name', DEFAULT_SITE_NAME) or DEFAULT_SITE_NAME
         site = {
@@ -600,7 +767,16 @@ def inject_site_config():
             'footer_note': (get_setting('footer_note')
                             or f'© 2026 {name}. This platform is open source.'),
         }
-        return {'site': site, 'nav': build_nav()}
+        resolved = {}
+        for k, v in LABEL_DEFAULTS.items():
+            resolved[k] = get_label(k, v)
+        return {
+            'site': site,
+            'nav': build_nav(),
+            'labels': resolved,
+            'stakeholder_types': get_stakeholder_types(),
+            'member_state_type': get_member_state_type(),
+        }
     except Exception:
         return {
             'site': {'name': DEFAULT_SITE_NAME, 'tagline': DEFAULT_SITE_TAGLINE,
@@ -608,6 +784,9 @@ def inject_site_config():
                      'hero_heading': DEFAULT_HERO_HEADING, 'hero_text': DEFAULT_HERO_TEXT,
                      'footer_note': f'© 2026 {DEFAULT_SITE_NAME}. This platform is open source.'},
             'nav': [],
+            'labels': dict(LABEL_DEFAULTS),
+            'stakeholder_types': DEFAULT_STAKEHOLDER_TYPES,
+            'member_state_type': 'Government',
         }
 
 
@@ -1103,8 +1282,7 @@ def index():
         'stakeholders': {}
     }
     
-    for stype in ['Government', 'NGO / Civil Society', 'Development Partner / Donor', 
-                  'Academic / Research', 'UN Agency', 'Private Sector']:
+    for stype in get_stakeholder_types():
         stats['stakeholders'][stype] = User.query.filter_by(
             stakeholder_type=stype, is_approved=True
         ).count()
@@ -1215,7 +1393,7 @@ def register():
     if request.method == 'POST':
         email = request.form.get('email', '').lower().strip()
         stakeholder_type = request.form.get('stakeholder_type', '').strip()
-        is_member_state = (stakeholder_type == 'Member State')
+        is_member_state = (stakeholder_type == get_member_state_type())
 
         if User.query.filter_by(email=email).first():
             flash('Email already registered.', 'error')
@@ -1386,11 +1564,7 @@ def register():
         )
         return redirect(url_for('login'))
 
-    stakeholder_types = ['Member State', 'Government', 'NGO / Civil Society',
-                         'Development Partner / Donor', 'Academic / Research',
-                         'UN Agency', 'Private Sector']
-
-    return render_template('register.html', stakeholder_types=stakeholder_types, custom_fields=custom_fields)
+    return render_template('register.html', stakeholder_types=get_stakeholder_types(), custom_fields=custom_fields)
 
 @app.route('/profile/edit', methods=['GET', 'POST'])
 @login_required
@@ -3071,7 +3245,7 @@ def admin_send_queue():
 
     # Count Member State members without a TA submission (for the invite button)
     member_state_users = User.query.filter_by(
-        stakeholder_type=MEMBER_STATE_TYPE, is_approved=True
+        stakeholder_type=get_member_state_type(), is_approved=True
     ).all()
     submitted_user_ids = {
         row.user_id for row in TechnicalAssistanceNeed.query.with_entities(
@@ -3583,6 +3757,119 @@ def admin_appearance():
         nav_config=nav_config,
     )
 
+
+@app.route('/admin/stakeholder-types', methods=['GET', 'POST'])
+@login_required
+def admin_stakeholder_types():
+    """CRUD for stakeholder type categories — overrides the hardcoded defaults."""
+    if not current_user.is_admin:
+        abort(403)
+
+    if request.method == 'POST':
+        action = request.form.get('action', '')
+
+        if action == 'add':
+            name = request.form.get('name', '').strip()
+            if name:
+                existing = StakeholderType.query.filter_by(name=name).first()
+                if existing:
+                    flash(f'Stakeholder type "{name}" already exists.', 'error')
+                else:
+                    db.session.add(StakeholderType(
+                        name=name,
+                        is_member_state=bool(request.form.get('is_member_state')),
+                        order=StakeholderType.query.count() + 1,
+                    ))
+                    db.session.commit()
+                    flash(f'Stakeholder type "{name}" added.', 'success')
+            else:
+                flash('Name is required.', 'error')
+
+        elif action == 'edit':
+            st_id = request.form.get('id', type=int)
+            st = StakeholderType.query.get_or_404(st_id)
+            new_name = request.form.get('name', '').strip()
+            if new_name and new_name != st.name:
+                existing = StakeholderType.query.filter_by(name=new_name).first()
+                if existing:
+                    flash(f'Stakeholder type "{new_name}" already exists.', 'error')
+                else:
+                    old_name = st.name
+                    st.name = new_name
+                    flash(f'Renamed "{old_name}" to "{new_name}".', 'success')
+            st.is_member_state = bool(request.form.get('is_member_state'))
+            st.is_active = bool(request.form.get('is_active'))
+            db.session.commit()
+            flash('Stakeholder type updated.', 'success')
+
+        elif action == 'delete':
+            st_id = request.form.get('id', type=int)
+            st = StakeholderType.query.get_or_404(st_id)
+            # Prevent deleting if users are assigned
+            users_count = User.query.filter_by(stakeholder_type=st.name).count()
+            if users_count > 0:
+                flash(f'Cannot delete "{st.name}": {users_count} member(s) use this type.', 'error')
+            else:
+                db.session.delete(st)
+                db.session.commit()
+                flash(f'Stakeholder type "{st.name}" deleted.', 'success')
+
+        elif action == 'reorder':
+            order_ids = request.form.getlist('order[]')
+            for idx, sid in enumerate(order_ids, start=1):
+                st = StakeholderType.query.get(int(sid))
+                if st:
+                    st.order = idx
+            db.session.commit()
+            flash('Order updated.', 'success')
+
+        return redirect(url_for('admin_stakeholder_types'))
+
+    types = StakeholderType.query.order_by(StakeholderType.order).all()
+    return render_template('admin/stakeholder_types.html', types=types,
+                         defaults=DEFAULT_STAKEHOLDER_TYPES)
+
+
+@app.route('/admin/labels', methods=['GET', 'POST'])
+@login_required
+def admin_labels():
+    """Manage all front-end label overrides."""
+    if not current_user.is_admin:
+        abort(403)
+
+    if request.method == 'POST':
+        action = request.form.get('action', '')
+
+        if action == 'update':
+            for key in LABEL_DEFAULTS:
+                val = request.form.get(f'label_{key}', '').strip()
+                existing = Label.query.filter_by(key=key).first()
+                if val:
+                    if existing:
+                        existing.value = val
+                    else:
+                        db.session.add(Label(key=key, value=val))
+                else:
+                    if existing:
+                        db.session.delete(existing)
+            db.session.commit()
+            flash('Labels updated.', 'success')
+
+        return redirect(url_for('admin_labels'))
+
+    all_labels = []
+    db_labels = {l.key: l for l in Label.query.all()}
+    for key, default in LABEL_DEFAULTS.items():
+        override = db_labels.get(key)
+        all_labels.append({
+            'key': key,
+            'default': default,
+            'value': override.value if override else '',
+        })
+
+    return render_template('admin/labels.html', labels=all_labels)
+
+
 @app.route('/admin/fields', methods=['GET', 'POST'])
 @login_required
 def admin_fields():
@@ -3905,8 +4192,7 @@ def admin_import_members():
                 # ── NORMAL IMPORT MODE (synchronous — creates DB records) ─────
                 if not (invite_only or custom_message_mode or event_invite_mode):
                     imported = 0
-                    valid_types = ['Government', 'NGO / Civil Society', 'Development Partner / Donor',
-                                   'Academic / Research', 'UN Agency', 'Private Sector']
+                    db_types = get_stakeholder_types()
                     for r in valid_rows:
                         email = r['_email']
                         name  = r['_name']
@@ -3914,7 +4200,7 @@ def admin_import_members():
                         if User.query.filter_by(email=email).first():
                             errors.append(f"Row {row_num}: Email already exists")
                             continue
-                        if r['stakeholder_type'].strip() not in valid_types:
+                        if r['stakeholder_type'].strip() not in db_types:
                             errors.append(f"Row {row_num}: Invalid stakeholder_type")
                             continue
                         user = User(
@@ -4156,8 +4442,7 @@ def admin_import_initiatives():
                 if not create_new:
                     skipped_rows.append(f"Skipped {email}: not a member")
                     continue
-                valid_types = ['Government', 'NGO / Civil Society', 'Development Partner / Donor',
-                               'Academic / Research', 'UN Agency', 'Private Sector']
+                valid_types = get_stakeholder_types()
                 if row.get('stakeholder_type', '').strip() not in valid_types:
                     skipped_rows.append(f"Skipped {email}: invalid stakeholder_type")
                     continue
@@ -4850,10 +5135,7 @@ def admin_edit_member(id):
             flash(f'Member {user.email} updated successfully.', 'success')
             return redirect(url_for('admin_members'))
 
-    stakeholder_types = ['Member State', 'Government', 'NGO / Civil Society',
-                         'Development Partner / Donor', 'Academic / Research',
-                         'UN Agency', 'Private Sector']
-    return render_template('admin/edit_member.html', user=user, stakeholder_types=stakeholder_types)
+    return render_template('admin/edit_member.html', user=user, stakeholder_types=get_stakeholder_types())
 
 # ===================== MEMBER PROJECT SUBMISSION =====================
 
@@ -5423,6 +5705,7 @@ def admin_reprocess_policy(id):
 
 # ===================== TECHNICAL ASSISTANCE NEEDS =====================
 
+# Legacy constant — prefer get_member_state_type() for dynamic resolution
 MEMBER_STATE_TYPE = 'Government'
 
 
@@ -5450,7 +5733,7 @@ def technical_assistance():
 
     # For Member State users, check if they've already submitted a TA need
     user_has_submitted = False
-    if current_user.is_authenticated and current_user.stakeholder_type == MEMBER_STATE_TYPE:
+    if current_user.is_authenticated and current_user.stakeholder_type == get_member_state_type():
         user_has_submitted = TechnicalAssistanceNeed.query.filter_by(
             user_id=current_user.id
         ).first() is not None
@@ -5479,7 +5762,7 @@ def view_ta_need(id):
 @login_required
 def new_ta_need():
     """Member State stakeholders submit a technical assistance need."""
-    if current_user.stakeholder_type != MEMBER_STATE_TYPE:
+    if current_user.stakeholder_type != get_member_state_type():
         abort(403)
 
     if request.method == 'POST':
@@ -5558,7 +5841,7 @@ def admin_ta_needs():
         TechnicalAssistanceNeed.created_at.desc()
     ).all()
     submitted_user_ids = {t.user_id for t in ta_needs}
-    eligible_query = User.query.filter_by(stakeholder_type=MEMBER_STATE_TYPE, is_approved=True)
+    eligible_query = User.query.filter_by(stakeholder_type=get_member_state_type(), is_approved=True)
     if submitted_user_ids:
         eligible_query = eligible_query.filter(~User.id.in_(submitted_user_ids))
     ta_invite_eligible_count = eligible_query.count()
@@ -5622,7 +5905,7 @@ def admin_invite_member_states_ta():
 
     # All approved Member State users who have no TA need submitted at all
     member_state_users = User.query.filter_by(
-        stakeholder_type=MEMBER_STATE_TYPE,
+        stakeholder_type=get_member_state_type(),
         is_approved=True,
     ).all()
 
@@ -5919,24 +6202,46 @@ def sync_all_points():
 @app.cli.command('init-db')
 def init_db():
     db.create_all()
-    # Create admin user
-    admin = User(
-        email=Config.ADMIN_EMAIL,
-        name='Administrator',
-        organization='AU ECED-FLN',
-        stakeholder_type='Government',
-        country='Ethiopia',
-        is_approved=True,
-        is_admin=True
-    )
-    db.session.add(admin)
-    # Default registration fields
-    fields = [
-        RegistrationField(field_name='expertise', field_label='Area of Expertise', field_type='textarea'),
-        RegistrationField(field_name='website', field_label='Organization Website', field_type='text', is_required=False)
-    ]
-    for field in fields:
-        db.session.add(field)
+
+    # Seed default stakeholder types (idempotent)
+    if not StakeholderType.query.first():
+        for i, name in enumerate(DEFAULT_STAKEHOLDER_TYPES):
+            st = StakeholderType(
+                name=name,
+                is_member_state=(name == 'Member State'),
+                is_active=True,
+                order=i,
+            )
+            db.session.add(st)
+
+    # Seed default labels (idempotent)
+    if not Label.query.first():
+        for key, default in LABEL_DEFAULTS.items():
+            db.session.add(Label(key=key, value='', category=key.split('_')[0]))
+
+    # Create admin user (idempotent — skip if already exists)
+    admin = User.query.filter_by(email=Config.ADMIN_EMAIL).first()
+    if not admin:
+        admin = User(
+            email=Config.ADMIN_EMAIL,
+            name='Administrator',
+            organization='AU ECED-FLN',
+            stakeholder_type='Government',
+            country='Ethiopia',
+            is_approved=True,
+            is_admin=True
+        )
+        db.session.add(admin)
+
+    # Default registration fields (idempotent)
+    if not RegistrationField.query.first():
+        fields = [
+            RegistrationField(field_name='expertise', field_label='Area of Expertise', field_type='textarea'),
+            RegistrationField(field_name='website', field_label='Organization Website', field_type='text', is_required=False)
+        ]
+        for field in fields:
+            db.session.add(field)
+
     db.session.commit()
     print('Database initialized.')
 

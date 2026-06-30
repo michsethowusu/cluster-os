@@ -8,19 +8,19 @@
         <div class="col-md-8">
             <div class="card shadow">
                 <div class="card-body p-5">
-                    <h3 class="text-center mb-2">Join AU ECED-FLN Cluster</h3>
-                    <p class="text-muted text-center mb-4">Complete the form below to request access to the cluster.</p>
+                    <h3 class="text-center mb-2">{{ label('register_title') }}</h3>
+                    <p class="text-muted text-center mb-4">{{ label('register_subtitle') }}</p>
                     
                     <form method="POST" action="{{ url_for('register') }}" class="needs-validation" novalidate>
 
                         <!-- ── Personal & Organisation Details ── -->
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Full Name *</label>
+                                <label class="form-label">{{ label('form_full_name') }} *</label>
                                 <input type="text" name="name" class="form-control" required>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Email Address *</label>
+                                <label class="form-label">{{ label('form_email') }} *</label>
                                 <input type="email" name="email" class="form-control" required>
                             </div>
                         </div>
@@ -28,13 +28,13 @@
                         <div class="row">
                             {% if not site.individual_mode %}
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Organization *</label>
+                                <label class="form-label">{{ label('form_organization') }} *</label>
                                 <input type="text" name="organization" id="orgInput" class="form-control" required autocomplete="off" placeholder="Start typing your organisation…">
                                 <ul id="orgSuggestions" class="list-group position-absolute z-3 w-100" style="display:none; max-height:220px; overflow-y:auto;"></ul>
                             </div>
                             {% endif %}
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Country *</label>
+                                <label class="form-label">{{ label('form_country') }} *</label>
                                 <select name="country" class="form-select" required>
                                     <option value="">Select Country</option>
                                     <optgroup label="African Countries">
@@ -101,7 +101,7 @@
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Stakeholder Type *</label>
+                            <label class="form-label">{{ label('form_stakeholder_type') }} *</label>
                             <select name="stakeholder_type" id="stakeholderTypeSelect" class="form-select" required>
                                 <option value="">Select Type</option>
                                 {% for type in stakeholder_types %}
@@ -194,6 +194,7 @@
 
 {% block extra_js %}
 <script>
+const MEMBER_STATE_TYPE = '{{ member_state_type|e }}';
 function countWords(str) {
     return str.trim().split(/\s+/).filter(w => w.length > 0).length;
 }
@@ -212,7 +213,7 @@ const memberStateEmailNotice = document.getElementById('memberStateEmailNotice')
 const memberStateJoinNotice  = document.getElementById('memberStateJoinNotice');
 
 function updateMemberStateUI() {
-    const isMemberState = stakeholderSelect && stakeholderSelect.value === 'Government';
+    const isMemberState = stakeholderSelect && stakeholderSelect.value === MEMBER_STATE_TYPE;
     if (initiativeSection) {
         initiativeSection.style.display = isMemberState ? 'none' : '';
     }
@@ -297,7 +298,7 @@ if (contentArea) {
 const form = document.querySelector('form[method="POST"]');
 if (form) {
     form.addEventListener('submit', function (e) {
-        const isMemberState = stakeholderSelect && stakeholderSelect.value === 'Government';
+        const isMemberState = stakeholderSelect && stakeholderSelect.value === MEMBER_STATE_TYPE;
         if (isMemberState) return; // No initiative validation needed for Member State
         const titleWords = titleInput ? countWords(titleInput.value) : 5;
         const shortDescWords = shortDescArea ? countWords(shortDescArea.value) : 10;

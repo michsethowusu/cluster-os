@@ -10,22 +10,22 @@
             <!-- Page header -->
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <div>
-                    <h3>Member State Technical Assistance Needs</h3>
-                    <p class="text-muted mb-0">Technical assistance requests submitted by African Union Member States on Early Childhood Education &amp; Foundational Learning.</p>
+                    <h3>{{ label('ta_page_title') }}</h3>
+                    <p class="text-muted mb-0">{{ label('ta_page_description') }}</p>
                 </div>
-                {% if current_user.is_authenticated and current_user.stakeholder_type == 'Member State' %}
+                {% if current_user.is_authenticated and current_user.stakeholder_type == member_state_type %}
                     {% if user_has_submitted %}
                     <span class="btn btn-outline-success disabled">
-                        <i class="bi bi-check-circle"></i> TA Need Submitted
+                        <i class="bi bi-check-circle"></i> {{ label('ta_submitted') }}
                     </span>
                     {% else %}
                     <a href="{{ url_for('new_ta_need') }}" class="btn btn-primary">
-                        <i class="bi bi-plus-lg"></i> Submit TA Need
+                        <i class="bi bi-plus-lg"></i> {{ label('ta_submit_btn') }}
                     </a>
                     {% endif %}
                 {% elif not current_user.is_authenticated %}
                 <a href="{{ url_for('login') }}" class="btn btn-outline-primary">
-                    <i class="bi bi-box-arrow-in-right"></i> Member State? Log in to submit
+                    <i class="bi bi-box-arrow-in-right"></i> {{ label('ta_login_prompt') }}
                 </a>
                 {% endif %}
             </div>
@@ -121,9 +121,9 @@
                 {% if active_country %}
                 <p>No needs found for "{{ active_country }}". Try a different country.</p>
                 {% else %}
-                <p>Member States can submit their ECED/FLN technical assistance needs here for cluster-wide visibility.</p>
+                <p>{{ label('ta_submit_info') }}</p>
                 {% endif %}
-                {% if current_user.is_authenticated and current_user.stakeholder_type == 'Member State' and not user_has_submitted %}
+                {% if current_user.is_authenticated and current_user.stakeholder_type == member_state_type and not user_has_submitted %}
                 <a href="{{ url_for('new_ta_need') }}" class="btn btn-primary">Submit Your TA Need</a>
                 {% endif %}
             </div>

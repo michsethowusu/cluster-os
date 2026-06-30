@@ -129,7 +129,7 @@
                         <a href="{{ url_for('upload_document') }}" class="btn btn-outline-secondary btn-sm">
                             <i class="bi bi-upload"></i> Upload a Document
                         </a>
-                        {% if current_user.stakeholder_type == 'Government' %}
+                        {% if current_user.stakeholder_type == member_state_type %}
                         <a href="{{ url_for('new_ta_need') }}" class="btn btn-outline-secondary btn-sm">
                             <i class="bi bi-hand-index"></i> Submit TA Need Request
                         </a>

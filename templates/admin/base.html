@@ -159,6 +159,18 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_labels' %}active{% endif %}"
+                           href="{{ url_for('admin_labels') }}">
+                            <i class="bi bi-fonts"></i> Labels
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_stakeholder_types' %}active{% endif %}"
+                           href="{{ url_for('admin_stakeholder_types') }}">
+                            <i class="bi bi-tags"></i> Stakeholder Types
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'admin_analytics' %}active{% endif %}"
                            href="{{ url_for('admin_analytics') }}">
                             <i class="bi bi-graph-up"></i> Site Analytics

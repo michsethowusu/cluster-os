@@ -1,0 +1,61 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}Labels & Text Overrides{% endblock %}
+
+{% block admin_content %}
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i> Override any front-end label below. Leave a field empty to restore its default.
+    Changes apply immediately across the site.
+</div>
+
+<form method="POST">
+    <input type="hidden" name="action" value="update">
+
+    <div class="mb-3">
+        <input type="text" id="labelSearch" class="form-control" placeholder="Search labels..." onkeyup="filterLabels()">
+    </div>
+
+    {% set current_category = None %}
+    {% for lbl in labels %}
+    {% set cat = lbl.key.split('_')[0] %}
+    {% if cat != current_category %}
+    {% if current_category is not none %}</div>{% endif %}
+    {% set current_category = cat %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-tag"></i> {{ cat|capitalize }}</h5>
+        </div>
+        <div class="card-body">
+    {% endif %}
+    <div class="mb-3 label-row" data-key="{{ lbl.key }}">
+        <label class="form-label small text-muted mb-1">
+            <code>{{ lbl.key }}</code>
+            {% if lbl.value and lbl.value != lbl.default %}
+            <span class="badge bg-warning text-dark">overridden</span>
+            {% endif %}
+        </label>
+        <input type="text" name="label_{{ lbl.key }}" class="form-control" value="{{ lbl.value }}"
+               placeholder="{{ lbl.default }}">
+        <div class="form-text">Default: <em>{{ lbl.default }}</em></div>
+    </div>
+    {% endfor %}
+    {% if labels %}
+        </div>
+    </div>
+    {% endif %}
+
+    <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save All Labels</button>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filterLabels() {
+    const q = document.getElementById('labelSearch').value.toLowerCase();
+    document.querySelectorAll('.label-row').forEach(row => {
+        const key = row.dataset.key.toLowerCase();
+        row.style.display = key.includes(q) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

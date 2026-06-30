@@ -24,9 +24,9 @@
                 <h1 class="display-5 mb-3 text-dark fw-bold">{{ site.hero_heading }}</h1>
                 <p class="lead mb-4 text-muted">{{ site.hero_text }}</p>
                 <div class="mb-2">
-                    <a href="{{ url_for('members') }}" class="text-decoration-none text-primary fw-semibold me-4">Stakeholders →</a>
-                    <a href="{{ url_for('search') }}" class="text-decoration-none text-primary fw-semibold me-4">Initiatives →</a>
-                    <a href="{{ url_for('documents') }}" class="text-decoration-none text-primary fw-semibold">Policy Documents →</a>  
+                    <a href="{{ url_for('members') }}" class="text-decoration-none text-primary fw-semibold me-4">{{ label('hero_cta_stakeholders') }}</a>
+                    <a href="{{ url_for('search') }}" class="text-decoration-none text-primary fw-semibold me-4">{{ label('hero_cta_initiatives') }}</a>
+                    <a href="{{ url_for('documents') }}" class="text-decoration-none text-primary fw-semibold">{{ label('hero_cta_documents') }}</a>
                 </div>
             </div>
             <div class="col-lg-5 text-center text-lg-end mt-4 mt-lg-0">
@@ -46,7 +46,7 @@
             <a href="{{ url_for('stats') }}" class="text-decoration-none">
                 <div class="stats-card text-center" style="cursor:pointer;">
                     <div class="stats-number">{{ stats.total_countries }}</div>
-                    <div class="text-muted">Countries</div>
+                    <div class="text-muted">{{ label('stat_countries') }}</div>
                 </div>
             </a>
         </div>
@@ -54,7 +54,7 @@
             <a href="{{ url_for('search') }}" class="text-decoration-none">
                 <div class="stats-card text-center" style="cursor:pointer;">
                     <div class="stats-number">{{ stats.total_initiatives }}</div>
-                    <div class="text-muted">ECED Initiatives</div>
+                    <div class="text-muted">{{ label('stat_initiatives') }}</div>
                 </div>
             </a>
         </div>
@@ -62,7 +62,7 @@
             <a href="{{ url_for('members') }}" class="text-decoration-none">
                 <div class="stats-card text-center" style="cursor:pointer;">
                     <div class="stats-number">{{ stats.total_organizations }}</div>
-                    <div class="text-muted">Organizations</div>
+                    <div class="text-muted">{{ label('stat_organizations') }}</div>
                 </div>
             </a>
         </div>
@@ -70,7 +70,7 @@
             <a href="{{ url_for('members') }}" class="text-decoration-none">
                 <div class="stats-card text-center" style="cursor:pointer;">
                     <div class="stats-number">{{ stats.total_members }}</div>
-                    <div class="text-muted">Practitioners</div>
+                    <div class="text-muted">{{ label('stat_members') }}</div>
                 </div>
             </a>
         </div>
@@ -79,7 +79,7 @@
     <!-- Stakeholder Breakdown -->
     <div class="row mb-5">
         <div class="col-12">
-            <h3 class="mb-4">Stakeholder Ecosystem</h3>
+            <h3 class="mb-4">{{ label('section_stakeholder_ecosystem') }}</h3>
             <div class="row">
                 {% for type, count in stats.stakeholders.items() %}
                     <div class="col-md-4 mb-3">
@@ -99,8 +99,8 @@
     <div class="row mb-5">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h3>Recent Initiatives</h3>
-                <a href="{{ url_for('search') }}" class="btn btn-outline-primary">View All</a>
+                <h3>{{ label('section_recent_initiatives') }}</h3>
+                <a href="{{ url_for('search') }}" class="btn btn-outline-primary">{{ label('section_view_all') }}</a>
             </div>
             
             <div class="row">
@@ -126,7 +126,7 @@
                                 </div>
                                 <div class="mt-auto">
                                     <a href="{{ url_for('view_initiative', slug=initiative.slug) }}" class="btn btn-primary btn-sm">
-                                        Read More
+                                        {{ label('read_more') }}
                                     </a>
                                 </div>
                             </div>
@@ -144,10 +144,10 @@
     <div class="row mb-5">
         <div class="col-12 text-center">
             <div class="stats-card py-5">
-                <h3 class="mb-3">Join the Cluster</h3>
-                <p class="lead text-muted">Share your ECED/FLN initiatives and connect with stakeholders across Africa</p>
+                <h3 class="mb-3">{{ label('cta_title') }}</h3>
+                <p class="lead text-muted">{{ label('cta_text') }}</p>
                 <a href="{{ url_for('register') }}" class="btn btn-brand-green btn-lg mt-3">
-                    Request Access
+                    {{ label('cta_button') }}
                 </a>
             </div>
         </div>

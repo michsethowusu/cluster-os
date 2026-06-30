@@ -31,7 +31,7 @@ with app.app_context():
             db.session.add(Label(key=key, value='', category=key.split('_')[0]))
         print('Default labels seeded.')
 
-    # Create admin user from environment (idempotent)
+    # Create/update admin user from environment (idempotent)
     admin_email = os.environ.get('ADMIN_EMAIL', '').strip()
     admin_password = os.environ.get('ADMIN_PASSWORD', '').strip()
     if admin_email:
@@ -50,9 +50,13 @@ with app.app_context():
                 admin.password_hash = generate_password_hash(admin_password)
             db.session.add(admin)
             print(f'Admin user created ({admin_email}).')
-        elif admin_password and not admin.password_hash:
-            admin.password_hash = generate_password_hash(admin_password)
-            print(f'Admin password set ({admin_email}).')
+        else:
+            # Ensure admin flags are set on every boot (in case of earlier incomplete init)
+            admin.is_admin = True
+            admin.is_approved = True
+            if admin_password:
+                admin.password_hash = generate_password_hash(admin_password)
+            print(f'Admin user updated ({admin_email}).')
 
     db.session.commit()
 "

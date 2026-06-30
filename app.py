@@ -1315,7 +1315,10 @@ def login():
                 return redirect(url_for('login'))
 
             # If OTP is disabled, log the admin in directly after password check
-            if not app.config.get('ADMIN_OTP_ENABLED', True):
+            otp_enabled = app.config.get('ADMIN_OTP_ENABLED', True)
+            if os.environ.get('ADMIN_OTP_ENABLED', 'true').lower() != 'true':
+                otp_enabled = False
+            if not otp_enabled:
                 login_user(user)
                 flash('Welcome back!', 'success')
                 return redirect(url_for('dashboard'))

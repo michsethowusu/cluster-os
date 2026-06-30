@@ -706,8 +706,8 @@ NAV_ITEMS = [
 ]
 
 
-def is_individual_mode():
-    return get_setting('individual_mode', 'false').lower() == 'true'
+def is_certificates_enabled():
+    return get_setting('certificates_enabled', 'false').lower() == 'true'
 
 
 def get_menu_overrides():
@@ -719,19 +719,14 @@ def get_menu_overrides():
 
 
 def build_nav():
-    """Resolve the visible primary-nav items, applying admin show/hide/rename
-    overrides and individual-first defaults."""
+    """Resolve the visible primary-nav items, applying admin show/hide/rename overrides."""
     overrides = get_menu_overrides()
-    individual = is_individual_mode()
     nav = []
     for item in NAV_ITEMS:
         ov = overrides.get(item['key'], {})
         if ov.get('hidden'):
             continue
         label = (ov.get('label') or '').strip() or item['label']
-        # Sensible default rename for the directory in individual-first mode
-        if item['key'] == 'members' and individual and not (ov.get('label') or '').strip():
-            label = 'Contributors'
         try:
             href = item['url'] if item.get('external') else url_for(item['endpoint'])
         except Exception:
@@ -760,7 +755,7 @@ def inject_site_config():
         site = {
             'name': name,
             'tagline': get_setting('site_tagline', DEFAULT_SITE_TAGLINE) or DEFAULT_SITE_TAGLINE,
-            'individual_mode': is_individual_mode(),
+            'certificates_enabled': is_certificates_enabled(),
             'hero_image': get_setting('hero_image') or DEFAULT_HERO_IMAGE,
             'hero_heading': get_setting('hero_heading') or DEFAULT_HERO_HEADING,
             'hero_text': get_setting('hero_text') or DEFAULT_HERO_TEXT,
@@ -780,7 +775,7 @@ def inject_site_config():
     except Exception:
         return {
             'site': {'name': DEFAULT_SITE_NAME, 'tagline': DEFAULT_SITE_TAGLINE,
-                     'individual_mode': False, 'hero_image': DEFAULT_HERO_IMAGE,
+                     'certificates_enabled': False, 'hero_image': DEFAULT_HERO_IMAGE,
                      'hero_heading': DEFAULT_HERO_HEADING, 'hero_text': DEFAULT_HERO_TEXT,
                      'footer_note': f'© 2026 {DEFAULT_SITE_NAME}. This platform is open source.'},
             'nav': [],
@@ -1192,11 +1187,10 @@ def award_points(user, activity=None, commit=True):
     if commit:
         db.session.commit()
 
-    # 3. Individual-first mode: issue a contributor certificate the first time
-    #    a member has a published article (fires once; idempotent).
+    # 3. Issue a contributor certificate on first published article (if enabled).
     if activity in ('initiative_published', 'initiative_approved'):
         try:
-            if is_individual_mode() and Initiative.query.filter_by(
+            if is_certificates_enabled() and Initiative.query.filter_by(
                     user_id=user.id, is_published=True).count() > 0:
                 grant_certificate(user)
         except Exception as e:
@@ -2363,34 +2357,6 @@ def vote_recommendation(id):
 
 @app.route('/members')
 def members():
-    # Individual-first mode: replace the organisation directory with a top-100
-    # leaderboard of individual contributors and their countries.
-    if is_individual_mode():
-        top_users = (User.query.filter_by(is_approved=True, is_admin=False)
-                     .order_by(User.points.desc(), User.name.asc()).limit(100).all())
-        ids = [u.id for u in top_users]
-        contrib = dict(
-            db.session.query(Initiative.user_id, db.func.count(Initiative.id))
-            .filter(Initiative.user_id.in_(ids), Initiative.is_published == True)
-            .group_by(Initiative.user_id).all()
-        ) if ids else {}
-        # Ensure displayed contributors have a certificate so the leaderboard always
-        # links to one. Granted silently here (no email); new publishes still trigger
-        # the email notification via award_points().
-        certs = dict(
-            db.session.query(Certificate.user_id, Certificate.token)
-            .filter(Certificate.user_id.in_(ids)).all()
-        ) if ids else {}
-        for u in top_users:
-            if contrib.get(u.id, 0) > 0 and u.id not in certs:
-                cert, _ = grant_certificate(u, send_notification=False)
-                certs[u.id] = cert.token
-        individuals = [{
-            'name': u.name, 'country': u.country, 'points': u.points or 0,
-            'contributions': contrib.get(u.id, 0), 'cert_token': certs.get(u.id),
-        } for u in top_users]
-        return render_template('members_individual.html', individuals=individuals)
-
     type_filter = request.args.get('type', '').strip()
     query = db.session.query(
         User.organization,
@@ -3711,7 +3677,7 @@ def admin_settings():
 @app.route('/admin/appearance', methods=['GET', 'POST'])
 @login_required
 def admin_appearance():
-    """Front-end overrides: site name/tagline, menu show/hide/rename, individual-first mode."""
+    """Front-end overrides: site name/tagline, menu show/hide/rename, certificates toggle."""
     if not current_user.is_admin:
         abort(403)
     if request.method == 'POST':
@@ -3721,7 +3687,7 @@ def admin_appearance():
         os.environ['SITE_NAME'] = site_name
         set_setting('site_tagline', (request.form.get('site_tagline') or '').strip() or DEFAULT_SITE_TAGLINE)
         set_setting('footer_note', (request.form.get('footer_note') or '').strip())
-        set_setting('individual_mode', 'true' if request.form.get('individual_mode') else 'false')
+        set_setting('certificates_enabled', 'true' if request.form.get('certificates_enabled') else 'false')
 
         # Front-page header text
         set_setting('hero_heading', (request.form.get('hero_heading') or '').strip())
@@ -3777,7 +3743,7 @@ def admin_appearance():
         default_hero_image=DEFAULT_HERO_IMAGE,
         default_hero_heading=DEFAULT_HERO_HEADING,
         default_hero_text=DEFAULT_HERO_TEXT,
-        individual_mode=is_individual_mode(),
+        certificates_enabled=is_certificates_enabled(),
         nav_config=nav_config,
     )
 

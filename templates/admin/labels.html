@@ -12,7 +12,8 @@
     <input type="hidden" name="action" value="update">
 
     <div class="mb-3">
-        <input type="text" id="labelSearch" class="form-control" placeholder="Search labels..." onkeyup="filterLabels()">
+        <input type="text" id="labelSearch" class="form-control" placeholder="Search labels by key, current value, or default text..." oninput="filterLabels()">
+        <small id="result-count" class="text-muted mt-1"></small>
     </div>
 
     {% set current_category = None %}
@@ -52,10 +53,23 @@
 <script>
 function filterLabels() {
     const q = document.getElementById('labelSearch').value.toLowerCase();
+    let visible = 0;
     document.querySelectorAll('.label-row').forEach(row => {
         const key = row.dataset.key.toLowerCase();
-        row.style.display = key.includes(q) ? '' : 'none';
+        const input = row.querySelector('input');
+        const current = (input ? input.value : '').toLowerCase();
+        const def = (row.querySelector('.form-text em')?.textContent || '').toLowerCase();
+        const match = key.includes(q) || current.includes(q) || def.includes(q);
+        row.style.display = match ? '' : 'none';
+        if (match) visible++;
     });
+    const cards = document.querySelectorAll('.card');
+    cards.forEach(card => {
+        const hasVisible = Array.from(card.querySelectorAll('.label-row')).some(r => r.style.display !== 'none');
+        card.style.display = hasVisible ? '' : 'none';
+    });
+    document.getElementById('result-count').textContent = visible + ' label' + (visible !== 1 ? 's' : '') + ' found';
 }
+document.addEventListener('DOMContentLoaded', filterLabels);
 </script>
 {% endblock %}

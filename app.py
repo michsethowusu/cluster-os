@@ -684,8 +684,34 @@ LABEL_DEFAULTS = {
     'ta_login_prompt': 'Member State? Log in to submit',
     'ta_submit_info': 'Member States can submit their ECED/FLN technical assistance needs here for cluster-wide visibility.',
 
-    # Browser tab title suffix
-    'page_title_suffix': ' - AU ECED-FLN Cluster',
+    # Browser tab titles (static pages — full title)
+    'page_title_dashboard': 'Dashboard',
+    'page_title_login': 'Login',
+    'page_title_register': 'Join Cluster',
+    'page_title_explore': 'Explore Initiatives',
+    'page_title_members': 'Participating Organisations',
+    'page_title_search_members': 'Search Stakeholders',
+    'page_title_events': 'Events',
+    'page_title_polls': 'Polls',
+    'page_title_forum': 'Q&A Forum',
+    'page_title_documents': 'ECED Policy Documents',
+    'page_title_document_upload': 'Upload Document',
+    'page_title_projects': 'Projects',
+    'page_title_policy': 'ECED Policy Developments',
+    'page_title_technical_assistance': 'Technical Assistance Needs',
+    'page_title_verify_otp': 'Verify OTP',
+    'page_title_profile_edit': 'Edit Profile',
+    'page_title_unsubscribe': 'Unsubscribe',
+    'page_title_stats': 'Participation',
+    'page_title_leaderboard': 'Leaderboard',
+    'page_title_discussions': 'Discussions',
+    'page_title_initiative_form': 'New Initiative',
+    'page_title_event_form': 'Submit an Event',
+    'page_title_project_form': 'Submit a Project',
+    'page_title_question_form': 'New Question',
+    'page_title_ta_form': 'Submit TA Need',
+    # Dynamic page — suffix after the variable
+    'page_title_suffix': 'AU ECED-FLN Cluster',
 }
 
 DEFAULT_SITE_NAME = 'AU ECED-FLN'
@@ -3862,6 +3888,36 @@ def admin_labels():
 
     return render_template('admin/labels.html', labels=all_labels)
 
+PAGE_TITLES = [
+    {'key': 'dashboard', 'default': 'Dashboard'},
+    {'key': 'login', 'default': 'Login'},
+    {'key': 'register', 'default': 'Join Cluster'},
+    {'key': 'explore', 'default': 'Explore Initiatives'},
+    {'key': 'members', 'default': 'Participating Organisations'},
+    {'key': 'search_members', 'default': 'Search Stakeholders'},
+    {'key': 'events', 'default': 'Events'},
+    {'key': 'polls', 'default': 'Polls'},
+    {'key': 'forum', 'default': 'Q&A Forum'},
+    {'key': 'documents', 'default': 'ECED Policy Documents'},
+    {'key': 'document_upload', 'default': 'Upload Document'},
+    {'key': 'projects', 'default': 'Projects'},
+    {'key': 'policy', 'default': 'ECED Policy Developments'},
+    {'key': 'technical_assistance', 'default': 'Technical Assistance Needs'},
+    {'key': 'verify_otp', 'default': 'Verify OTP'},
+    {'key': 'profile_edit', 'default': 'Edit Profile'},
+    {'key': 'unsubscribe', 'default': 'Unsubscribe'},
+    {'key': 'stats', 'default': 'Participation'},
+    {'key': 'leaderboard', 'default': 'Leaderboard'},
+    {'key': 'discussions', 'default': 'Discussions'},
+    {'key': 'initiative_form', 'default': 'New Initiative'},
+    {'key': 'event_form', 'default': 'Submit an Event'},
+    {'key': 'project_form', 'default': 'Submit a Project'},
+    {'key': 'question_form', 'default': 'New Question'},
+    {'key': 'ta_form', 'default': 'Submit TA Need'},
+    {'key': 'suffix', 'default': 'AU ECED-FLN Cluster', 'note': 'Appended after dynamic content (initiative title, etc.)'},
+]
+
+
 BUILTIN_FORM_FIELDS = [
     {'field_name': 'name',             'label_key': 'form_full_name',          'field_type': 'text',     'is_required': True},
     {'field_name': 'email',            'label_key': 'form_email',              'field_type': 'email',    'is_required': True},
@@ -3968,6 +4024,33 @@ def admin_delete_field(id):
     db.session.commit()
     flash('Field deleted.', 'success')
     return redirect(url_for('admin_fields'))
+
+@app.route('/admin/page-titles', methods=['GET', 'POST'])
+@login_required
+def admin_page_titles():
+    if not current_user.is_admin:
+        abort(403)
+    if request.method == 'POST':
+        for entry in PAGE_TITLES:
+            key = f'page_title_{entry["key"]}'
+            submitted = request.form.get(key, '').strip()
+            existing = Label.query.filter_by(key=key).first()
+            if submitted and submitted != entry['default']:
+                if existing:
+                    existing.value = submitted
+                else:
+                    db.session.add(Label(key=key, value=submitted))
+            elif existing and (not submitted or submitted == entry['default']):
+                db.session.delete(existing)
+        db.session.commit()
+        flash('Page titles updated.', 'success')
+        return redirect(url_for('admin_page_titles'))
+    db_labels = {l.key: l.value for l in Label.query.filter(Label.key.like('page_title_%')).all()}
+    titles = []
+    for entry in PAGE_TITLES:
+        key = f'page_title_{entry["key"]}'
+        titles.append({**entry, 'key': key, 'value': db_labels.get(key, entry['default'])})
+    return render_template('admin/page_titles.html', titles=titles)
 
 @app.route('/admin/trigger-nlp', methods=['POST'])
 @login_required

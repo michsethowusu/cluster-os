@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{% if initiative %}Edit{% else %}New{% endif %} Initiative{{ label("page_title_suffix") }}{% endblock %}
+{% block title %}{% if initiative %}Edit{% else %}New{% endif %} {{ label("page_title_initiative_form") }}{% endblock %}
 <script>
 (function () {
     function countWords(str) {

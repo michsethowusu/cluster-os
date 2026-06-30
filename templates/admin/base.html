@@ -165,6 +165,12 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_page_titles' %}active{% endif %}"
+                           href="{{ url_for('admin_page_titles') }}">
+                            <i class="bi bi-tabs"></i> Page Titles
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'admin_stakeholder_types' %}active{% endif %}"
                            href="{{ url_for('admin_stakeholder_types') }}">
                             <i class="bi bi-tags"></i> Stakeholder Types

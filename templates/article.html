@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ initiative.ai_title or initiative.title }}{{ label("page_title_suffix") }}{% endblock %}
+{% block title %}{{ initiative.ai_title or initiative.title }} — {{ label("page_title_suffix") }}{% endblock %}
 
 {% block content %}
 <div class="container mt-5">

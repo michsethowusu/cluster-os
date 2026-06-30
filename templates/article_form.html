@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{% if initiative %}Edit{% else %}New{% endif %} Initiative - AU ECED-FLN Cluster
+{% block title %}{% if initiative %}Edit{% else %}New{% endif %} Initiative{{ label("page_title_suffix") }}{% endblock %}
 <script>
 (function () {
     function countWords(str) {
@@ -86,7 +86,6 @@
     }
 })();
 </script>
-{% endblock %}
 
 {% block content %}
 <div class="container mt-5 mb-5">

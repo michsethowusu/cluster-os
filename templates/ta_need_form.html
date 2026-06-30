@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{% if ta_need %}Edit{% else %}Submit{% endif %} Technical Assistance Need - AU ECED-FLN{% endblock %}
+{% block title %}{% if ta_need %}Edit{% else %}Submit{% endif %} Technical Assistance Need{{ label("page_title_suffix") }}{% endblock %}
 
 {% block content %}
 <div class="container mt-5 mb-5">

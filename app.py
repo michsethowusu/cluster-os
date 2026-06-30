@@ -683,6 +683,9 @@ LABEL_DEFAULTS = {
     'ta_submit_btn': 'Submit TA Need',
     'ta_login_prompt': 'Member State? Log in to submit',
     'ta_submit_info': 'Member States can submit their ECED/FLN technical assistance needs here for cluster-wide visibility.',
+
+    # Browser tab title suffix
+    'page_title_suffix': ' - AU ECED-FLN Cluster',
 }
 
 DEFAULT_SITE_NAME = 'AU ECED-FLN'

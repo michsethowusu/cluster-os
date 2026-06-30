@@ -1,91 +1,136 @@
 {% extends "admin/base.html" %}
 
-{% block admin_title %}Custom Registration Fields{% endblock %}
-
-{% block admin_actions %}
-<button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addFieldModal">
-    <i class="bi bi-plus"></i> Add Field
-</button>
-{% endblock %}
+{% block admin_title %}Registration Form Fields{% endblock %}
 
 {% block admin_content %}
 <div class="row">
     <div class="col-12">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Built-in Fields</h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-bordered mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Field</th>
+                            <th style="width:40%;">Label</th>
+                            <th>Type</th>
+                            <th>Required</th>
+                            <th style="width:100px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for bf in builtin_fields %}
+                        <tr>
+                            <td><code>{{ bf.field_name }}</code></td>
+                            <td>
+                                <form method="POST" action="{{ url_for('admin_update_field') }}" class="d-flex gap-1" style="display:inline-flex;">
+                                    <input type="hidden" name="field_id" value="_builtin_{{ bf.label_key }}">
+                                    <input type="text" name="label" class="form-control form-control-sm" value="{{ bf.label }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Save"><i class="bi bi-check"></i></button>
+                                </form>
+                            </td>
+                            <td><span class="badge bg-secondary">{{ bf.field_type }}</span></td>
+                            <td>
+                                {% if bf.is_required %}
+                                    <span class="badge bg-danger">Required</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Optional</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary" onclick="editBuiltin('{{ bf.label_key }}', '{{ bf.label }}')">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <div class="card">
-            <div class="card-body">
-                <p class="text-muted">Manage custom fields that appear on the registration form. Drag to reorder (not yet implemented).</p>
-                
-                <div class="table-responsive">
-                    <table class="table table-bordered">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Order</th>
-                                <th>Field Name</th>
-                                <th>Label</th>
-                                <th>Type</th>
-                                <th>Required</th>
-                                <th>Active</th>
-                                <th>Options</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for field in fields %}
-                            <tr>
-                                <td>{{ field.order }}</td>
-                                <td><code>{{ field.field_name }}</code></td>
-                                <td>{{ field.field_label }}</td>
-                                <td>{{ field.field_type }}</td>
-                                <td>
-                                    {% if field.is_required %}
-                                        <span class="badge bg-danger">Required</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary">Optional</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if field.is_active %}
-                                        <span class="badge bg-success">Active</span>
-                                    {% else %}
-                                        <span class="badge bg-dark">Inactive</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if field.options %}
-                                        <small class="text-muted">{{ field.options[:50] }}{% if field.options|length > 50 %}...{% endif %}</small>
-                                    {% else %}
-                                        —
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <button class="btn btn-sm btn-outline-primary" onclick="editField({{ field.id }})">
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
-                                    <form method="POST" action="{{ url_for('admin_delete_field', id=field.id) }}" style="display:inline;" onsubmit="return confirm('Delete this field?');">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </form>
-                                </td>
-                            </tr>
-                            {% else %}
-                            <tr>
-                                <td colspan="8" class="text-center text-muted">No custom fields defined.</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Custom Fields</h5>
+                <div>
+                    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addFieldModal">
+                        <i class="bi bi-plus"></i> Add Field
+                    </button>
                 </div>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-bordered mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Order</th>
+                            <th>Field Name</th>
+                            <th>Label</th>
+                            <th>Type</th>
+                            <th>Required</th>
+                            <th>Active</th>
+                            <th>Options</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for field in fields %}
+                        <tr>
+                            <td>{{ field.order }}</td>
+                            <td><code>{{ field.field_name }}</code></td>
+                            <td>{{ field.field_label }}</td>
+                            <td>{{ field.field_type }}</td>
+                            <td>
+                                {% if field.is_required %}
+                                    <span class="badge bg-danger">Required</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Optional</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if field.is_active %}
+                                    <span class="badge bg-success">Active</span>
+                                {% else %}
+                                    <span class="badge bg-dark">Inactive</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if field.options %}
+                                    <small class="text-muted">{{ field.options[:50] }}{% if field.options|length > 50 %}...{% endif %}</small>
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary" onclick="editCustom({{ field.id }})">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <form method="POST" action="{{ url_for('admin_delete_field', id=field.id) }}" style="display:inline;" onsubmit="return confirm('Delete this field?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="8" class="text-center text-muted">No custom fields defined.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Add Field Modal -->
+<!-- Add Custom Field Modal -->
 <div class="modal fade" id="addFieldModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form method="POST" action="{{ url_for('admin_fields') }}">
+            <form method="POST" action="{{ url_for('admin_update_field') }}">
+                <input type="hidden" name="field_id" value="new">
                 <div class="modal-header">
                     <h5 class="modal-title">Add Custom Registration Field</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -93,13 +138,13 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Field Name (slug)</label>
-                        <input type="text" name="field_name" class="form-control" required 
+                        <input type="text" name="field_name" class="form-control" required
                                placeholder="e.g., expertise, twitter_handle">
                         <div class="form-text">Used internally (no spaces, lowercase).</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Display Label</label>
-                        <input type="text" name="field_label" class="form-control" required
+                        <input type="text" name="label" class="form-control" required
                                placeholder="e.g., Area of Expertise">
                     </div>
                     <div class="mb-3">
@@ -116,9 +161,9 @@
                         <input type="checkbox" name="is_required" class="form-check-input" id="isRequired" checked>
                         <label class="form-check-label" for="isRequired">Required field</label>
                     </div>
-                    <div class="mb-3" id="optionsGroup" style="display: none;">
+                    <div class="mb-3" id="addOptionsGroup" style="display: none;">
                         <label class="form-label">Options (for select type)</label>
-                        <textarea name="options" class="form-control" rows="3" 
+                        <textarea name="options" class="form-control" rows="3"
                                   placeholder='["Option 1", "Option 2", "Option 3"]'></textarea>
                         <div class="form-text">JSON array, e.g., ["Government", "NGO", "Private Sector"]</div>
                     </div>
@@ -132,17 +177,104 @@
     </div>
 </div>
 
+<!-- Edit Built-in Field Modal -->
+<div class="modal fade" id="editBuiltinModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('admin_update_field') }}">
+                <input type="hidden" name="field_id" id="editBuiltinKey">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Field Label</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Display Label</label>
+                        <input type="text" name="label" id="editBuiltinLabel" class="form-control" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Custom Field Modal -->
+<div class="modal fade" id="editCustomModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('admin_update_field') }}">
+                <input type="hidden" name="field_id" id="editCustomId">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Custom Field</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Display Label</label>
+                        <input type="text" name="label" id="editCustomLabel" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Field Type</label>
+                        <select name="field_type" id="editCustomType" class="form-select">
+                            <option value="text">Text (single line)</option>
+                            <option value="textarea">Textarea (multi-line)</option>
+                            <option value="select">Dropdown / Select</option>
+                            <option value="url">URL</option>
+                            <option value="email">Email</option>
+                        </select>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" name="is_required" class="form-check-input" id="editCustomRequired" checked>
+                        <label class="form-check-label" for="editCustomRequired">Required field</label>
+                    </div>
+                    <div class="mb-3" id="editOptionsGroup">
+                        <label class="form-label">Options (for select type)</label>
+                        <textarea name="options" id="editCustomOptions" class="form-control" rows="3"></textarea>
+                        <div class="form-text">JSON array, e.g., ["Government", "NGO", "Private Sector"]</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
-    // Show/hide options field based on field type
+    // Show/hide options for add modal
     document.querySelector('select[name="field_type"]').addEventListener('change', function() {
-        const optionsDiv = document.getElementById('optionsGroup');
-        optionsDiv.style.display = this.value === 'select' ? 'block' : 'none';
+        document.getElementById('addOptionsGroup').style.display = this.value === 'select' ? 'block' : 'none';
     });
-    
-    // Placeholder for edit functionality (you may add a separate edit modal)
-    function editField(id) {
-        alert('Edit functionality not yet implemented. Please delete and re-add if needed.');
-        // For full implementation, you'd fetch field data and populate an edit modal.
+    // Show/hide options for edit modal
+    document.getElementById('editCustomType').addEventListener('change', function() {
+        document.getElementById('editOptionsGroup').style.display = this.value === 'select' ? 'block' : 'none';
+    });
+
+    function editBuiltin(key, label) {
+        document.getElementById('editBuiltinKey').value = '_builtin_' + key;
+        document.getElementById('editBuiltinLabel').value = label;
+        new bootstrap.Modal(document.getElementById('editBuiltinModal')).show();
+    }
+
+    function editCustom(id) {
+        // Fetch field data to populate the edit modal
+        fetch('/admin/field/' + id + '/data')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('editCustomId').value = id;
+                document.getElementById('editCustomLabel').value = data.field_label || '';
+                document.getElementById('editCustomType').value = data.field_type || 'text';
+                document.getElementById('editCustomRequired').checked = data.is_required;
+                document.getElementById('editCustomOptions').value = data.options || '';
+                document.getElementById('editOptionsGroup').style.display = data.field_type === 'select' ? 'block' : 'none';
+                new bootstrap.Modal(document.getElementById('editCustomModal')).show();
+            });
     }
 </script>
 {% endblock %}

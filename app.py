@@ -3859,6 +3859,14 @@ def admin_labels():
 
     return render_template('admin/labels.html', labels=all_labels)
 
+BUILTIN_FORM_FIELDS = [
+    {'field_name': 'name',             'label_key': 'form_full_name',          'field_type': 'text',     'is_required': True},
+    {'field_name': 'email',            'label_key': 'form_email',              'field_type': 'email',    'is_required': True},
+    {'field_name': 'organization',     'label_key': 'form_organization',       'field_type': 'text',     'is_required': True},
+    {'field_name': 'country',          'label_key': 'form_country',            'field_type': 'select',   'is_required': True},
+    {'field_name': 'stakeholder_type', 'label_key': 'form_stakeholder_type',   'field_type': 'select',   'is_required': True},
+]
+
 
 @app.route('/admin/fields', methods=['GET', 'POST'])
 @login_required
@@ -3878,7 +3886,74 @@ def admin_fields():
         flash('Field added.', 'success')
         return redirect(url_for('admin_fields'))
     fields = RegistrationField.query.order_by(RegistrationField.order).all()
-    return render_template('admin/fields.html', fields=fields)
+    db_labels = {l.key: l.value for l in Label.query.filter(Label.key.like('form_%')).all()}
+    builtin_fields = []
+    for bf in BUILTIN_FORM_FIELDS:
+        builtin_fields.append({
+            **bf,
+            'label': db_labels.get(bf['label_key'], LABEL_DEFAULTS.get(bf['label_key'], bf['field_name'])),
+        })
+    return render_template('admin/fields.html', fields=fields, builtin_fields=builtin_fields)
+
+
+@app.route('/admin/field/update', methods=['POST'])
+@login_required
+def admin_update_field():
+    if not current_user.is_admin:
+        abort(403)
+    field_id = request.form.get('field_id')
+    label_val = (request.form.get('label') or '').strip()
+
+    if field_id == 'new':
+        # Add custom field
+        field = RegistrationField(
+            field_name=request.form.get('field_name'),
+            field_label=label_val or request.form.get('field_name'),
+            field_type=request.form.get('field_type', 'text'),
+            is_required=request.form.get('is_required') == 'on',
+            options=request.form.get('options'),
+        )
+        db.session.add(field)
+        flash('Field added.', 'success')
+    elif field_id and field_id.startswith('_builtin_'):
+        # Update label for a built-in form field (stored in Label table)
+        label_key = field_id.replace('_builtin_', '', 1)
+        existing = Label.query.filter_by(key=label_key).first()
+        if label_val:
+            if existing:
+                existing.value = label_val
+            else:
+                db.session.add(Label(key=label_key, value=label_val))
+        else:
+            if existing:
+                db.session.delete(existing)
+        flash('Field label updated.', 'success')
+    else:
+        # Update custom field
+        field = RegistrationField.query.get_or_404(int(field_id))
+        field.field_label = label_val or field.field_name
+        field.field_type = request.form.get('field_type', field.field_type)
+        field.is_required = request.form.get('is_required') == 'on'
+        field.options = request.form.get('options')
+        flash('Field updated.', 'success')
+
+    db.session.commit()
+    return redirect(url_for('admin_fields'))
+
+
+@app.route('/admin/field/<int:id>/data')
+@login_required
+def admin_field_data(id):
+    if not current_user.is_admin:
+        abort(403)
+    field = RegistrationField.query.get_or_404(id)
+    return {
+        'field_label': field.field_label,
+        'field_type': field.field_type,
+        'is_required': field.is_required,
+        'options': field.options or '',
+    }
+
 
 @app.route('/admin/field/delete/<int:id>', methods=['POST'])
 @login_required

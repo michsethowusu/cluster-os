@@ -12,40 +12,33 @@
     <input type="hidden" name="action" value="update">
 
     <div class="mb-3">
-        <input type="text" id="labelSearch" class="form-control" placeholder="Search labels by key, current value, or default text..." oninput="filterLabels()">
+        <input type="text" id="labelSearch" class="form-control" placeholder="Search by key or text..." oninput="filterLabels()">
         <small id="result-count" class="text-muted mt-1"></small>
     </div>
 
-    {% set current_category = None %}
+    <div id="label-list">
     {% for lbl in labels %}
-    {% set cat = lbl.key.split('_')[0] %}
-    {% if cat != current_category %}
-    {% if current_category is not none %}</div>{% endif %}
-    {% set current_category = cat %}
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="mb-0"><i class="bi bi-tag"></i> {{ cat|capitalize }}</h5>
+    <div class="row mb-2 label-row" data-key="{{ lbl.key }}">
+        <div class="col-4 col-md-3">
+            <label class="form-label small text-muted mb-0 mt-1">
+                <code>{{ lbl.key }}</code>
+                {% if lbl.value and lbl.value != lbl.default %}
+                <span class="badge bg-warning text-dark">overridden</span>
+                {% endif %}
+            </label>
         </div>
-        <div class="card-body">
-    {% endif %}
-    <div class="mb-3 label-row" data-key="{{ lbl.key }}">
-        <label class="form-label small text-muted mb-1">
-            <code>{{ lbl.key }}</code>
-            {% if lbl.value and lbl.value != lbl.default %}
-            <span class="badge bg-warning text-dark">overridden</span>
-            {% endif %}
-        </label>
-        <input type="text" name="label_{{ lbl.key }}" class="form-control" value="{{ lbl.value }}"
-               placeholder="{{ lbl.default }}">
-        <div class="form-text">Default: <em>{{ lbl.default }}</em></div>
+        <div class="col-8 col-md-6">
+            <input type="text" name="label_{{ lbl.key }}" class="form-control form-control-sm" value="{{ lbl.value }}"
+                   placeholder="{{ lbl.default }}">
+        </div>
+        <div class="col-12 col-md-3">
+            <small class="text-muted">Default: <em>{{ lbl.default }}</em></small>
+        </div>
     </div>
     {% endfor %}
-    {% if labels %}
-        </div>
     </div>
-    {% endif %}
 
-    <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save All Labels</button>
+    <button type="submit" class="btn btn-primary mt-3"><i class="bi bi-save"></i> Save All Labels</button>
 </form>
 {% endblock %}
 
@@ -58,15 +51,12 @@ function filterLabels() {
         const key = row.dataset.key.toLowerCase();
         const input = row.querySelector('input');
         const current = (input ? input.value : '').toLowerCase();
-        const def = (row.querySelector('.form-text em')?.textContent || '').toLowerCase();
-        const match = key.includes(q) || current.includes(q) || def.includes(q);
+        const def = (row.querySelector('em')?.textContent || '').toLowerCase();
+        const overridden = current && current !== def;
+        // Show overridden by default; search shows any match
+        const match = q ? (key.includes(q) || current.includes(q) || def.includes(q)) : overridden;
         row.style.display = match ? '' : 'none';
         if (match) visible++;
-    });
-    const cards = document.querySelectorAll('.card');
-    cards.forEach(card => {
-        const hasVisible = Array.from(card.querySelectorAll('.label-row')).some(r => r.style.display !== 'none');
-        card.style.display = hasVisible ? '' : 'none';
     });
     document.getElementById('result-count').textContent = visible + ' label' + (visible !== 1 ? 's' : '') + ' found';
 }

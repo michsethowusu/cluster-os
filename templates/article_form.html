@@ -121,9 +121,9 @@
                             <label class="form-label">Tags</label>
                             <div id="tag-container" class="d-flex flex-wrap gap-1 mb-2">
                                 {% for tag in initiative.tags %}
-                                <span class="tag-badge badge bg-secondary d-inline-flex align-items-center gap-1">
+                                <span class="tag-badge" style="padding-right:5px;">
                                     {{ tag.name }}
-                                    <button type="button" class="btn-close btn-close-white tag-remove" style="font-size:.65rem;" aria-label="Remove"></button>
+                                    <button type="button" class="btn-close tag-remove" style="font-size:.6rem; vertical-align:middle;" aria-label="Remove"></button>
                                 </span>
                                 {% endfor %}
                             </div>
@@ -251,12 +251,13 @@
             });
             if (exists) return;
             var badge = document.createElement('span');
-            badge.className = 'tag-badge badge bg-secondary d-inline-flex align-items-center gap-1';
+            badge.className = 'tag-badge';
+            badge.style.cssText = 'padding-right:5px;';
             badge.appendChild(document.createTextNode(name + ' '));
             var btn = document.createElement('button');
             btn.type = 'button';
-            btn.className = 'btn-close btn-close-white tag-remove';
-            btn.style.cssText = 'font-size:.65rem;';
+            btn.className = 'btn-close tag-remove';
+            btn.style.cssText = 'font-size:.6rem; vertical-align:middle;';
             btn.setAttribute('aria-label', 'Remove');
             btn.addEventListener('click', function () { badge.remove(); refreshHidden(); });
             badge.appendChild(btn);

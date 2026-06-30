@@ -14,7 +14,6 @@
         return el;
     }
 
-    // ── Title validation ──────────────────────────────────────────────
     const titleInput = document.querySelector('input[name="title"]');
     if (titleInput) {
         const counter = makeCounter('title-counter', 'title');
@@ -33,7 +32,6 @@
         updateTitle();
     }
 
-    // ── Short Description validation ─────────────────────────────────
     const shortDescArea = document.querySelector('textarea[name="short_description"]');
     if (shortDescArea) {
         const counter = makeCounter('short-desc-counter', 'short description');
@@ -52,7 +50,6 @@
         updateShortDesc();
     }
 
-    // ── Content validation ────────────────────────────────────────────
     const contentArea = document.querySelector('textarea[name="content"]');
     if (contentArea) {
         const counter = makeCounter('content-counter', 'content');
@@ -71,7 +68,6 @@
         updateContent();
     }
 
-    // ── Block form submit if invalid ──────────────────────────────────
     const form = document.querySelector('form[method="POST"]');
     if (form) {
         form.addEventListener('submit', function (e) {
@@ -117,15 +113,31 @@
                             <label class="form-label">Full Description *</label>
                             <textarea name="content" class="form-control content-editor" rows="12" required
                                       placeholder="Describe your initiative in detail. Include objectives, target beneficiaries, implementation approach, and any results or lessons learned...">{{ initiative.content if initiative else '' }}</textarea>
-                            <!-- MARKDOWN CHANGE: updated hint -->
                             <div class="form-text">You can use <a href="https://www.markdownguide.org/cheat-sheet/" target="_blank">Markdown</a> for formatting (headings, lists, links, etc.).</div>
                         </div>
                         
                         {% if initiative %}
+                        <div class="mb-3">
+                            <label class="form-label">Tags</label>
+                            <div id="tag-container" class="d-flex flex-wrap gap-1 mb-2">
+                                {% for tag in initiative.tags %}
+                                <span class="tag-badge badge bg-secondary d-inline-flex align-items-center gap-1">
+                                    {{ tag.name }}
+                                    <button type="button" class="btn-close btn-close-white tag-remove" style="font-size:.65rem;" aria-label="Remove"></button>
+                                </span>
+                                {% endfor %}
+                            </div>
+                            <div class="input-group">
+                                <input type="text" id="tag-input" class="form-control form-control-sm" placeholder="Type a tag and press Enter or comma to add...">
+                                <button type="button" id="tag-add-btn" class="btn btn-outline-secondary btn-sm">Add</button>
+                            </div>
+                            <input type="hidden" name="tags" id="tags-hidden" value="{{ initiative.tags | map(attribute='name') | join(',') }}">
+                            <div class="form-text mt-1">Add or remove tags manually, or check below to regenerate from AI.</div>
+                        </div>
                         <div class="mb-3 form-check">
                             <input type="checkbox" class="form-check-input" name="regenerate_tags" id="regenerate_tags">
                             <label class="form-check-label" for="regenerate_tags">
-                                Regenerate tags from updated content
+                                Regenerate tags from updated content (replaces manual tags)
                             </label>
                         </div>
                         {% endif %}
@@ -157,7 +169,6 @@
         return el;
     }
 
-    // ── Title validation ──────────────────────────────────────────────
     const titleInput = document.querySelector('input[name="title"]');
     if (titleInput) {
         const counter = makeCounter('title-counter', 'title');
@@ -176,7 +187,6 @@
         updateTitle();
     }
 
-    // ── Short Description validation ─────────────────────────────────
     const shortDescArea = document.querySelector('textarea[name="short_description"]');
     if (shortDescArea) {
         const counter = makeCounter('short-desc-counter', 'short description');
@@ -195,7 +205,6 @@
         updateShortDesc();
     }
 
-    // ── Content validation ────────────────────────────────────────────
     const contentArea = document.querySelector('textarea[name="content"]');
     if (contentArea) {
         const counter = makeCounter('content-counter', 'content');
@@ -214,7 +223,68 @@
         updateContent();
     }
 
-    // ── Block form submit if invalid ──────────────────────────────────
+    // ── Tag editor ────────────────────────────────────────────────────
+    (function () {
+        const tagContainer = document.getElementById('tag-container');
+        if (!tagContainer) return;
+        const tagInput = document.getElementById('tag-input');
+        const tagAddBtn = document.getElementById('tag-add-btn');
+        const tagsHidden = document.getElementById('tags-hidden');
+        const regenerateCheckbox = document.getElementById('regenerate_tags');
+
+        function refreshHidden() {
+            const names = [];
+            tagContainer.querySelectorAll('.tag-badge').forEach(function (b) {
+                var t = b.childNodes[0].nodeValue.trim();
+                if (t) names.push(t);
+            });
+            tagsHidden.value = names.join(',');
+        }
+
+        function addTag(raw) {
+            var name = raw.trim().toLowerCase().replace(/\s+/g, ' ');
+            if (!name) return;
+            var exists = false;
+            tagContainer.querySelectorAll('.tag-badge').forEach(function (b) {
+                var t = (b.childNodes[0].nodeValue || '').trim();
+                if (t.toLowerCase() === name) exists = true;
+            });
+            if (exists) return;
+            var badge = document.createElement('span');
+            badge.className = 'tag-badge badge bg-secondary d-inline-flex align-items-center gap-1';
+            badge.appendChild(document.createTextNode(name + ' '));
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn-close btn-close-white tag-remove';
+            btn.style.cssText = 'font-size:.65rem;';
+            btn.setAttribute('aria-label', 'Remove');
+            btn.addEventListener('click', function () { badge.remove(); refreshHidden(); });
+            badge.appendChild(btn);
+            tagContainer.appendChild(badge);
+            refreshHidden();
+            if (regenerateCheckbox) regenerateCheckbox.checked = false;
+        }
+
+        tagInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ',') {
+                e.preventDefault();
+                addTag(tagInput.value);
+                tagInput.value = '';
+            }
+        });
+        tagAddBtn.addEventListener('click', function () {
+            addTag(tagInput.value);
+            tagInput.value = '';
+        });
+        tagContainer.addEventListener('click', function (e) {
+            if (e.target.classList.contains('tag-remove')) {
+                e.target.parentElement.remove();
+                refreshHidden();
+                if (regenerateCheckbox) regenerateCheckbox.checked = false;
+            }
+        });
+    })();
+
     const form = document.querySelector('form[method="POST"]');
     if (form) {
         form.addEventListener('submit', function (e) {

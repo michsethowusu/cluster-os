@@ -2180,7 +2180,7 @@ def edit_initiative(id):
         initiative.content = request.form.get('content')                     # MARKDOWN CHANGE: raw content
         initiative.updated_at = datetime.utcnow()
         
-        # Optionally reprocess tags if content changed
+        # Handle tags — either regenerate from AI or use manual list
         if request.form.get('regenerate_tags'):
             try:
                 phrases = extract_noun_phrases(initiative.content)
@@ -2198,6 +2198,27 @@ def edit_initiative(id):
                 update_noun_phrase_db(initiative.id, phrases)
             except Exception as e:
                 app.logger.error(f"Tag regeneration error: {e}")
+        else:
+            # Use manual tags from the hidden input
+            tag_names = [t.strip().lower() for t in request.form.get('tags', '').split(',') if t.strip()]
+            old_tags = set(initiative.tags)
+            new_tags_set = set()
+            for name in tag_names:
+                tag = Tag.query.filter_by(name=name).first()
+                if not tag:
+                    tag = Tag(name=name, is_vetted=False)
+                    db.session.add(tag)
+                    db.session.flush()
+                new_tags_set.add(tag)
+            # Decrement usage_count for removed tags
+            for tag in old_tags:
+                if tag not in new_tags_set and tag.usage_count > 0:
+                    tag.usage_count -= 1
+            # Increment usage_count for added tags
+            for tag in new_tags_set:
+                if tag not in old_tags:
+                    tag.usage_count += 1
+            initiative.tags = list(new_tags_set)
         
         db.session.commit()
         flash('Initiative updated.', 'success')

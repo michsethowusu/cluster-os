@@ -3690,9 +3690,13 @@ def admin_settings():
             os.environ['MAIL_PASSWORD'] = request.form.get('mail_password')
             app.config['MAIL_PASSWORD'] = request.form.get('mail_password')
         if request.form.get('mail_username'):
-            os.environ['MAIL_USERNAME'] = request.form.get('mail_username')
-            app.config['MAIL_USERNAME'] = request.form.get('mail_username')
-            app.config['MAIL_DEFAULT_SENDER'] = request.form.get('mail_username')
+            email = request.form.get('mail_username')
+            name = request.form.get('mail_sender_name', '').strip() or 'Africa Teachers Forum'
+            sender = f'{name} <{email}>'
+            os.environ['MAIL_USERNAME'] = email
+            app.config['MAIL_USERNAME'] = email
+            app.config['MAIL_DEFAULT_SENDER'] = sender
+            os.environ['MAIL_DEFAULT_SENDER'] = sender
         # auto-approve toggle
         auto_approve = 'true' if request.form.get('auto_approve_members') else 'false'
         set_setting('auto_approve_members', auto_approve)
@@ -3781,7 +3785,7 @@ def admin_appearance():
         footer_note=get_setting('footer_note', ''),
         hero_heading=get_setting('hero_heading', ''),
         hero_text=get_setting('hero_text', ''),
-        hero_image=hero_image_data,
+        hero_image=bool(hero_image_data),
         hero_image_url=url_for('custom_hero_image') if hero_image_data else '',
         default_hero_image=DEFAULT_HERO_IMAGE,
         default_hero_heading=DEFAULT_HERO_HEADING,

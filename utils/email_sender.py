@@ -106,7 +106,7 @@ def send_email(to_email, subject, html_content, text_content=None):
         print("ERROR: BREVO_API_KEY is not set!")
         return False
 
-    sender_raw = os.environ.get('MAIL_DEFAULT_SENDER', 'AU ECED-FLN Platform <cluster@eced-au.org>')
+    sender_raw = os.environ.get('MAIL_DEFAULT_SENDER', 'Africa Teachers Forum <community@africateachers.org>')
 
     if '<' in sender_raw:
         sender_name = sender_raw.split('<')[0].strip()

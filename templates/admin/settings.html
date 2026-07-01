@@ -23,20 +23,27 @@
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label">Gmail App Password</label>
+                        <label class="form-label">Brevo API Key</label>
                         <input type="password" name="mail_password" class="form-control"
-                               placeholder="Enter new password to update">
+                               placeholder="Enter new API key to update">
                         <div class="form-text">
-                            App-specific password for Gmail SMTP. 
-                            <a href="https://support.google.com/accounts/answer/185833" target="_blank">How to generate</a>
+                            Brevo SMTP API key for sending emails.
+                            <a href="https://help.brevo.com/hc/en-us/articles/10774933246994-Send-smtp-key" target="_blank">How to generate</a>
                         </div>
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label">Gmail Username</label>
+                        <label class="form-label">Sender Name</label>
+                        <input type="text" name="mail_sender_name" class="form-control"
+                               placeholder="Africa Teachers Forum">
+                        <div class="form-text">Display name recipients see (e.g. "Africa Teachers Forum")</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Sender Email</label>
                         <input type="email" name="mail_username" class="form-control"
-                               placeholder="Enter email to update">
-                        <div class="form-text">The Gmail address used to send OTPs and notifications</div>
+                               placeholder="community@africateachers.org">
+                        <div class="form-text">The Brevo-verified sender address for OTPs and notifications</div>
                     </div>
                     
                     <div class="mb-3">

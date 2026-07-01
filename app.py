@@ -2043,7 +2043,8 @@ def learn_more_request(slug):
     initiative_url = url_for('view_initiative', slug=initiative.slug, _external=True)
     initiative_title = initiative.title
 
-    subject = f"[AU ECED-FLN] Learn More Request: {initiative_title}"
+    site_for_email = get_setting('site_name', 'AU ECED-FLN')
+    subject = f"[{site_for_email}] Learn More Request: {initiative_title}"
     body = f"""Dear {publisher.name},
 
 A cluster member has expressed interest in learning more about your initiative and would like to connect with you.
@@ -2061,7 +2062,7 @@ Country:      {requester.country}
 Please feel free to reach out to them directly to continue the conversation.
 
 Best regards,
-AU ECED-FLN Cluster Secretariat
+{site_for_email} Secretariat
 """
 
     try:

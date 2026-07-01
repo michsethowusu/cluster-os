@@ -19,7 +19,7 @@ def _site_name():
             return name
     except Exception:
         pass
-    return os.environ.get('SITE_NAME') or 'AU ECED-FLN'
+    return os.environ.get('SITE_NAME') or 'AU ECED-FLN Cluster Platform'
 
 
 def _unsubscribe_url(email):
@@ -152,7 +152,7 @@ def send_email(to_email, subject, html_content, text_content=None):
 # ===================== TRANSACTIONAL EMAILS =====================
 
 def send_otp_email(email, otp):
-    subject = "Your Login OTP - AU ECED-FLN Platform"
+    subject = f"Your Login OTP - {_site_name()}"
     body = f"""
         <p>Your one-time password (OTP) for login is:</p>
         <div style="background:#f4f4f4;padding:20px;text-align:center;font-size:26px;
@@ -167,7 +167,7 @@ def send_otp_email(email, otp):
 
 
 def send_approval_email(email, initiative_slug=None):
-    subject = "Welcome to AU ECED-FLN Cluster Platform"
+    subject = f"Welcome to {_site_name()}"
     login_url = _url('/login')
 
     initiative_link = ""
@@ -185,18 +185,18 @@ def send_approval_email(email, initiative_slug=None):
         {initiative_link}
         {_btn(login_url, "Log In to the Platform")}
     """
-    html = _base_email("Welcome to AU ECED-FLN Cluster Platform", body)
+    html = _base_email(f"Welcome to {_site_name()}", body)
     send_email(email, subject, html)
 
 
 def send_initiative_approved_email(user, initiative_slug, initiative_title):
     """Notify a user that their initiative has been approved and published."""
     link = _url(f'/initiative/{initiative_slug}')
-    subject = "Your initiative has been published – AU ECED-FLN Platform"
+    subject = f"Your initiative has been published – {_site_name()}"
     body = f"""
         <p>Dear {user.name},</p>
         <p>Your initiative <strong>{initiative_title}</strong> has been reviewed and is now
-        live on the AU ECED-FLN Cluster Platform.</p>
+        live on {_site_name()}.</p>
         {_btn(link, "View Your Initiative")}
     """
     html = _base_email("Your Initiative Has Been Published", body)
@@ -222,11 +222,11 @@ def send_certificate_email(user, cert_url, site_name):
 def send_initiative_pending_email(user, initiative_title):
     """Notify a user that their imported initiative is pending review."""
     login_url = _url('/login')
-    subject = "Your initiative has been submitted for review – AU ECED-FLN Platform"
+    subject = f"Your initiative has been submitted for review – {_site_name()}"
     body = f"""
         <p>Dear {user.name},</p>
-        <p>Your initiative <strong>{initiative_title}</strong> has been submitted to the
-        AU ECED-FLN Cluster Platform and is pending review by our team.</p>
+        <p>Your initiative <strong>{initiative_title}</strong> has been submitted to
+        {_site_name()} and is pending review by our team.</p>
         <p>You will receive another email once it has been approved and published.</p>
         {_btn(login_url, "Log In to the Platform")}
     """
@@ -237,11 +237,10 @@ def send_initiative_pending_email(user, initiative_title):
 def send_import_welcome_email(user):
     """Send a welcome email to a member who was imported by admin."""
     login_url = _url('/login')
-    subject = "You've been added to the AU ECED-FLN Cluster Platform"
+    subject = f"You've been added to the {_site_name()}"
     body = f"""
         <p>Dear {user.name},</p>
-        <p>You have been added to the <strong>African Union Early Childhood Education and Development &amp;
-        Foundational Learning (ECED-FLN) Cluster Platform</strong> as a member representing
+        <p>You have been added to the <strong>{_site_name()}</strong> as a member representing
         <strong>{user.organization}</strong>.</p>
         <p>This platform connects experts and organizations across Africa working to accelerate
         Early Childhood Education and Foundational Learning. As a member you can:</p>
@@ -258,7 +257,7 @@ def send_import_welcome_email(user):
         <p style="color:#666;font-size:0.9em;">Your registered email address is: {user.email}<br>
         Use this to log in — you will receive a one-time password (OTP) each time you sign in.</p>
     """
-    html = _base_email("Welcome to the AU ECED-FLN Cluster Platform", body,
+    html = _base_email(f"Welcome to the {_site_name()}", body,
                        footer_html=_unsubscribe_footer(user.email))
     send_email(user.email, subject, html)
 
@@ -271,7 +270,7 @@ def send_invitation_email(email, name, organization=None):
     org_line = (
         f"on behalf of <strong>{organization}</strong> " if organization else ""
     )
-    subject = f"Invitation for Experts from {organization} to Join the AU ECED-FLN Cluster Platform" if organization else "Invitation to Join the AU ECED-FLN Cluster Platform"
+    subject = f"Invitation for Experts from {organization} to Join {_site_name()}" if organization else f"Invitation to Join {_site_name()}"
     body = f"""
         <p>Dear {salutation},</p>
         <p>The <strong>African Union Cluster on Early Childhood Education and Development &amp;
@@ -293,7 +292,7 @@ def send_invitation_email(email, name, organization=None):
         please do not hesitate to contact us at
         <a href="mailto:cluster@eced-au.org" style="color:#1a56db;">cluster@eced-au.org</a>.</p>
     """
-    html = _base_email("Invitation to Join the AU ECED-FLN Cluster Platform", body,
+    html = _base_email(f"Invitation to Join {_site_name()}", body,
                        footer_html=_unsubscribe_footer(email))
     send_email(email, subject, html)
 
@@ -302,10 +301,10 @@ def send_individual_invitation_email(email, name):
     """Send an invitation email to an individual joining in their own capacity."""
     register_url = _url('/register')
     salutation = name if name and name.strip() else 'Colleague'
-    subject = 'Invitation to Join the Africa Teachers Forum'
+    subject = f'Invitation to Join the {_site_name()}'
     body = f"""
         <p>Dear {salutation},</p>
-        <p>We are pleased to invite you to join the <strong>Africa Teachers Forum</strong> —
+        <p>We are pleased to invite you to join the <strong>{_site_name()}</strong> —
         a digital platform that brings together educators, practitioners, and advocates from across
         Africa to collaborate on Early Childhood Education and Foundational Learning.</p>
         <p>As a member you will be able to:</p>
@@ -321,7 +320,7 @@ def send_individual_invitation_email(email, name):
         please do not hesitate to contact us at
         <a href="mailto:community@africateachers.org" style="color:#1a56db;">community@africateachers.org</a>.</p>
     """
-    html = _base_email("Invitation to Join the Africa Teachers Forum", body,
+    html = _base_email(f"Invitation to Join the {_site_name()}", body,
                        footer_html=_unsubscribe_footer(email))
     send_email(email, subject, html)
 
@@ -335,8 +334,8 @@ def send_event_invitation_email(email, name, event, event_url):
     excerpt = event.description[:300] + ('...' if len(event.description) > 300 else '')
     body = f"""
         <p>Dear {name},</p>
-        <p>You have been invited to attend the following event on the
-        <strong>AU ECED-FLN Cluster Platform</strong>:</p>
+        <p>You have been invited to attend the following event on
+        {_site_name()}:</p>
         {_info_box(f'<h3 style="margin:0 0 8px;">{event.title}</h3><p style="margin:4px 0;"><strong>Date:</strong> {event_date}</p><p style="margin:8px 0 0;color:#555;">{excerpt}</p>')}
         {_btn(event_url, "View Event & Register")}
     """
@@ -349,7 +348,7 @@ def send_project_signup_confirmation(user, project, signed_up_activities):
     """Confirm to a member that they have successfully joined a project."""
     project_url = _url(f'/project/{project.id}')
     activity_items = "".join(f"<li>{a.title}</li>" for a in signed_up_activities)
-    subject = f"You've joined: {project.title} – AU ECED-FLN Platform"
+    subject = f"You've joined: {project.title} – {_site_name()}"
     body = f"""
         <p>Dear {user.name},</p>
         <p>You have successfully signed up to participate in the following project:</p>
@@ -366,7 +365,7 @@ def send_project_signup_admin_alert(admin_email, user, project, signed_up_activi
     activity_items = "".join(f"<li>{a.title}</li>" for a in signed_up_activities)
     subject = f"[New Sign-up] {user.name} joined \"{project.title}\""
     body = f"""
-        <p>A member has just signed up for a project on the AU ECED-FLN Cluster Platform.</p>
+        <p>A member has just signed up for a project on {_site_name()}.</p>
         <table style="width:100%;border-collapse:collapse;margin:16px 0;">
             <tr>
                 <td style="padding:6px 12px 6px 0;font-weight:bold;width:130px;">Member</td>
@@ -390,7 +389,7 @@ def send_project_signup_admin_alert(admin_email, user, project, signed_up_activi
         {_btn(admin_project_url, "Manage Project in Admin")}
     """
     html = _base_email("New Project Sign-up", body,
-                       footer_html='<p style="color:#aaa;font-size:0.78em;text-align:center;margin:0;">Automated alert from the AU ECED-FLN Cluster Platform.</p>')
+                       footer_html=f'<p style="color:#aaa;font-size:0.78em;text-align:center;margin:0;">Automated alert from {_site_name()}.</p>')
     send_email(admin_email, subject, html)
 
 
@@ -402,7 +401,7 @@ def send_project_notification(project):
     subject = f"New Project: {project.title}"
     excerpt = project.description[:300] + ('...' if len(project.description) > 300 else '')
     body = f"""
-        <p>A new collaborative project has been published on the AU ECED-FLN Cluster Platform:</p>
+        <p>A new collaborative project has been published on {_site_name()}:</p>
         {_info_box(f'<h3 style="margin:0 0 8px;">{project.title}</h3><p style="margin:4px 0;color:#555;">{excerpt}</p><p style="margin:8px 0 0;"><strong>Deadline:</strong> {project.deadline.strftime("%B %d, %Y")}</p>')}
         {_btn(project_url, "View Project & Join")}
     """
@@ -414,11 +413,11 @@ def send_project_notification(project):
 def send_project_approved_email(user, project):
     """Notify the submitter that their project has been approved and published."""
     project_url = _url(f'/project/{project.id}')
-    subject = "Your project has been published – AU ECED-FLN Platform"
+    subject = f"Your project has been published – {_site_name()}"
     body = f"""
         <p>Dear {user.name},</p>
         <p>Your project <strong>{project.title}</strong> has been reviewed and is now
-        live on the AU ECED-FLN Cluster Platform. Members can now view it and sign up to participate.</p>
+        live on {_site_name()}. Members can now view it and sign up to participate.</p>
         {_btn(project_url, "View Your Project")}
     """
     html = _base_email("Your Project Has Been Published", body)
@@ -428,11 +427,11 @@ def send_project_approved_email(user, project):
 def send_event_approved_email(user, event):
     """Notify the submitter that their event has been approved and published."""
     event_url = _url(f'/event/{event.id}')
-    subject = "Your event has been published – AU ECED-FLN Platform"
+    subject = f"Your event has been published – {_site_name()}"
     body = f"""
         <p>Dear {user.name},</p>
         <p>Your event <strong>{event.title}</strong> has been reviewed and is now
-        live on the AU ECED-FLN Cluster Platform. All members have been notified and can register.</p>
+        live on {_site_name()}. All members have been notified and can register.</p>
         <p><strong>Date:</strong> {event.start_date.strftime('%B %d, %Y at %H:%M UTC')}</p>
         {_btn(event_url, "View Your Event")}
     """
@@ -459,7 +458,7 @@ def send_event_notification(event):
 
     for user in users:
         body = f"""
-            <p>A new event has been published on the AU ECED-FLN Cluster Platform:</p>
+            <p>A new event has been published on {_site_name()}:</p>
             {_info_box(f'<h3 style="margin:0 0 8px;">{event.title}</h3><p style="margin:4px 0;"><strong>Date:</strong> {event_date}</p><p style="margin:8px 0 0;color:#555;">{excerpt}</p>')}
             {_btn(event_url, "Register Now")}
         """
@@ -471,7 +470,7 @@ def send_event_notification(event):
 def send_event_registration_confirmation(user, event):
     """Send confirmation email to user after registering for an event."""
     event_url = _url(f'/event/{event.id}')
-    subject = f"Registration Confirmed: {event.title} – AU ECED-FLN Platform"
+    subject = f"Registration Confirmed: {event.title} – {_site_name()}"
 
     event_date = event.start_date.strftime('%B %d, %Y at %H:%M UTC')
     if event.end_date:
@@ -502,7 +501,7 @@ def send_custom_bulk_email(to_email, name, subject, body_text):
         f'<p style="margin:0 0 10px;">{line}</p>' if line.strip() else '<br>'
         for line in body_text.splitlines()
     )
-    html = _base_email("AU ECED-FLN Cluster Platform", body_html,
+    html = _base_email(_site_name(), body_html,
                        footer_html=_unsubscribe_footer(to_email))
     send_email(to_email, subject, html)
 
@@ -531,7 +530,7 @@ def send_single_initiative_notification(initiative_data, users):
             {_info_box(f'<p style="margin:0;font-size:1.05em;font-weight:bold;color:#333;">{title}</p>{desc_block}')}
             {_btn(url, "Read Initiative →")}
             <p style="color:#666;font-size:0.88em;margin:0;">
-                You are receiving this because you are a member of the AU&nbsp;ECED-FLN Cluster Platform.
+                You are receiving this because you are a member of {_site_name()}.
             </p>
         """
         html = _base_email("New Initiative Published", body,
@@ -548,7 +547,7 @@ def send_bulk_initiatives_digest(initiatives_data, users):
         return
 
     count = len(initiatives_data)
-    subject = f"{count} New Initiative{'s' if count != 1 else ''} on the AU ECED-FLN Platform"
+    subject = f"{count} New Initiative{'s' if count != 1 else ''} on {_site_name()}"
 
     for user in users:
         items_html = ""
@@ -576,10 +575,10 @@ def send_bulk_initiatives_digest(initiatives_data, users):
 
         body = f"""
             <p>The following initiative{'s have' if count != 1 else ' has'} just been
-            published on the AU&nbsp;ECED-FLN Cluster Platform:</p>
+            published on {_site_name()}</p>
             {items_html}
             <p style="color:#666;font-size:0.88em;margin:20px 0 0;">
-                You are receiving this because you are a member of the AU&nbsp;ECED-FLN Cluster Platform.
+                You are receiving this because you are a member of {_site_name()}.
             </p>
         """
         html = _base_email(
@@ -627,7 +626,7 @@ def send_single_policy_notification(policy_data, users):
             {_info_box(f'<p style="margin:0;font-size:1.05em;font-weight:bold;color:#333;">{title}</p>{meta_line}{summary_block}')}
             {_btn(url, "Read Full Policy Development →")}
             <p style="color:#666;font-size:0.88em;margin:0;">
-                You are receiving this because you are a member of the AU&nbsp;ECED-FLN Cluster Platform.
+                You are receiving this because you are a member of {_site_name()}.
             </p>
         """
         html = _base_email("New Policy Development Published", body,
@@ -646,7 +645,7 @@ def send_bulk_policies_digest(policies_data, users):
         return
 
     count = len(policies_data)
-    subject = f"{count} New Policy Development{'s' if count != 1 else ''} on the AU ECED-FLN Platform"
+    subject = f"{count} New Policy Development{'s' if count != 1 else ''} on {_site_name()}"
 
     for user in users:
         items_html = ""
@@ -686,10 +685,10 @@ def send_bulk_policies_digest(policies_data, users):
 
         body = f"""
             <p>The following policy development{'s have' if count != 1 else ' has'} just been
-            published on the AU&nbsp;ECED-FLN Cluster Platform:</p>
+            published on {_site_name()}</p>
             {items_html}
             <p style="color:#666;font-size:0.88em;margin:20px 0 0;">
-                You are receiving this because you are a member of the AU&nbsp;ECED-FLN Cluster Platform.
+                You are receiving this because you are a member of {_site_name()}.
             </p>
         """
         html = _base_email(
@@ -739,7 +738,7 @@ def send_single_document_notification(doc_data, users):
             {_info_box(f'<p style="margin:0;font-size:1.05em;font-weight:bold;color:#333;">{title}</p>{meta_line}{desc_block}')}
             {_btn(url, "View Document →")}
             <p style="color:#666;font-size:0.88em;margin:0;">
-                You are receiving this because you are a member of the AU&nbsp;ECED-FLN Cluster Platform.
+                You are receiving this because you are a member of {_site_name()}.
             </p>
         """
         html = _base_email("New Document Published", body,
@@ -756,7 +755,7 @@ def send_bulk_documents_digest(docs_data, users):
         return
 
     count = len(docs_data)
-    subject = f"{count} New Document{'s' if count != 1 else ''} on the AU ECED-FLN Platform"
+    subject = f"{count} New Document{'s' if count != 1 else ''} on {_site_name()}"
 
     for user in users:
         items_html = ""
@@ -796,10 +795,10 @@ def send_bulk_documents_digest(docs_data, users):
 
         body = f"""
             <p>The following document{'s have' if count != 1 else ' has'} just been
-            published on the AU&nbsp;ECED-FLN Cluster Platform:</p>
+            published on {_site_name()}</p>
             {items_html}
             <p style="color:#666;font-size:0.88em;margin:20px 0 0;">
-                You are receiving this because you are a member of the AU&nbsp;ECED-FLN Cluster Platform.
+                You are receiving this because you are a member of {_site_name()}.
             </p>
         """
         html = _base_email(
@@ -848,7 +847,7 @@ def send_single_ta_notification(ta_data, users):
             {_info_box(f'<p style="margin:0;font-size:1.05em;font-weight:bold;color:#333;">{title}</p>{meta_line}{desc_block}')}
             {_btn(url, "View Technical Assistance Need →")}
             <p style="color:#666;font-size:0.88em;margin:0;">
-                You are receiving this because you are a member of the AU&nbsp;ECED-FLN Cluster Platform.
+                You are receiving this because you are a member of {_site_name()}.
             </p>
         """
         html = _base_email("New Technical Assistance Need Published", body,
@@ -865,7 +864,7 @@ def send_bulk_ta_digest(ta_data_list, users):
         return
 
     count = len(ta_data_list)
-    subject = f"{count} New Technical Assistance Need{'s' if count != 1 else ''} – AU ECED-FLN Platform"
+    subject = f"{count} New Technical Assistance Need{'s' if count != 1 else ''} – {_site_name()}"
 
     for user in users:
         items_html = ""
@@ -903,10 +902,10 @@ def send_bulk_ta_digest(ta_data_list, users):
 
         body = f"""
             <p>The following technical assistance need{'s have' if count != 1 else ' has'} been
-            published by Member States on the AU&nbsp;ECED-FLN Cluster Platform:</p>
+            published by Member States on {_site_name()}</p>
             {items_html}
             <p style="color:#666;font-size:0.88em;margin:20px 0 0;">
-                You are receiving this because you are a member of the AU&nbsp;ECED-FLN Cluster Platform.
+                You are receiving this because you are a member of {_site_name()}.
             </p>
         """
         html = _base_email(
@@ -919,17 +918,17 @@ def send_bulk_ta_digest(ta_data_list, users):
 
 def send_ta_invitation_email(email, name, ta_url):
     """Invite a Member State stakeholder to submit their Technical Assistance Need."""
-    subject = "Submit Your Technical Assistance Need – AU ECED-FLN Platform"
+    subject = f"Submit Your Technical Assistance Need – {_site_name()}"
     body = f"""
         <p>Dear {name},</p>
-        <p>As a <strong>Member State</strong> stakeholder on the AU ECED-FLN Cluster Platform,
+        <p>As a <strong>Member State</strong> stakeholder on {_site_name()},
         you are invited to submit your <strong>Technical Assistance Need</strong>.</p>
         <p>Member States can describe the specific technical assistance they require in the area
         of Early Childhood Education &amp; Development or Foundational Learning. This helps
         partners and development organisations identify where they can provide support.</p>
         {_btn(ta_url, "Submit Your Technical Assistance Need")}
         <p style="color:#666;font-size:0.88em;margin:8px 0 0;">
-            You are receiving this as a Member State stakeholder on the AU&nbsp;ECED-FLN Cluster Platform.
+            You are receiving this as a Member State stakeholder on {_site_name()}.
         </p>
     """
     html = _base_email("Submit Your Technical Assistance Need", body)

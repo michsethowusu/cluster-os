@@ -4340,7 +4340,7 @@ def admin_import_members():
                 valid_rows  = []   # list of dicts: {email, name, ...row}
                 for row_num, row in enumerate(csv_reader, start=2):
                     if invite_only:
-                        required = ['email', 'organization']
+                        required = ['email']
                     elif custom_message_mode or event_invite_mode:
                         required = ['email', 'name']
                     else:

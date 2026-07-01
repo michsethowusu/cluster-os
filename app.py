@@ -36,6 +36,7 @@ from utils.email_sender import (
     send_member_notification,
     send_import_welcome_email,
     send_invitation_email,
+    send_individual_invitation_email,
     send_initiative_approved_email,
     send_initiative_pending_email,
     send_project_notification,
@@ -4312,7 +4313,8 @@ def admin_import_members():
             flash('No file selected', 'error')
             return redirect(request.url)
         # Read mode checkboxes
-        invite_only         = request.form.get('invite_only') == 'on'
+        invite_orgs         = request.form.get('invite_orgs') == 'on'
+        invite_individuals  = request.form.get('invite_individuals') == 'on'
         custom_message_mode = request.form.get('custom_message_mode') == 'on'
         event_invite_mode   = request.form.get('event_invite_mode') == 'on'
         custom_subject      = request.form.get('custom_subject', '').strip()
@@ -4339,9 +4341,9 @@ def admin_import_members():
                 # For normal import we need the full set of fields.
                 valid_rows  = []   # list of dicts: {email, name, ...row}
                 for row_num, row in enumerate(csv_reader, start=2):
-                    if invite_only:
-                        required = ['email', 'name']
-                    elif custom_message_mode or event_invite_mode:
+                    if invite_orgs:
+                        required = ['email', 'name', 'organization']
+                    elif invite_individuals or custom_message_mode or event_invite_mode:
                         required = ['email', 'name']
                     else:
                         required = ['email', 'name', 'organization', 'stakeholder_type', 'country']
@@ -4359,7 +4361,7 @@ def admin_import_members():
                     valid_rows.append({'_row_num': row_num, '_email': email, '_name': name, **row})
 
                 # ── NORMAL IMPORT MODE (synchronous — creates DB records) ─────
-                if not (invite_only or custom_message_mode or event_invite_mode):
+                if not (invite_orgs or invite_individuals or custom_message_mode or event_invite_mode):
                     imported = 0
                     db_types = get_stakeholder_types()
                     for r in valid_rows:
@@ -4423,7 +4425,7 @@ def admin_import_members():
                             continue
                         to_send.append((email, name))
 
-                elif invite_only:
+                elif invite_orgs:
                     for r in valid_rows:
                         email, name, row_num = r['_email'], r['_name'], r['_row_num']
                         org = r.get('organization', '').strip()
@@ -4434,6 +4436,17 @@ def admin_import_members():
                             errors.append(f"Row {row_num}: {email} has unsubscribed — skipped")
                             continue
                         to_send.append((email, name, org))
+
+                elif invite_individuals:
+                    for r in valid_rows:
+                        email, name, row_num = r['_email'], r['_name'], r['_row_num']
+                        if User.query.filter_by(email=email).first():
+                            errors.append(f"Row {row_num}: {email} is already a member — skipped")
+                            continue
+                        if BlockedEmail.query.filter_by(email=email).first():
+                            errors.append(f"Row {row_num}: {email} has unsubscribed — skipped")
+                            continue
+                        to_send.append((email, name))
 
                 skipped = len(valid_rows) - len(to_send)
 
@@ -4452,6 +4465,9 @@ def admin_import_members():
                                     if mode == 'invite':
                                         em, nm, org = item
                                         send_invitation_email(em, nm, organization=org)
+                                    elif mode == 'invite_individuals':
+                                        em, nm = item
+                                        send_individual_invitation_email(em, nm)
                                     elif mode == 'event':
                                         em, nm = item
                                         from utils.email_sender import send_event_invitation_email
@@ -4465,7 +4481,7 @@ def admin_import_members():
                                 time.sleep(BATCH_PAUSE)
 
                 if to_send:
-                    mode_key = 'event' if event_invite_mode else ('custom' if custom_message_mode else 'invite')
+                    mode_key = 'event' if event_invite_mode else ('custom' if custom_message_mode else ('invite_individuals' if invite_individuals else 'invite'))
                     t = threading.Thread(
                         target=_send_batch,
                         args=(app, to_send, mode_key),
@@ -4479,7 +4495,7 @@ def admin_import_members():
                     )
                     t.start()
 
-                label = 'event invitation' if event_invite_mode else ('message' if custom_message_mode else 'invitation')
+                label = 'event invitation' if event_invite_mode else ('message' if custom_message_mode else ('individual invitation' if invite_individuals else 'invitation'))
                 flash(
                     f'Queued {len(to_send)} {label}(s) for sending in the background '
                     f'({skipped} skipped, {len(errors)} error(s)).',

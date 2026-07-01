@@ -26,12 +26,20 @@
                         <li>Imported members will be prompted to add projects on their first login</li>
                     </ul>
                 </div>
-                <div class="alert alert-warning d-none" id="info-invite">
-                    <h6><i class="bi bi-envelope"></i> Invite mode — sends an invitation email only:</h6>
+                <div class="alert alert-warning d-none" id="info-invite-orgs">
+                    <h6><i class="bi bi-building"></i> Invite Organisations — sends invitation email on behalf of their organisation:</h6>
                     <ul class="mb-0">
                         <li>No accounts are created</li>
-                        <li>Each person receives an email inviting them to register on the platform</li>
-                        <li>Only <strong>email</strong> and <strong>name</strong> columns are required in invite mode</li>
+                        <li>Each person receives an email inviting them to register on behalf of their organisation</li>
+                        <li>Required columns: <strong>email</strong>, <strong>name</strong>, <strong>organization</strong></li>
+                    </ul>
+                </div>
+                <div class="alert alert-warning d-none" id="info-invite-individuals">
+                    <h6><i class="bi bi-person"></i> Invite Individuals — sends invitation email to join in their own capacity:</h6>
+                    <ul class="mb-0">
+                        <li>No accounts are created</li>
+                        <li>Each person receives an email inviting them to register as an individual member</li>
+                        <li>Required columns: <strong>email</strong>, <strong>name</strong></li>
                     </ul>
                 </div>
                 <div class="alert alert-info d-none" id="info-custom">
@@ -62,15 +70,29 @@
 
                     <div class="mb-4">
                         <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="invite_only"
-                                   id="invite_only" role="switch">
-                            <label class="form-check-label fw-semibold" for="invite_only">
-                                Invite only — send invitation emails without creating accounts
+                            <input class="form-check-input" type="checkbox" name="invite_orgs"
+                                   id="invite_orgs" role="switch">
+                            <label class="form-check-label fw-semibold" for="invite_orgs">
+                                <i class="bi bi-building"></i> Invite Organisations — send invitations on behalf of an organisation
                             </label>
                         </div>
                         <div class="form-text ms-4">
-                            When checked, no accounts are created. Recipients receive an email with a link to
-                            register themselves on the platform.
+                            Recipients receive an email mentioning their organisation.
+                            Requires <strong>email</strong>, <strong>name</strong>, and <strong>organization</strong> columns.
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="invite_individuals"
+                                   id="invite_individuals" role="switch">
+                            <label class="form-check-label fw-semibold" for="invite_individuals">
+                                <i class="bi bi-person"></i> Invite Individuals — send invitations to join in their own capacity
+                            </label>
+                        </div>
+                        <div class="form-text ms-4">
+                            Recipients are invited as individual contributors (no organisation affiliation required).
+                            Requires <strong>email</strong> and <strong>name</strong> columns.
                         </div>
                     </div>
 
@@ -178,43 +200,46 @@ john@unicef.org,John Doe,UNICEF Ghana,UN Agency,Ghana</pre>
 
 <script>
 (function () {
-    const inviteCheck      = document.getElementById('invite_only');
-    const customCheck      = document.getElementById('custom_message_mode');
-    const eventInviteCheck = document.getElementById('event_invite_mode');
-    const infoImport       = document.getElementById('info-import');
-    const infoInvite       = document.getElementById('info-invite');
-    const infoCustom       = document.getElementById('info-custom');
-    const infoEventInvite  = document.getElementById('info-event-invite');
-    const customFields     = document.getElementById('custom-message-fields');
-    const eventInviteFields= document.getElementById('event-invite-fields');
-    const submitBtn        = document.getElementById('submit-btn');
-    const inviteNote       = document.getElementById('invite-note');
-    const orgRequired      = document.getElementById('org-required');
-    const stypeRequired    = document.getElementById('stype-required');
-    const countryRequired  = document.getElementById('country-required');
+    const inviteOrgsCheck       = document.getElementById('invite_orgs');
+    const inviteIndividualsCheck = document.getElementById('invite_individuals');
+    const customCheck           = document.getElementById('custom_message_mode');
+    const eventInviteCheck      = document.getElementById('event_invite_mode');
+    const infoImport            = document.getElementById('info-import');
+    const infoInviteOrgs        = document.getElementById('info-invite-orgs');
+    const infoInviteIndividuals = document.getElementById('info-invite-individuals');
+    const infoCustom            = document.getElementById('info-custom');
+    const infoEventInvite       = document.getElementById('info-event-invite');
+    const customFields          = document.getElementById('custom-message-fields');
+    const eventInviteFields     = document.getElementById('event-invite-fields');
+    const submitBtn             = document.getElementById('submit-btn');
+    const inviteNote            = document.getElementById('invite-note');
+    const orgRequired           = document.getElementById('org-required');
+    const stypeRequired         = document.getElementById('stype-required');
+    const countryRequired       = document.getElementById('country-required');
 
     function update() {
-        // Mutual exclusivity among the three special modes
-        const checks = [inviteCheck, customCheck, eventInviteCheck];
+        const checks = [inviteOrgsCheck, inviteIndividualsCheck, customCheck, eventInviteCheck];
         const clicked = this;
         if (clicked && clicked.checked) {
             checks.forEach(c => { if (c !== clicked) c.checked = false; });
         }
 
-        const finalInvite      = inviteCheck.checked;
-        const finalCustom      = customCheck.checked;
-        const finalEventInvite = eventInviteCheck.checked;
-        const anySpecial       = finalInvite || finalCustom || finalEventInvite;
+        const finalInviteOrgs       = inviteOrgsCheck.checked;
+        const finalInviteIndividuals = inviteIndividualsCheck.checked;
+        const finalCustom           = customCheck.checked;
+        const finalEventInvite      = eventInviteCheck.checked;
+        const anySpecial            = finalInviteOrgs || finalInviteIndividuals || finalCustom || finalEventInvite;
 
         infoImport.classList.toggle('d-none', anySpecial);
-        infoInvite.classList.toggle('d-none', !finalInvite);
+        infoInviteOrgs.classList.toggle('d-none', !finalInviteOrgs);
+        infoInviteIndividuals.classList.toggle('d-none', !finalInviteIndividuals);
         infoCustom.classList.toggle('d-none', !finalCustom);
         infoEventInvite.classList.toggle('d-none', !finalEventInvite);
         customFields.classList.toggle('d-none', !finalCustom);
         eventInviteFields.classList.toggle('d-none', !finalEventInvite);
 
         const optLabel = anySpecial ? 'Optional' : 'Yes';
-        orgRequired.textContent     = optLabel;
+        orgRequired.textContent     = finalInviteOrgs ? 'Yes' : optLabel;
         stypeRequired.textContent   = optLabel;
         countryRequired.textContent = optLabel;
         inviteNote.style.display    = anySpecial ? '' : 'none';
@@ -225,8 +250,11 @@ john@unicef.org,John Doe,UNICEF Ghana,UN Agency,Ghana</pre>
         } else if (finalCustom) {
             submitBtn.innerHTML = '<i class="bi bi-envelope-fill"></i> Send Custom Messages';
             submitBtn.className = 'btn btn-info';
-        } else if (finalInvite) {
-            submitBtn.innerHTML = '<i class="bi bi-envelope"></i> Send Invitations';
+        } else if (finalInviteOrgs) {
+            submitBtn.innerHTML = '<i class="bi bi-building"></i> Send Organisation Invitations';
+            submitBtn.className = 'btn btn-warning';
+        } else if (finalInviteIndividuals) {
+            submitBtn.innerHTML = '<i class="bi bi-person"></i> Send Individual Invitations';
             submitBtn.className = 'btn btn-warning';
         } else {
             submitBtn.innerHTML = '<i class="bi bi-upload"></i> Import Members';
@@ -234,7 +262,8 @@ john@unicef.org,John Doe,UNICEF Ghana,UN Agency,Ghana</pre>
         }
     }
 
-    inviteCheck.addEventListener('change', update);
+    inviteOrgsCheck.addEventListener('change', update);
+    inviteIndividualsCheck.addEventListener('change', update);
     customCheck.addEventListener('change', update);
     eventInviteCheck.addEventListener('change', update);
     update();

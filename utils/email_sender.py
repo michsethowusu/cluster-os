@@ -298,6 +298,34 @@ def send_invitation_email(email, name, organization=None):
     send_email(email, subject, html)
 
 
+def send_individual_invitation_email(email, name):
+    """Send an invitation email to an individual joining in their own capacity."""
+    register_url = _url('/register')
+    salutation = name if name and name.strip() else 'Colleague'
+    subject = 'Invitation to Join the Africa Teachers Forum'
+    body = f"""
+        <p>Dear {salutation},</p>
+        <p>We are pleased to invite you to join the <strong>Africa Teachers Forum</strong> —
+        a digital platform that brings together educators, practitioners, and advocates from across
+        Africa to collaborate on Early Childhood Education and Foundational Learning.</p>
+        <p>As a member you will be able to:</p>
+        <ul style="padding-left:20px;margin:8px 0 16px;">
+            <li>Share and explore ECED-FLN initiatives from across the continent</li>
+            <li>Participate in the Q&amp;A forum and contribute recommendations</li>
+            <li>Register for cluster events and engage in polls</li>
+            <li>Connect with other experts and organisations in the network</li>
+        </ul>
+        <p>We look forward to your participation.</p>
+        {_btn(register_url, "Register Now")}
+        <p style="margin:24px 0 0;color:#555;font-size:0.9em;">Should you have any questions,
+        please do not hesitate to contact us at
+        <a href="mailto:community@africateachers.org" style="color:#1a56db;">community@africateachers.org</a>.</p>
+    """
+    html = _base_email("Invitation to Join the Africa Teachers Forum", body,
+                       footer_html=_unsubscribe_footer(email))
+    send_email(email, subject, html)
+
+
 def send_event_invitation_email(email, name, event, event_url):
     """Send an invitation email for a specific event."""
     event_date = event.start_date.strftime('%B %d, %Y at %H:%M UTC')

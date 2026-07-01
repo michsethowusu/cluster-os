@@ -120,7 +120,7 @@ class Setting(db.Model):
     """Key-value store for application settings."""
     id = db.Column(db.Integer, primary_key=True)
     key = db.Column(db.String(100), unique=True, nullable=False)
-    value = db.Column(db.String(500))
+    value = db.Column(db.Text)
 
 
 class PageView(db.Model):
@@ -785,7 +785,7 @@ def inject_site_config():
             'name': name,
             'tagline': get_setting('site_tagline', DEFAULT_SITE_TAGLINE) or DEFAULT_SITE_TAGLINE,
             'certificates_enabled': is_certificates_enabled(),
-            'hero_image': get_setting('hero_image') or DEFAULT_HERO_IMAGE,
+            'hero_image': url_for('custom_hero_image') if get_setting('hero_image_data') else url_for('static', filename=DEFAULT_HERO_IMAGE),
             'hero_heading': get_setting('hero_heading') or DEFAULT_HERO_HEADING,
             'hero_text': get_setting('hero_text') or DEFAULT_HERO_TEXT,
             'footer_note': (get_setting('footer_note')
@@ -2818,6 +2818,16 @@ def download_attachment(att_id):
         download_name=att.filename,
     )
 
+import base64
+
+@app.route('/uploads/hero-image')
+def custom_hero_image():
+    data = get_setting('hero_image_data')
+    mimetype = get_setting('hero_image_mimetype') or 'image/png'
+    if not data:
+        return redirect(url_for('static', filename=DEFAULT_HERO_IMAGE))
+    return Response(base64.b64decode(data), mimetype=mimetype)
+
 @app.route('/polls')
 def polls():
     # Get all polls (from events)
@@ -3724,16 +3734,18 @@ def admin_appearance():
 
         # Front-page header image: reset, or upload a replacement
         if request.form.get('reset_hero_image'):
-            set_setting('hero_image', '')
+            set_setting('hero_image_data', '')
+            set_setting('hero_image_mimetype', '')
         else:
             file = request.files.get('hero_image')
             if file and file.filename:
                 ext = os.path.splitext(file.filename)[1].lower().lstrip('.')
                 if ext in {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'}:
-                    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-                    fname = f"hero_{uuid.uuid4().hex}.{ext}"
-                    file.save(os.path.join(app.config['UPLOAD_FOLDER'], fname))
-                    set_setting('hero_image', f"uploads/{fname}")
+                    mimetype_map = {'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+                                    'gif': 'image/gif', 'webp': 'image/webp', 'svg': 'image/svg+xml'}
+                    data = base64.b64encode(file.read()).decode('ascii')
+                    set_setting('hero_image_data', data)
+                    set_setting('hero_image_mimetype', mimetype_map.get(ext, 'image/png'))
                 else:
                     flash('Header image must be PNG, JPG, GIF, WEBP, or SVG.', 'error')
                     return redirect(url_for('admin_appearance'))
@@ -3761,6 +3773,7 @@ def admin_appearance():
         'shown': not overrides.get(item['key'], {}).get('hidden', False),
         'external': item.get('external', False),
     } for item in NAV_ITEMS]
+    hero_image_data = get_setting('hero_image_data')
     return render_template(
         'admin/appearance.html',
         site_name=get_setting('site_name', DEFAULT_SITE_NAME),
@@ -3768,7 +3781,8 @@ def admin_appearance():
         footer_note=get_setting('footer_note', ''),
         hero_heading=get_setting('hero_heading', ''),
         hero_text=get_setting('hero_text', ''),
-        hero_image=get_setting('hero_image', ''),
+        hero_image=hero_image_data,
+        hero_image_url=url_for('custom_hero_image') if hero_image_data else '',
         default_hero_image=DEFAULT_HERO_IMAGE,
         default_hero_heading=DEFAULT_HERO_HEADING,
         default_hero_text=DEFAULT_HERO_TEXT,

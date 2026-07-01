@@ -47,7 +47,7 @@
                 <div class="mb-2">
                     <label class="form-label">Header Image</label>
                     <div class="d-flex align-items-center gap-3 mb-2">
-                        <img src="{{ url_for('static', filename=hero_image or default_hero_image) }}"
+                        <img src="{{ hero_image_url or url_for('static', filename=default_hero_image) }}"
                              alt="Current header image" class="rounded shadow-sm"
                              style="width:80px;height:80px;object-fit:cover;">
                         <div class="small text-muted">

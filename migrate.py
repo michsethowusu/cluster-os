@@ -15,6 +15,7 @@ with app.app_context():
         conn.execute(db.text('ALTER TABLE event ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT FALSE'))
         conn.execute(db.text('ALTER TABLE event ADD COLUMN IF NOT EXISTS submitted_by INTEGER'))
         conn.execute(db.text('ALTER TABLE event ADD COLUMN IF NOT EXISTS zoom_webinar_id VARCHAR(100)'))
+        conn.execute(db.text('ALTER TABLE setting ALTER COLUMN value TYPE TEXT'))
         conn.execute(db.text('ALTER TABLE event ADD COLUMN IF NOT EXISTS zoom_recording_url VARCHAR(500)'))
         conn.execute(db.text('ALTER TABLE event ADD COLUMN IF NOT EXISTS meeting_link VARCHAR(500)'))
         conn.execute(db.text('''

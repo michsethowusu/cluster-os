@@ -48,6 +48,11 @@ with app.app_context():
     admin_email = os.environ.get('ADMIN_EMAIL', '').strip()
     admin_password = os.environ.get('ADMIN_PASSWORD', '').strip()
     if admin_email:
+        # Demote any user who previously had admin but no longer matches the configured email
+        for u in User.query.filter(User.email != admin_email, User.is_admin == True).all():
+            u.is_admin = False
+            print(f'Admin demoted: {u.email}')
+
         admin = User.query.filter_by(email=admin_email).first()
         if not admin:
             admin = User(

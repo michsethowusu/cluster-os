@@ -4089,7 +4089,7 @@ def admin_page_titles():
 def admin_email_templates():
     if not current_user.is_admin:
         abort(403)
-    from utils.email_sender import EMAIL_TEMPLATES
+    from utils.email_sender import EMAIL_TEMPLATES, TEMPLATE_VARIABLE_DESCRIPTIONS
     if request.method == 'POST':
         action = request.form.get('action')
         if action == 'update':
@@ -4121,7 +4121,7 @@ def admin_email_templates():
             flash('All templates confirmed.', 'success')
         elif action == 'reset':
             key = request.form.get('key')
-            from utils.email_sender import EMAIL_TEMPLATES
+            from utils.email_sender import EMAIL_TEMPLATES, TEMPLATE_VARIABLE_DESCRIPTIONS
             default = next((t for t in EMAIL_TEMPLATES if t['key'] == key), None)
             if default:
                 tmpl = EmailTemplate.query.filter_by(key=key).first()
@@ -4160,7 +4160,8 @@ def admin_email_templates():
     return render_template('admin/email_templates.html',
                            templates=templates,
                            confirmed_count=confirmed_count,
-                           unconfirmed_count=unconfirmed_count)
+                           unconfirmed_count=unconfirmed_count,
+                           variable_descriptions=TEMPLATE_VARIABLE_DESCRIPTIONS)
 
 
 @app.route('/admin/trigger-nlp', methods=['POST'])

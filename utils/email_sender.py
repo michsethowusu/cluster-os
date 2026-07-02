@@ -2,6 +2,50 @@ import os
 import requests
 from flask import current_app
 
+EMAIL_TEMPLATES = []
+
+# Shared variable descriptions for the admin UI
+# Each {{ var_name }} maps to a description of what it resolves to
+TEMPLATE_VARIABLE_DESCRIPTIONS = {
+    'site_name': 'The configured site name (from Appearance).',
+    'site_tagline': 'The configured site tagline (from Appearance).',
+    'contact_email': 'The sender email address (from Settings).',
+    'login_url': 'Absolute URL to the login page.',
+    'login_btn': 'A styled "Log In to the Platform" button.',
+    'register_url': 'Absolute URL to the registration page.',
+    'register_btn': 'A styled "Register Now" button.',
+    'user_name': "Recipient's full name.",
+    'user_email': "Recipient's email address.",
+    'organization': "Recipient's organization name.",
+    'salutation': "Recipient's name (or 'Colleague' if unknown).",
+    'org_line': 'Text like "on behalf of <Org>" (empty if no org).',
+    'initiative_title': 'Title of the initiative.',
+    'initiative_btn': 'A styled "View Your Initiative" button.',
+    'initiative_link': 'A link to the initiative (optional, empty if none).',
+    'otp': 'The one-time password (login code).',
+    'cert_btn': 'A styled "View Your Certificate" button.',
+    'event_title': 'Title of the event.',
+    'event_date': 'Formatted event date and time.',
+    'info_box': 'A styled information box with event/project/initiative details.',
+    'view_btn': 'A styled "View" button.',
+    'join_btn': 'A styled "View Project & Join" button.',
+    'manage_btn': 'A styled "Manage Project in Admin" button.',
+    'submit_btn': 'A styled "Submit" button.',
+    'event_excerpt': 'Short description of the event.',
+    'meeting_link': 'Meeting URL or link (empty if none).',
+    'activity_list': 'HTML list of activities the user signed up for.',
+    'project_title': 'Title of the project.',
+    'project_deadline': 'Formatted project deadline date.',
+    'project_excerpt': 'Short description of the project.',
+    'items_html': 'HTML content listing multiple items (for digest emails).',
+    'notification_intro': 'Introductory sentence for the notification.',
+    'message_body': 'The custom message body (for bulk emails).',
+    'digest_items': 'HTML list items for digest emails.',
+    'initiative_description': 'Short description of the initiative.',
+    'read_btn': 'A styled "Read More" button.',
+    'ta_url': 'Absolute URL to submit a Technical Assistance Need.',
+}
+
 EMAIL_TEMPLATES = [
     {
         'key': 'otp',
@@ -253,7 +297,7 @@ def _site_name():
             return name
     except Exception:
         pass
-    return os.environ.get('SITE_NAME') or 'AU ECED-FLN Cluster Platform'
+    return os.environ.get('SITE_NAME') or 'Cluster Platform'
 
 
 def _site_tagline():
@@ -264,8 +308,7 @@ def _site_tagline():
             return tagline
     except Exception:
         pass
-    return os.environ.get('SITE_TAGLINE') or ('Accelerating Early Childhood Education and '
-                                               'Development & Foundational Learning across Africa.')
+    return os.environ.get('SITE_TAGLINE') or 'A platform connecting experts and organisations.'
 
 
 def _site_contact_email():
@@ -350,9 +393,8 @@ def _render_template(template_key, context, subject_default='', title_default=''
         title = tmpl.title
         body = tmpl.body_html
     else:
-        subject = subject_default
-        title = title_default
-        body = body_default
+        print(f"Email template '{template_key}' not confirmed — refusing to send.")
+        return None, None, None
 
     full_context = {
         'site_name': _site_name(),
@@ -531,6 +573,8 @@ def send_invitation_email(email, name, organization=None):
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'invitation_org')
     _, title, body = _render_template('invitation_org', context,
         defaults['subject'], defaults['title'], defaults['body_html'])
+    if not title:
+        return False
     subject = f"Invitation for Experts from {organization} to Join {_site_name()}" if organization else f"Invitation to Join {_site_name()}"
     html = _base_email(title, body, footer_html=_unsubscribe_footer(email))
     send_email(email, subject, html)
@@ -767,6 +811,8 @@ def send_custom_bulk_email(to_email, name, subject, body_text):
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'custom_bulk')
     _, title, body = _render_template('custom_bulk', context,
         defaults['subject'], defaults['title'], defaults['body_html'])
+    if not title:
+        return False
     html = _base_email(title, body, footer_html=_unsubscribe_footer(to_email))
     send_email(to_email, subject, html)
 

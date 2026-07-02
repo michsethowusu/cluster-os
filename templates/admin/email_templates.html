@@ -114,10 +114,13 @@
                             <small class="fw-bold text-muted">Template Variables</small>
                             <div class="mt-1">
                                 {% for var in t.variables %}
-                                <code class="me-2">{{ var }}</code>
+                                <div class="mb-1">
+                                    <code class="me-1">{{ var }}</code>
+                                    <span class="text-muted small">— {{ variable_descriptions.get(var, '') }}</span>
+                                </div>
                                 {% endfor %}
                             </div>
-                            <small class="text-muted d-block mt-1">Use these placeholders in the subject, title, and body HTML above.</small>
+                            <small class="text-muted d-block mt-1">Use these placeholders (including braces) in the subject, title, and body HTML above.</small>
                         </div>
                     </div>
                 </div>

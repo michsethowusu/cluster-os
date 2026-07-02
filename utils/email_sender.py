@@ -5,28 +5,22 @@ from flask import current_app
 # Shared variable descriptions for the admin UI
 TEMPLATE_VARIABLE_DESCRIPTIONS = {
     'site_name': 'The configured site name (from Appearance).',
-    'site_tagline': 'The configured site tagline (from Appearance).',
     'contact_email': 'The sender email address (from Settings).',
     'login_url': 'Absolute URL to the login page.',
     'register_url': 'Absolute URL to the registration page.',
     'user_name': "Recipient's full name.",
     'user_email': "Recipient's email address.",
     'organization': "Recipient's organization name.",
-    'salutation': "Recipient's name (or 'Colleague' if unknown).",
     'otp': 'The one-time password (login code).',
     'initiative_title': 'Title of the initiative.',
     'initiative_url': 'Absolute URL to the initiative page.',
     'initiative_link': 'Pre-built initiative link block (empty if no initiative).',
-    'initiative_description': 'Short description of the initiative.',
     'event_title': 'Title of the event.',
     'event_url': 'Absolute URL to the event page.',
     'event_date': 'Formatted event date and time.',
-    'event_excerpt': 'Short description of the event.',
-    'meeting_link_html': 'Meeting link HTML (empty if no meeting link).',
     'project_title': 'Title of the project.',
     'project_url': 'Absolute URL to the project page.',
     'project_deadline': 'Formatted project deadline date.',
-    'project_excerpt': 'Short description of the project.',
     'cert_url': 'Absolute URL to the certificate page.',
     'policy_title': 'Title of the policy development.',
     'policy_url': 'Absolute URL to the policy page.',
@@ -38,7 +32,6 @@ TEMPLATE_VARIABLE_DESCRIPTIONS = {
     'activity_items': 'HTML list of activities the user signed up for.',
     'body_content': 'The custom message body (for bulk emails).',
     'items_html': 'HTML content listing multiple items (for digest emails).',
-    'notification_intro': 'Introductory sentence for the notification.',
     'subject_line': 'Generated subject line for digest emails.',
     'title_line': 'Generated title for digest emails.',
     'digest_items': 'HTML list items for digest emails.',
@@ -94,37 +87,37 @@ EMAIL_TEMPLATES = [
         'key': 'import_welcome',
         'label': 'Welcome (Imported Member)',
         'description': 'Sent to members who were added by admin.',
-        'variables': ['user_name', 'organization', 'site_name', 'site_tagline', 'login_url', 'user_email'],
+        'variables': ['user_name', 'organization', 'site_name', 'login_url', 'user_email'],
         'subject': "You've been added to the {{ site_name }}",
         'title': 'Welcome to the {{ site_name }}',
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>You have been added to the <strong>{{ site_name }}</strong> as a member representing <strong>{{ organization }}</strong>.</p>\n<p>{{ site_tagline }} As a member you can:</p>\n<ul style="padding-left:20px;margin:8px 0 16px;">\n    <li>Share and explore initiatives from across the continent</li>\n    <li>Participate in the Q&amp;A forum and contribute recommendations</li>\n    <li>Register for events and complete polls</li>\n    <li>Connect with other experts in the network</li>\n</ul>\n<p><strong>To get started, please log in and complete your profile</strong> by adding descriptions of your ongoing projects or areas of expertise. This helps other members find and connect with you based on your areas of expertise.</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ login_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Log In to the Platform</a></div>\n<p style="color:#666;font-size:0.9em;">Your registered email address is: {{ user_email }}<br>\nUse this to log in \u2014 you will receive a one-time password (OTP) each time you sign in.</p>',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>You have been added to the <strong>{{ site_name }}</strong> as a member representing <strong>{{ organization }}</strong>.</p>\n<p>A platform connecting experts and organisations. As a member you can:</p>\n<ul style="padding-left:20px;margin:8px 0 16px;">\n    <li>Share and explore initiatives from across the continent</li>\n    <li>Participate in the Q&amp;A forum and contribute recommendations</li>\n    <li>Register for events and complete polls</li>\n    <li>Connect with other experts in the network</li>\n</ul>\n<p><strong>To get started, please log in and complete your profile</strong> by adding descriptions of your ongoing projects or areas of expertise. This helps other members find and connect with you based on your areas of expertise.</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ login_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Log In to the Platform</a></div>\n<p style="color:#666;font-size:0.9em;">Your registered email address is: {{ user_email }}<br>\nUse this to log in \u2014 you will receive a one-time password (OTP) each time you sign in.</p>',
     },
     {
         'key': 'invitation_org',
         'label': 'Invitation (Organisation)',
         'description': 'Sent to invite organisation representatives.',
-        'variables': ['salutation', 'organization', 'site_name', 'site_tagline', 'register_url', 'contact_email'],
+        'variables': ['user_name', 'organization', 'site_name', 'register_url', 'contact_email'],
         'subject': 'Invitation to Join {{ site_name }}',
         'title': 'Invitation to Join {{ site_name }}',
-        'body_html': '<p>Dear {{ salutation }},</p>\n<p><strong>{{ site_name }}</strong> is pleased to invite experts on behalf of <strong>{{ organization }}</strong> to join its digital collaboration platform.</p>\n<p>{{ site_tagline }} As a member your organisation will be able to:</p>\n<ul style="padding-left:20px;margin:8px 0 16px;">\n    <li>Share and explore initiatives from across the continent</li>\n    <li>Participate in the Q&amp;A forum and contribute recommendations</li>\n    <li>Register for events and engage in polls</li>\n    <li>Connect with other experts and organisations in the network</li>\n</ul>\n<p>We look forward to your participation.</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ register_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Register Now</a></div>\n<p style="margin:24px 0 0;color:#555;font-size:0.9em;">Should you have any questions, please do not hesitate to contact us at\n<a href="mailto:{{ contact_email }}" style="color:#1a56db;">{{ contact_email }}</a>.</p>',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p><strong>{{ site_name }}</strong> is pleased to invite experts on behalf of <strong>{{ organization }}</strong> to join its digital collaboration platform.</p>\n<p>A platform connecting experts and organisations. As a member your organisation will be able to:</p>\n<ul style="padding-left:20px;margin:8px 0 16px;">\n    <li>Share and explore initiatives from across the continent</li>\n    <li>Participate in the Q&amp;A forum and contribute recommendations</li>\n    <li>Register for events and engage in polls</li>\n    <li>Connect with other experts and organisations in the network</li>\n</ul>\n<p>We look forward to your participation.</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ register_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Register Now</a></div>\n<p style="margin:24px 0 0;color:#555;font-size:0.9em;">Should you have any questions, please do not hesitate to contact us at\n<a href="mailto:{{ contact_email }}" style="color:#1a56db;">{{ contact_email }}</a>.</p>',
     },
     {
         'key': 'invitation_individual',
         'label': 'Invitation (Individual)',
         'description': 'Sent to invite individuals joining in their own capacity.',
-        'variables': ['salutation', 'site_name', 'site_tagline', 'register_url', 'contact_email'],
+        'variables': ['user_name', 'site_name', 'register_url', 'contact_email'],
         'subject': 'Invitation to Join the {{ site_name }}',
         'title': 'Invitation to Join the {{ site_name }}',
-        'body_html': '<p>Dear {{ salutation }},</p>\n<p>We are pleased to invite you to join <strong>{{ site_name }}</strong>.</p>\n<p>{{ site_tagline }} As a member you will be able to:</p>\n<ul style="padding-left:20px;margin:8px 0 16px;">\n    <li>Share and explore initiatives from across the continent</li>\n    <li>Participate in the Q&amp;A forum and contribute recommendations</li>\n    <li>Register for events and engage in polls</li>\n    <li>Connect with other experts and organisations in the network</li>\n</ul>\n<p>We look forward to your participation.</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ register_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Register Now</a></div>\n<p style="margin:24px 0 0;color:#555;font-size:0.9em;">Should you have any questions, please do not hesitate to contact us at\n<a href="mailto:{{ contact_email }}" style="color:#1a56db;">{{ contact_email }}</a>.</p>',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>We are pleased to invite you to join <strong>{{ site_name }}</strong>.</p>\n<p>A platform connecting experts and organisations. As a member you will be able to:</p>\n<ul style="padding-left:20px;margin:8px 0 16px;">\n    <li>Share and explore initiatives from across the continent</li>\n    <li>Participate in the Q&amp;A forum and contribute recommendations</li>\n    <li>Register for events and engage in polls</li>\n    <li>Connect with other experts and organisations in the network</li>\n</ul>\n<p>We look forward to your participation.</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ register_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Register Now</a></div>\n<p style="margin:24px 0 0;color:#555;font-size:0.9em;">Should you have any questions, please do not hesitate to contact us at\n<a href="mailto:{{ contact_email }}" style="color:#1a56db;">{{ contact_email }}</a>.</p>',
     },
     {
         'key': 'event_invitation',
         'label': 'Event Invitation',
         'description': 'Sent to invite someone to a specific event.',
-        'variables': ['user_name', 'event_title', 'event_date', 'event_excerpt', 'event_url', 'site_name'],
+        'variables': ['user_name', 'event_title', 'event_date', 'event_url', 'site_name'],
         'subject': 'Invitation to {{ event_title }}',
         'title': "You're Invited: {{ event_title }}",
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>You have been invited to attend the following event on {{ site_name }}:</p>\n<div style="background:#f8f9fa;border-left:4px solid #1a56db;border-radius:4px;padding:16px 20px;margin:20px 0;">\n  <h3 style="margin:0 0 8px;">{{ event_title }}</h3>\n  <p style="margin:4px 0;"><strong>Date:</strong> {{ event_date }}</p>\n  <p style="margin:8px 0 0;color:#555;">{{ event_excerpt }}</p>\n</div>\n<div style="text-align:center;margin:28px 0;"><a href="{{ event_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">View Event &amp; Register</a></div>',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>You have been invited to attend the following event on {{ site_name }}:</p>\n<div style="background:#f8f9fa;border-left:4px solid #1a56db;border-radius:4px;padding:16px 20px;margin:20px 0;">\n  <h3 style="margin:0 0 8px;">{{ event_title }}</h3>\n  <p style="margin:4px 0;"><strong>Date:</strong> {{ event_date }}</p>\n  <p style="margin:8px 0 0;color:#555;">Join us for this event where we will explore new ideas and share best practices with experts from across the continent.</p>\n</div>\n<div style="text-align:center;margin:28px 0;"><a href="{{ event_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">View Event &amp; Register</a></div>',
     },
     {
         'key': 'project_signup',
@@ -148,10 +141,10 @@ EMAIL_TEMPLATES = [
         'key': 'project_notification',
         'label': 'New Project Notification',
         'description': 'Notify all members about a new project.',
-        'variables': ['project_title', 'project_deadline', 'project_excerpt', 'project_url', 'site_name'],
+        'variables': ['project_title', 'project_deadline', 'project_url', 'site_name'],
         'subject': 'New Project: {{ project_title }}',
         'title': 'New Project on the Platform',
-        'body_html': '<p>A new collaborative project has been published on {{ site_name }}:</p>\n<div style="background:#f8f9fa;border-left:4px solid #1a56db;border-radius:4px;padding:16px 20px;margin:20px 0;">\n  <h3 style="margin:0 0 8px;">{{ project_title }}</h3>\n  <p style="margin:4px 0;color:#555;">{{ project_excerpt }}</p>\n  <p style="margin:8px 0 0;"><strong>Deadline:</strong> {{ project_deadline }}</p>\n</div>\n<div style="text-align:center;margin:28px 0;"><a href="{{ project_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">View Project &amp; Join</a></div>',
+        'body_html': '<p>A new collaborative project has been published on {{ site_name }}:</p>\n<div style="background:#f8f9fa;border-left:4px solid #1a56db;border-radius:4px;padding:16px 20px;margin:20px 0;">\n  <h3 style="margin:0 0 8px;">{{ project_title }}</h3>\n  <p style="margin:4px 0;color:#555;">A collaborative project bringing together experts to address key challenges and share knowledge.</p>\n  <p style="margin:8px 0 0;"><strong>Deadline:</strong> {{ project_deadline }}</p>\n</div>\n<div style="text-align:center;margin:28px 0;"><a href="{{ project_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">View Project &amp; Join</a></div>',
     },
     {
         'key': 'project_approved',
@@ -175,10 +168,10 @@ EMAIL_TEMPLATES = [
         'key': 'event_notification',
         'label': 'New Event Notification',
         'description': 'Notify all subscribed members about a new event.',
-        'variables': ['event_title', 'event_date', 'event_excerpt', 'event_url', 'site_name'],
+        'variables': ['event_title', 'event_date', 'event_url', 'site_name'],
         'subject': 'New Event: {{ event_title }}',
         'title': 'New Event: {{ event_title }}',
-        'body_html': '<p>A new event has been published on {{ site_name }}:</p>\n<div style="background:#f8f9fa;border-left:4px solid #1a56db;border-radius:4px;padding:16px 20px;margin:20px 0;">\n  <h3 style="margin:0 0 8px;">{{ event_title }}</h3>\n  <p style="margin:4px 0;"><strong>Date:</strong> {{ event_date }}</p>\n  <p style="margin:8px 0 0;color:#555;">{{ event_excerpt }}</p>\n</div>\n<div style="text-align:center;margin:28px 0;"><a href="{{ event_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Register Now</a></div>',
+        'body_html': '<p>A new event has been published on {{ site_name }}:</p>\n<div style="background:#f8f9fa;border-left:4px solid #1a56db;border-radius:4px;padding:16px 20px;margin:20px 0;">\n  <h3 style="margin:0 0 8px;">{{ event_title }}</h3>\n  <p style="margin:4px 0;"><strong>Date:</strong> {{ event_date }}</p>\n  <p style="margin:8px 0 0;color:#555;">Join us for this event where we will explore new ideas and share best practices with experts from across the continent.</p>\n</div>\n<div style="text-align:center;margin:28px 0;"><a href="{{ event_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Register Now</a></div>',
     },
     {
         'key': 'event_registration',
@@ -202,10 +195,10 @@ EMAIL_TEMPLATES = [
         'key': 'initiative_single',
         'label': 'Single Initiative Notification',
         'description': 'Notify all subscribed members about a new initiative.',
-        'variables': ['initiative_title', 'initiative_description', 'initiative_url', 'site_name'],
+        'variables': ['initiative_title', 'initiative_url', 'site_name'],
         'subject': '{{ initiative_title }}',
         'title': 'New Initiative Published',
-        'body_html': '<p>A new initiative has just been published on the platform:</p>\n<div style="background:#f8f9fa;border-left:4px solid #1a56db;border-radius:4px;padding:16px 20px;margin:20px 0;">\n  <p style="margin:0;font-size:1.05em;font-weight:bold;color:#333;">{{ initiative_title }}</p>\n  <p style="color:#555;font-size:0.95em;line-height:1.6;margin:8px 0 0;">{{ initiative_description }}</p>\n</div>\n<div style="text-align:center;margin:28px 0;"><a href="{{ initiative_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Read Initiative \u2192</a></div>',
+        'body_html': '<p>A new initiative has just been published on the platform:</p>\n<div style="background:#f8f9fa;border-left:4px solid #1a56db;border-radius:4px;padding:16px 20px;margin:20px 0;">\n  <p style="margin:0;font-size:1.05em;font-weight:bold;color:#333;">{{ initiative_title }}</p>\n  <p style="color:#555;font-size:0.95em;line-height:1.6;margin:8px 0 0;">Learn more about this initiative and how you can contribute to its success.</p>\n</div>\n<div style="text-align:center;margin:28px 0;"><a href="{{ initiative_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Read Initiative \u2192</a></div>',
     },
     {
         'key': 'initiative_digest',
@@ -274,10 +267,10 @@ EMAIL_TEMPLATES = [
         'key': 'ta_invitation',
         'label': 'TA Need Invitation',
         'description': 'Invite a Member State stakeholder to submit their Technical Assistance Need.',
-        'variables': ['user_name', 'site_name', 'site_tagline', 'ta_url'],
+        'variables': ['user_name', 'site_name', 'ta_url'],
         'subject': 'Submit Your Technical Assistance Need \u2013 {{ site_name }}',
         'title': 'Submit Your Technical Assistance Need',
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>As a <strong>Member State</strong> stakeholder on {{ site_name }}, you are invited to submit your <strong>Technical Assistance Need</strong>.</p>\n<p>Member States can describe the specific technical assistance they require. {{ site_tagline }} This helps partners and development organisations identify where they can provide support.</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ ta_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Submit Your Technical Assistance Need</a></div>\n<p style="color:#666;font-size:0.88em;margin:8px 0 0;">You are receiving this as a Member State stakeholder on {{ site_name }}.</p>',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>As a <strong>Member State</strong> stakeholder on {{ site_name }}, you are invited to submit your <strong>Technical Assistance Need</strong>.</p>\n<p>Member States can describe the specific technical assistance they require. A platform connecting experts and organisations. This helps partners and development organisations identify where they can provide support.</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ ta_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Submit Your Technical Assistance Need</a></div>\n<p style="color:#666;font-size:0.88em;margin:8px 0 0;">You are receiving this as a Member State stakeholder on {{ site_name }}.</p>',
     },
 ]
 
@@ -381,7 +374,6 @@ def _render_template(template_key, context, subject_default='', title_default=''
 
     full_context = {
         'site_name': _site_name(),
-        'site_tagline': _site_tagline(),
         'contact_email': _site_contact_email(),
         'login_url': _url('/login'),
         'register_url': _url('/register'),
@@ -541,9 +533,9 @@ def send_import_welcome_email(user):
 
 
 def send_invitation_email(email, name, organization=None):
-    salutation = name if name and name.strip() else (organization if organization else 'Colleague')
+    user_name = name if name and name.strip() else (organization if organization else 'Colleague')
     context = {
-        'salutation': salutation,
+        'user_name': user_name,
         'organization': organization or '',
     }
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'invitation_org')
@@ -557,8 +549,8 @@ def send_invitation_email(email, name, organization=None):
 
 
 def send_individual_invitation_email(email, name):
-    salutation = name if name and name.strip() else 'Colleague'
-    context = {'salutation': salutation}
+    user_name = name if name and name.strip() else 'Colleague'
+    context = {'user_name': user_name}
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'invitation_individual')
     subject, title, body = _render_template('invitation_individual', context,
         defaults['subject'], defaults['title'], defaults['body_html'])
@@ -572,13 +564,11 @@ def send_event_invitation_email(email, name, event, event_url):
     event_date = event.start_date.strftime('%B %d, %Y at %H:%M UTC')
     if event.end_date:
         event_date += f" \u2013 {event.end_date.strftime('%B %d, %Y at %H:%M UTC')}"
-    excerpt = event.description[:300] + ('...' if len(event.description) > 300 else '')
 
     context = {
         'user_name': name,
         'event_title': event.title,
         'event_date': event_date,
-        'event_excerpt': excerpt,
         'event_url': event_url,
     }
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'event_invitation')
@@ -637,12 +627,10 @@ def send_project_notification(project):
     from app import User
     users = User.query.filter_by(is_approved=True).all()
     project_url = _url(f'/project/{project.id}')
-    excerpt = project.description[:300] + ('...' if len(project.description) > 300 else '')
 
     context = {
         'project_title': project.title,
         'project_deadline': project.deadline.strftime("%B %d, %Y"),
-        'project_excerpt': excerpt,
         'project_url': project_url,
     }
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'project_notification')
@@ -702,12 +690,10 @@ def send_event_notification(event):
 
     event_url = _url(f'/event/{event.id}')
     event_date = event.start_date.strftime('%B %d, %Y at %H:%M')
-    excerpt = event.description[:300] + ('...' if len(event.description) > 300 else '')
 
     context = {
         'event_title': event.title,
         'event_date': event_date,
-        'event_excerpt': excerpt,
         'event_url': event_url,
     }
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'event_notification')
@@ -768,12 +754,10 @@ def send_single_initiative_notification(initiative_data, users):
 
     title = initiative_data['title']
     initiative_url = initiative_data['url']
-    desc = initiative_data.get('short_description', '')
 
     context = {
         'initiative_title': title,
         'initiative_url': initiative_url,
-        'initiative_description': desc,
     }
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'initiative_single')
     subject, title, body = _render_template('initiative_single', context,

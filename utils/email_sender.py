@@ -2,48 +2,46 @@ import os
 import requests
 from flask import current_app
 
-EMAIL_TEMPLATES = []
-
 # Shared variable descriptions for the admin UI
-# Each {{ var_name }} maps to a description of what it resolves to
 TEMPLATE_VARIABLE_DESCRIPTIONS = {
     'site_name': 'The configured site name (from Appearance).',
     'site_tagline': 'The configured site tagline (from Appearance).',
     'contact_email': 'The sender email address (from Settings).',
     'login_url': 'Absolute URL to the login page.',
-    'login_btn': 'A styled "Log In to the Platform" button.',
     'register_url': 'Absolute URL to the registration page.',
-    'register_btn': 'A styled "Register Now" button.',
     'user_name': "Recipient's full name.",
     'user_email': "Recipient's email address.",
     'organization': "Recipient's organization name.",
     'salutation': "Recipient's name (or 'Colleague' if unknown).",
-    'org_line': 'Text like "on behalf of <Org>" (empty if no org).',
-    'initiative_title': 'Title of the initiative.',
-    'initiative_btn': 'A styled "View Your Initiative" button.',
-    'initiative_link': 'A link to the initiative (optional, empty if none).',
     'otp': 'The one-time password (login code).',
-    'cert_btn': 'A styled "View Your Certificate" button.',
+    'initiative_title': 'Title of the initiative.',
+    'initiative_url': 'Absolute URL to the initiative page.',
+    'initiative_link': 'Pre-built initiative link block (empty if no initiative).',
+    'initiative_description': 'Short description of the initiative.',
     'event_title': 'Title of the event.',
+    'event_url': 'Absolute URL to the event page.',
     'event_date': 'Formatted event date and time.',
-    'info_box': 'A styled information box with event/project/initiative details.',
-    'view_btn': 'A styled "View" button.',
-    'join_btn': 'A styled "View Project & Join" button.',
-    'manage_btn': 'A styled "Manage Project in Admin" button.',
-    'submit_btn': 'A styled "Submit" button.',
     'event_excerpt': 'Short description of the event.',
-    'meeting_link': 'Meeting URL or link (empty if none).',
-    'activity_list': 'HTML list of activities the user signed up for.',
+    'meeting_link_html': 'Meeting link HTML (empty if no meeting link).',
     'project_title': 'Title of the project.',
+    'project_url': 'Absolute URL to the project page.',
     'project_deadline': 'Formatted project deadline date.',
     'project_excerpt': 'Short description of the project.',
+    'cert_url': 'Absolute URL to the certificate page.',
+    'policy_title': 'Title of the policy development.',
+    'policy_url': 'Absolute URL to the policy page.',
+    'doc_title': 'Title of the document.',
+    'doc_url': 'Absolute URL to the document page.',
+    'ta_title': 'Title of the Technical Assistance Need.',
+    'ta_url': 'Absolute URL to submit/view a Technical Assistance Need.',
+    'admin_url': 'Absolute URL to manage in the admin panel.',
+    'activity_items': 'HTML list of activities the user signed up for.',
+    'body_content': 'The custom message body (for bulk emails).',
     'items_html': 'HTML content listing multiple items (for digest emails).',
     'notification_intro': 'Introductory sentence for the notification.',
-    'message_body': 'The custom message body (for bulk emails).',
+    'subject_line': 'Generated subject line for digest emails.',
+    'title_line': 'Generated title for digest emails.',
     'digest_items': 'HTML list items for digest emails.',
-    'initiative_description': 'Short description of the initiative.',
-    'read_btn': 'A styled "Read More" button.',
-    'ta_url': 'Absolute URL to submit a Technical Assistance Need.',
 }
 
 EMAIL_TEMPLATES = [
@@ -60,136 +58,136 @@ EMAIL_TEMPLATES = [
         'key': 'approval',
         'label': 'Registration Approved',
         'description': 'Sent to users when their registration is approved.',
-        'variables': ['site_name', 'login_btn', 'initiative_link'],
+        'variables': ['site_name', 'initiative_link', 'login_url'],
         'subject': 'Welcome to {{ site_name }}',
         'title': 'Welcome to {{ site_name }}',
-        'body_html': '<p>Your registration has been approved! You can now log in to submit initiatives and participate in discussions.</p>\n{{ initiative_link }}\n{{ login_btn }}',
+        'body_html': '<p>Your registration has been approved! You can now log in to submit initiatives and participate in discussions.</p>\n{{ initiative_link }}\n<div style="text-align:center;margin:28px 0;"><a href="{{ login_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Log In to the Platform</a></div>',
     },
     {
         'key': 'initiative_approved',
         'label': 'Initiative Approved',
         'description': 'Sent when a user\'s initiative is approved and published.',
-        'variables': ['user_name', 'initiative_title', 'initiative_btn', 'site_name'],
+        'variables': ['user_name', 'initiative_title', 'initiative_url', 'site_name'],
         'subject': 'Your initiative has been published - {{ site_name }}',
         'title': 'Your Initiative Has Been Published',
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>Your initiative <strong>{{ initiative_title }}</strong> has been reviewed and is now live on {{ site_name }}.</p>\n{{ initiative_btn }}',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>Your initiative <strong>{{ initiative_title }}</strong> has been reviewed and is now live on {{ site_name }}.</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ initiative_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">View Your Initiative</a></div>',
     },
     {
         'key': 'certificate',
         'label': 'Contributor Certificate',
         'description': 'Sent to contributors when their certificate is ready.',
-        'variables': ['user_name', 'site_name', 'cert_btn'],
+        'variables': ['user_name', 'site_name', 'cert_url'],
         'subject': 'Your contributor certificate is ready - {{ site_name }}',
         'title': 'Your Contributor Certificate',
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>Thank you for contributing to <strong>{{ site_name }}</strong>! In recognition of your published contribution, we have created a personal contributor certificate in your name.</p>\n<p>You can view, print, or share it any time:</p>\n{{ cert_btn }}\n<p style="color:#666;font-size:0.9em;margin-top:16px;">This is a live page \u2014 it stays up to date as you contribute more.</p>',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>Thank you for contributing to <strong>{{ site_name }}</strong>! In recognition of your published contribution, we have created a personal contributor certificate in your name.</p>\n<p>You can view, print, or share it any time:</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ cert_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">View Your Certificate</a></div>\n<p style="color:#666;font-size:0.9em;margin-top:16px;">This is a live page \u2014 it stays up to date as you contribute more.</p>',
     },
     {
         'key': 'initiative_pending',
         'label': 'Initiative Pending Review',
         'description': 'Sent when an initiative is submitted for review.',
-        'variables': ['user_name', 'initiative_title', 'site_name', 'login_btn'],
+        'variables': ['user_name', 'initiative_title', 'site_name', 'login_url'],
         'subject': 'Your initiative has been submitted for review - {{ site_name }}',
         'title': 'Initiative Submitted for Review',
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>Your initiative <strong>{{ initiative_title }}</strong> has been submitted to {{ site_name }} and is pending review by our team.</p>\n<p>You will receive another email once it has been approved and published.</p>\n{{ login_btn }}',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>Your initiative <strong>{{ initiative_title }}</strong> has been submitted to {{ site_name }} and is pending review by our team.</p>\n<p>You will receive another email once it has been approved and published.</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ login_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Log In to the Platform</a></div>',
     },
     {
         'key': 'import_welcome',
         'label': 'Welcome (Imported Member)',
         'description': 'Sent to members who were added by admin.',
-        'variables': ['user_name', 'organization', 'site_name', 'site_tagline', 'login_btn', 'user_email'],
+        'variables': ['user_name', 'organization', 'site_name', 'site_tagline', 'login_url', 'user_email'],
         'subject': "You've been added to the {{ site_name }}",
         'title': 'Welcome to the {{ site_name }}',
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>You have been added to the <strong>{{ site_name }}</strong> as a member representing <strong>{{ organization }}</strong>.</p>\n<p>{{ site_tagline }} As a member you can:</p>\n<ul style="padding-left:20px;margin:8px 0 16px;">\n    <li>Share and explore initiatives from across the continent</li>\n    <li>Participate in the Q&amp;A forum and contribute recommendations</li>\n    <li>Register for events and complete polls</li>\n    <li>Connect with other experts in the network</li>\n</ul>\n<p><strong>To get started, please log in and complete your profile</strong> by adding descriptions of your ongoing projects or areas of expertise. This helps other members find and connect with you based on your areas of expertise.</p>\n{{ login_btn }}\n<p style="color:#666;font-size:0.9em;">Your registered email address is: {{ user_email }}<br>\nUse this to log in \u2014 you will receive a one-time password (OTP) each time you sign in.</p>',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>You have been added to the <strong>{{ site_name }}</strong> as a member representing <strong>{{ organization }}</strong>.</p>\n<p>{{ site_tagline }} As a member you can:</p>\n<ul style="padding-left:20px;margin:8px 0 16px;">\n    <li>Share and explore initiatives from across the continent</li>\n    <li>Participate in the Q&amp;A forum and contribute recommendations</li>\n    <li>Register for events and complete polls</li>\n    <li>Connect with other experts in the network</li>\n</ul>\n<p><strong>To get started, please log in and complete your profile</strong> by adding descriptions of your ongoing projects or areas of expertise. This helps other members find and connect with you based on your areas of expertise.</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ login_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Log In to the Platform</a></div>\n<p style="color:#666;font-size:0.9em;">Your registered email address is: {{ user_email }}<br>\nUse this to log in \u2014 you will receive a one-time password (OTP) each time you sign in.</p>',
     },
     {
         'key': 'invitation_org',
         'label': 'Invitation (Organisation)',
         'description': 'Sent to invite organisation representatives.',
-        'variables': ['salutation', 'org_line', 'organization', 'site_name', 'site_tagline', 'register_btn', 'contact_email'],
+        'variables': ['salutation', 'organization', 'site_name', 'site_tagline', 'register_url', 'contact_email'],
         'subject': 'Invitation to Join {{ site_name }}',
         'title': 'Invitation to Join {{ site_name }}',
-        'body_html': '<p>Dear {{ salutation }},</p>\n<p><strong>{{ site_name }}</strong> is pleased to invite experts {{ org_line }}to join its digital collaboration platform.</p>\n<p>{{ site_tagline }} As a member your organisation will be able to:</p>\n<ul style="padding-left:20px;margin:8px 0 16px;">\n    <li>Share and explore initiatives from across the continent</li>\n    <li>Participate in the Q&amp;A forum and contribute recommendations</li>\n    <li>Register for events and engage in polls</li>\n    <li>Connect with other experts and organisations in the network</li>\n</ul>\n<p>We look forward to your participation.</p>\n{{ register_btn }}\n<p style="margin:24px 0 0;color:#555;font-size:0.9em;">Should you have any questions, please do not hesitate to contact us at\n<a href="mailto:{{ contact_email }}" style="color:#1a56db;">{{ contact_email }}</a>.</p>',
+        'body_html': '<p>Dear {{ salutation }},</p>\n<p><strong>{{ site_name }}</strong> is pleased to invite experts on behalf of <strong>{{ organization }}</strong> to join its digital collaboration platform.</p>\n<p>{{ site_tagline }} As a member your organisation will be able to:</p>\n<ul style="padding-left:20px;margin:8px 0 16px;">\n    <li>Share and explore initiatives from across the continent</li>\n    <li>Participate in the Q&amp;A forum and contribute recommendations</li>\n    <li>Register for events and engage in polls</li>\n    <li>Connect with other experts and organisations in the network</li>\n</ul>\n<p>We look forward to your participation.</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ register_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Register Now</a></div>\n<p style="margin:24px 0 0;color:#555;font-size:0.9em;">Should you have any questions, please do not hesitate to contact us at\n<a href="mailto:{{ contact_email }}" style="color:#1a56db;">{{ contact_email }}</a>.</p>',
     },
     {
         'key': 'invitation_individual',
         'label': 'Invitation (Individual)',
         'description': 'Sent to invite individuals joining in their own capacity.',
-        'variables': ['salutation', 'site_name', 'site_tagline', 'register_btn', 'contact_email'],
+        'variables': ['salutation', 'site_name', 'site_tagline', 'register_url', 'contact_email'],
         'subject': 'Invitation to Join the {{ site_name }}',
         'title': 'Invitation to Join the {{ site_name }}',
-        'body_html': '<p>Dear {{ salutation }},</p>\n<p>We are pleased to invite you to join <strong>{{ site_name }}</strong>.</p>\n<p>{{ site_tagline }} As a member you will be able to:</p>\n<ul style="padding-left:20px;margin:8px 0 16px;">\n    <li>Share and explore initiatives from across the continent</li>\n    <li>Participate in the Q&amp;A forum and contribute recommendations</li>\n    <li>Register for events and engage in polls</li>\n    <li>Connect with other experts and organisations in the network</li>\n</ul>\n<p>We look forward to your participation.</p>\n{{ register_btn }}\n<p style="margin:24px 0 0;color:#555;font-size:0.9em;">Should you have any questions, please do not hesitate to contact us at\n<a href="mailto:{{ contact_email }}" style="color:#1a56db;">{{ contact_email }}</a>.</p>',
+        'body_html': '<p>Dear {{ salutation }},</p>\n<p>We are pleased to invite you to join <strong>{{ site_name }}</strong>.</p>\n<p>{{ site_tagline }} As a member you will be able to:</p>\n<ul style="padding-left:20px;margin:8px 0 16px;">\n    <li>Share and explore initiatives from across the continent</li>\n    <li>Participate in the Q&amp;A forum and contribute recommendations</li>\n    <li>Register for events and engage in polls</li>\n    <li>Connect with other experts and organisations in the network</li>\n</ul>\n<p>We look forward to your participation.</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ register_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Register Now</a></div>\n<p style="margin:24px 0 0;color:#555;font-size:0.9em;">Should you have any questions, please do not hesitate to contact us at\n<a href="mailto:{{ contact_email }}" style="color:#1a56db;">{{ contact_email }}</a>.</p>',
     },
     {
         'key': 'event_invitation',
         'label': 'Event Invitation',
         'description': 'Sent to invite someone to a specific event.',
-        'variables': ['user_name', 'event_title', 'info_box', 'register_btn', 'site_name'],
+        'variables': ['user_name', 'event_title', 'event_date', 'event_excerpt', 'event_url', 'site_name'],
         'subject': 'Invitation to {{ event_title }}',
         'title': "You're Invited: {{ event_title }}",
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>You have been invited to attend the following event on {{ site_name }}:</p>\n{{ info_box }}\n{{ register_btn }}',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>You have been invited to attend the following event on {{ site_name }}:</p>\n<div style="background:#f8f9fa;border-left:4px solid #1a56db;border-radius:4px;padding:16px 20px;margin:20px 0;">\n  <h3 style="margin:0 0 8px;">{{ event_title }}</h3>\n  <p style="margin:4px 0;"><strong>Date:</strong> {{ event_date }}</p>\n  <p style="margin:8px 0 0;color:#555;">{{ event_excerpt }}</p>\n</div>\n<div style="text-align:center;margin:28px 0;"><a href="{{ event_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">View Event &amp; Register</a></div>',
     },
     {
         'key': 'project_signup',
         'label': 'Project Signup Confirmation',
         'description': 'Sent to confirm a member has joined a project.',
-        'variables': ['user_name', 'project_title', 'info_box', 'project_btn', 'site_name'],
+        'variables': ['user_name', 'project_title', 'project_deadline', 'activity_items', 'project_url', 'site_name'],
         'subject': "You've joined: {{ project_title }} \u2013 {{ site_name }}",
         'title': "You've Joined a Project",
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>You have successfully signed up to participate in the following project:</p>\n{{ info_box }}\n{{ project_btn }}',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>You have successfully signed up to participate in the following project:</p>\n<div style="background:#f8f9fa;border-left:4px solid #1a56db;border-radius:4px;padding:16px 20px;margin:20px 0;">\n  <h3 style="margin:0 0 8px;">{{ project_title }}</h3>\n  <p style="margin:4px 0;"><strong>Deadline:</strong> {{ project_deadline }}</p>\n  <p style="margin:12px 0 4px;"><strong>Activities you signed up for:</strong></p>\n  <ul style="margin:4px 0 0;padding-left:18px;">{{ activity_items }}</ul>\n</div>\n<div style="text-align:center;margin:28px 0;"><a href="{{ project_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">View Project</a></div>',
     },
     {
         'key': 'project_signup_admin',
         'label': 'Project Signup (Admin Alert)',
         'description': 'Alert admin when a member signs up for a project.',
-        'variables': ['user_name', 'user_email', 'organization', 'project_title', 'project_deadline', 'activity_items', 'admin_btn', 'site_name'],
+        'variables': ['user_name', 'user_email', 'organization', 'project_title', 'project_deadline', 'activity_items', 'admin_url', 'site_name'],
         'subject': '[New Sign-up] {{ user_name }} joined "{{ project_title }}"',
         'title': 'New Project Sign-up',
-        'body_html': '<p>A member has just signed up for a project on {{ site_name }}.</p>\n<table style="width:100%;border-collapse:collapse;margin:16px 0;">\n    <tr>\n        <td style="padding:6px 12px 6px 0;font-weight:bold;width:130px;">Member</td>\n        <td style="padding:6px 0;">{{ user_name }} ({{ user_email }})</td>\n    </tr>\n    <tr style="background:#f9f9f9;">\n        <td style="padding:6px 12px 6px 0;font-weight:bold;">Organisation</td>\n        <td style="padding:6px 0;">{{ organization }}</td>\n    </tr>\n    <tr>\n        <td style="padding:6px 12px 6px 0;font-weight:bold;">Project</td>\n        <td style="padding:6px 0;">{{ project_title }}</td>\n    </tr>\n    <tr style="background:#f9f9f9;">\n        <td style="padding:6px 12px 6px 0;font-weight:bold;">Deadline</td>\n        <td style="padding:6px 0;">{{ project_deadline }}</td>\n    </tr>\n</table>\n<p><strong>Activities selected:</strong></p>\n<ul style="margin:8px 0 16px 20px;">{{ activity_items }}</ul>\n{{ admin_btn }}',
+        'body_html': '<p>A member has just signed up for a project on {{ site_name }}.</p>\n<table style="width:100%;border-collapse:collapse;margin:16px 0;">\n    <tr>\n        <td style="padding:6px 12px 6px 0;font-weight:bold;width:130px;">Member</td>\n        <td style="padding:6px 0;">{{ user_name }} ({{ user_email }})</td>\n    </tr>\n    <tr style="background:#f9f9f9;">\n        <td style="padding:6px 12px 6px 0;font-weight:bold;">Organisation</td>\n        <td style="padding:6px 0;">{{ organization }}</td>\n    </tr>\n    <tr>\n        <td style="padding:6px 12px 6px 0;font-weight:bold;">Project</td>\n        <td style="padding:6px 0;">{{ project_title }}</td>\n    </tr>\n    <tr style="background:#f9f9f9;">\n        <td style="padding:6px 12px 6px 0;font-weight:bold;">Deadline</td>\n        <td style="padding:6px 0;">{{ project_deadline }}</td>\n    </tr>\n</table>\n<p><strong>Activities selected:</strong></p>\n<ul style="margin:8px 0 16px 20px;">{{ activity_items }}</ul>\n<div style="text-align:center;margin:28px 0;"><a href="{{ admin_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Manage Project in Admin</a></div>',
     },
     {
         'key': 'project_notification',
         'label': 'New Project Notification',
         'description': 'Notify all members about a new project.',
-        'variables': ['project_title', 'info_box', 'project_btn', 'site_name'],
+        'variables': ['project_title', 'project_deadline', 'project_excerpt', 'project_url', 'site_name'],
         'subject': 'New Project: {{ project_title }}',
         'title': 'New Project on the Platform',
-        'body_html': '<p>A new collaborative project has been published on {{ site_name }}:</p>\n{{ info_box }}\n{{ project_btn }}',
+        'body_html': '<p>A new collaborative project has been published on {{ site_name }}:</p>\n<div style="background:#f8f9fa;border-left:4px solid #1a56db;border-radius:4px;padding:16px 20px;margin:20px 0;">\n  <h3 style="margin:0 0 8px;">{{ project_title }}</h3>\n  <p style="margin:4px 0;color:#555;">{{ project_excerpt }}</p>\n  <p style="margin:8px 0 0;"><strong>Deadline:</strong> {{ project_deadline }}</p>\n</div>\n<div style="text-align:center;margin:28px 0;"><a href="{{ project_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">View Project &amp; Join</a></div>',
     },
     {
         'key': 'project_approved',
         'label': 'Project Approved',
         'description': 'Sent when a user\'s project is approved and published.',
-        'variables': ['user_name', 'project_title', 'project_btn', 'site_name'],
+        'variables': ['user_name', 'project_title', 'project_url', 'site_name'],
         'subject': 'Your project has been published \u2013 {{ site_name }}',
         'title': 'Your Project Has Been Published',
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>Your project <strong>{{ project_title }}</strong> has been reviewed and is now live on {{ site_name }}. Members can now view it and sign up to participate.</p>\n{{ project_btn }}',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>Your project <strong>{{ project_title }}</strong> has been reviewed and is now live on {{ site_name }}. Members can now view it and sign up to participate.</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ project_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">View Your Project</a></div>',
     },
     {
         'key': 'event_approved',
         'label': 'Event Approved',
         'description': 'Sent when a user\'s event is approved and published.',
-        'variables': ['user_name', 'event_title', 'event_date', 'event_btn', 'site_name'],
+        'variables': ['user_name', 'event_title', 'event_date', 'event_url', 'site_name'],
         'subject': 'Your event has been published \u2013 {{ site_name }}',
         'title': 'Your Event Has Been Published',
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>Your event <strong>{{ event_title }}</strong> has been reviewed and is now live on {{ site_name }}. All members have been notified and can register.</p>\n<p><strong>Date:</strong> {{ event_date }}</p>\n{{ event_btn }}',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>Your event <strong>{{ event_title }}</strong> has been reviewed and is now live on {{ site_name }}. All members have been notified and can register.</p>\n<p><strong>Date:</strong> {{ event_date }}</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ event_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">View Your Event</a></div>',
     },
     {
         'key': 'event_notification',
         'label': 'New Event Notification',
         'description': 'Notify all subscribed members about a new event.',
-        'variables': ['event_title', 'info_box', 'register_btn', 'site_name'],
+        'variables': ['event_title', 'event_date', 'event_excerpt', 'event_url', 'site_name'],
         'subject': 'New Event: {{ event_title }}',
         'title': 'New Event: {{ event_title }}',
-        'body_html': '<p>A new event has been published on {{ site_name }}:</p>\n{{ info_box }}\n{{ register_btn }}',
+        'body_html': '<p>A new event has been published on {{ site_name }}:</p>\n<div style="background:#f8f9fa;border-left:4px solid #1a56db;border-radius:4px;padding:16px 20px;margin:20px 0;">\n  <h3 style="margin:0 0 8px;">{{ event_title }}</h3>\n  <p style="margin:4px 0;"><strong>Date:</strong> {{ event_date }}</p>\n  <p style="margin:8px 0 0;color:#555;">{{ event_excerpt }}</p>\n</div>\n<div style="text-align:center;margin:28px 0;"><a href="{{ event_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Register Now</a></div>',
     },
     {
         'key': 'event_registration',
         'label': 'Event Registration Confirmation',
         'description': 'Sent to confirm event registration.',
-        'variables': ['user_name', 'event_title', 'info_box', 'event_btn', 'site_name'],
+        'variables': ['user_name', 'event_title', 'event_date', 'meeting_link_html', 'event_url', 'site_name'],
         'subject': 'Registration Confirmed: {{ event_title }} \u2013 {{ site_name }}',
         'title': 'Event Registration Confirmed',
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>You have successfully registered for the following event:</p>\n{{ info_box }}\n{{ event_btn }}\n<p style="color:#666;font-size:0.9em;">We\'ll send you a reminder closer to the date.</p>',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>You have successfully registered for the following event:</p>\n<div style="background:#f8f9fa;border-left:4px solid #1a56db;border-radius:4px;padding:16px 20px;margin:20px 0;">\n  <h3 style="margin:0 0 8px;">{{ event_title }}</h3>\n  <p style="margin:4px 0;"><strong>Date:</strong> {{ event_date }}</p>\n  {{ meeting_link_html }}\n</div>\n<div style="text-align:center;margin:28px 0;"><a href="{{ event_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">View Event Details</a></div>\n<p style="color:#666;font-size:0.9em;">We\'ll send you a reminder closer to the date.</p>',
     },
     {
         'key': 'custom_bulk',
@@ -204,10 +202,10 @@ EMAIL_TEMPLATES = [
         'key': 'initiative_single',
         'label': 'Single Initiative Notification',
         'description': 'Notify all subscribed members about a new initiative.',
-        'variables': ['initiative_title', 'info_box', 'initiative_btn', 'site_name'],
+        'variables': ['initiative_title', 'initiative_description', 'initiative_url', 'site_name'],
         'subject': '{{ initiative_title }}',
         'title': 'New Initiative Published',
-        'body_html': '<p>A new initiative has just been published on the platform:</p>\n{{ info_box }}\n{{ initiative_btn }}',
+        'body_html': '<p>A new initiative has just been published on the platform:</p>\n<div style="background:#f8f9fa;border-left:4px solid #1a56db;border-radius:4px;padding:16px 20px;margin:20px 0;">\n  <p style="margin:0;font-size:1.05em;font-weight:bold;color:#333;">{{ initiative_title }}</p>\n  <p style="color:#555;font-size:0.95em;line-height:1.6;margin:8px 0 0;">{{ initiative_description }}</p>\n</div>\n<div style="text-align:center;margin:28px 0;"><a href="{{ initiative_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Read Initiative \u2192</a></div>',
     },
     {
         'key': 'initiative_digest',
@@ -222,10 +220,10 @@ EMAIL_TEMPLATES = [
         'key': 'policy_single',
         'label': 'Single Policy Notification',
         'description': 'Notify all subscribed members about a new policy development.',
-        'variables': ['policy_title', 'info_box', 'policy_btn', 'site_name'],
+        'variables': ['policy_title', 'policy_url', 'site_name'],
         'subject': '{{ policy_title }}',
         'title': 'New Policy Development Published',
-        'body_html': '<p>A new policy development has just been published on the platform:</p>\n{{ info_box }}\n{{ policy_btn }}',
+        'body_html': '<p>A new policy development has just been published on the platform:</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ policy_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Read Full Policy Development \u2192</a></div>',
     },
     {
         'key': 'policy_digest',
@@ -240,10 +238,10 @@ EMAIL_TEMPLATES = [
         'key': 'document_single',
         'label': 'Single Document Notification',
         'description': 'Notify all subscribed members about a new document.',
-        'variables': ['doc_title', 'info_box', 'doc_btn', 'site_name'],
+        'variables': ['doc_title', 'doc_url', 'site_name'],
         'subject': '{{ doc_title }}',
         'title': 'New Document Published',
-        'body_html': '<p>A new document has just been published on the platform:</p>\n{{ info_box }}\n{{ doc_btn }}',
+        'body_html': '<p>A new document has just been published on the platform:</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ doc_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">View Document \u2192</a></div>',
     },
     {
         'key': 'document_digest',
@@ -258,10 +256,10 @@ EMAIL_TEMPLATES = [
         'key': 'ta_single',
         'label': 'Single TA Need Notification',
         'description': 'Notify all subscribed members about a new Technical Assistance Need.',
-        'variables': ['ta_title', 'info_box', 'ta_btn', 'site_name'],
+        'variables': ['ta_title', 'ta_url', 'site_name'],
         'subject': 'New Technical Assistance Need: {{ ta_title }}',
         'title': 'New Technical Assistance Need Published',
-        'body_html': '<p>A Member State has published a new technical assistance need on the platform:</p>\n{{ info_box }}\n{{ ta_btn }}',
+        'body_html': '<p>A Member State has published a new technical assistance need on the platform:</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ ta_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">View Technical Assistance Need \u2192</a></div>',
     },
     {
         'key': 'ta_digest',
@@ -276,13 +274,15 @@ EMAIL_TEMPLATES = [
         'key': 'ta_invitation',
         'label': 'TA Need Invitation',
         'description': 'Invite a Member State stakeholder to submit their Technical Assistance Need.',
-        'variables': ['user_name', 'site_name', 'site_tagline', 'ta_btn'],
+        'variables': ['user_name', 'site_name', 'site_tagline', 'ta_url'],
         'subject': 'Submit Your Technical Assistance Need \u2013 {{ site_name }}',
         'title': 'Submit Your Technical Assistance Need',
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>As a <strong>Member State</strong> stakeholder on {{ site_name }}, you are invited to submit your <strong>Technical Assistance Need</strong>.</p>\n<p>Member States can describe the specific technical assistance they require. {{ site_tagline }} This helps partners and development organisations identify where they can provide support.</p>\n{{ ta_btn }}\n<p style="color:#666;font-size:0.88em;margin:8px 0 0;">You are receiving this as a Member State stakeholder on {{ site_name }}.</p>',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>As a <strong>Member State</strong> stakeholder on {{ site_name }}, you are invited to submit your <strong>Technical Assistance Need</strong>.</p>\n<p>Member States can describe the specific technical assistance they require. {{ site_tagline }} This helps partners and development organisations identify where they can provide support.</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ ta_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Submit Your Technical Assistance Need</a></div>\n<p style="color:#666;font-size:0.88em;margin:8px 0 0;">You are receiving this as a Member State stakeholder on {{ site_name }}.</p>',
     },
 ]
 
+
+# ===================== HELPERS =====================
 
 def _url(path):
     base = os.environ.get('APP_URL', '').rstrip('/')
@@ -368,23 +368,6 @@ def _base_email(title, body_html, footer_html=""):
 </html>"""
 
 
-def _btn(url, label):
-    return f"""
-    <p style="text-align:center;margin:28px 0;">
-      <a href="{url}" style="display:inline-block;background:#1a56db;color:#ffffff;
-         padding:13px 32px;text-decoration:none;border-radius:5px;
-         font-weight:bold;font-size:0.95em;">{label}</a>
-    </p>"""
-
-
-def _info_box(html_content):
-    return f"""
-    <div style="background:#f8f9fa;border-left:4px solid #1a56db;
-                border-radius:4px;padding:16px 20px;margin:20px 0;">
-      {html_content}
-    </div>"""
-
-
 def _render_template(template_key, context, subject_default='', title_default='', body_default=''):
     from app import EmailTemplate
     tmpl = EmailTemplate.query.filter_by(key=template_key).first()
@@ -401,9 +384,7 @@ def _render_template(template_key, context, subject_default='', title_default=''
         'site_tagline': _site_tagline(),
         'contact_email': _site_contact_email(),
         'login_url': _url('/login'),
-        'login_btn': _btn(_url('/login'), "Log In to the Platform"),
         'register_url': _url('/register'),
-        'register_btn': _btn(_url('/register'), "Register Now"),
     }
     full_context.update(context)
 
@@ -501,11 +482,10 @@ def send_approval_email(email, initiative_slug=None):
 
 
 def send_initiative_approved_email(user, initiative_slug, initiative_title):
-    link = _url(f'/initiative/{initiative_slug}')
     context = {
         'user_name': user.name,
         'initiative_title': initiative_title,
-        'initiative_btn': _btn(link, "View Your Initiative"),
+        'initiative_url': _url(f'/initiative/{initiative_slug}'),
     }
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'initiative_approved')
     subject, title, body = _render_template('initiative_approved', context,
@@ -520,7 +500,7 @@ def send_certificate_email(user, cert_url, site_name):
     context = {
         'user_name': user.name,
         'site_name': site_name,
-        'cert_btn': _btn(cert_url, "View Your Certificate"),
+        'cert_url': cert_url,
     }
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'certificate')
     subject, title, body = _render_template('certificate', context,
@@ -562,12 +542,8 @@ def send_import_welcome_email(user):
 
 def send_invitation_email(email, name, organization=None):
     salutation = name if name and name.strip() else (organization if organization else 'Colleague')
-    org_line = (
-        f"on behalf of <strong>{organization}</strong> " if organization else ""
-    )
     context = {
         'salutation': salutation,
-        'org_line': org_line,
         'organization': organization or '',
     }
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'invitation_org')
@@ -598,18 +574,12 @@ def send_event_invitation_email(email, name, event, event_url):
         event_date += f" \u2013 {event.end_date.strftime('%B %d, %Y at %H:%M UTC')}"
     excerpt = event.description[:300] + ('...' if len(event.description) > 300 else '')
 
-    info_box = _info_box(
-        f'<h3 style="margin:0 0 8px;">{event.title}</h3>'
-        f'<p style="margin:4px 0;"><strong>Date:</strong> {event_date}</p>'
-        f'<p style="margin:8px 0 0;color:#555;">{excerpt}</p>'
-    )
-    register_btn = _btn(event_url, "View Event & Register")
-
     context = {
         'user_name': name,
         'event_title': event.title,
-        'info_box': info_box,
-        'register_btn': register_btn,
+        'event_date': event_date,
+        'event_excerpt': excerpt,
+        'event_url': event_url,
     }
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'event_invitation')
     subject, title, body = _render_template('event_invitation', context,
@@ -624,19 +594,12 @@ def send_project_signup_confirmation(user, project, signed_up_activities):
     project_url = _url(f'/project/{project.id}')
     activity_items = "".join(f"<li>{a.title}</li>" for a in signed_up_activities)
 
-    info_box = _info_box(
-        f'<h3 style="margin:0 0 8px;">{project.title}</h3>'
-        f'<p style="margin:4px 0;"><strong>Deadline:</strong> {project.deadline.strftime("%B %d, %Y")}</p>'
-        f'<p style="margin:12px 0 4px;"><strong>Activities you signed up for:</strong></p>'
-        f'<ul style="margin:4px 0 0;padding-left:18px;">{activity_items}</ul>'
-    )
-    project_btn = _btn(project_url, "View Project")
-
     context = {
         'user_name': user.name,
         'project_title': project.title,
-        'info_box': info_box,
-        'project_btn': project_btn,
+        'project_deadline': project.deadline.strftime("%B %d, %Y"),
+        'activity_items': activity_items,
+        'project_url': project_url,
     }
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'project_signup')
     subject, title, body = _render_template('project_signup', context,
@@ -658,7 +621,7 @@ def send_project_signup_admin_alert(admin_email, user, project, signed_up_activi
         'project_title': project.title,
         'project_deadline': project.deadline.strftime('%B %d, %Y'),
         'activity_items': activity_items,
-        'admin_btn': _btn(admin_project_url, "Manage Project in Admin"),
+        'admin_url': admin_project_url,
     }
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'project_signup_admin')
     subject, title, body = _render_template('project_signup_admin', context,
@@ -676,17 +639,11 @@ def send_project_notification(project):
     project_url = _url(f'/project/{project.id}')
     excerpt = project.description[:300] + ('...' if len(project.description) > 300 else '')
 
-    info_box = _info_box(
-        f'<h3 style="margin:0 0 8px;">{project.title}</h3>'
-        f'<p style="margin:4px 0;color:#555;">{excerpt}</p>'
-        f'<p style="margin:8px 0 0;"><strong>Deadline:</strong> {project.deadline.strftime("%B %d, %Y")}</p>'
-    )
-    project_btn = _btn(project_url, "View Project & Join")
-
     context = {
         'project_title': project.title,
-        'info_box': info_box,
-        'project_btn': project_btn,
+        'project_deadline': project.deadline.strftime("%B %d, %Y"),
+        'project_excerpt': excerpt,
+        'project_url': project_url,
     }
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'project_notification')
     subject, title, body = _render_template('project_notification', context,
@@ -703,7 +660,7 @@ def send_project_approved_email(user, project):
     context = {
         'user_name': user.name,
         'project_title': project.title,
-        'project_btn': _btn(project_url, "View Your Project"),
+        'project_url': project_url,
     }
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'project_approved')
     subject, title, body = _render_template('project_approved', context,
@@ -721,7 +678,7 @@ def send_event_approved_email(user, event):
         'user_name': user.name,
         'event_title': event.title,
         'event_date': event_date,
-        'event_btn': _btn(event_url, "View Your Event"),
+        'event_url': event_url,
     }
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'event_approved')
     subject, title, body = _render_template('event_approved', context,
@@ -747,17 +704,11 @@ def send_event_notification(event):
     event_date = event.start_date.strftime('%B %d, %Y at %H:%M')
     excerpt = event.description[:300] + ('...' if len(event.description) > 300 else '')
 
-    info_box = _info_box(
-        f'<h3 style="margin:0 0 8px;">{event.title}</h3>'
-        f'<p style="margin:4px 0;"><strong>Date:</strong> {event_date}</p>'
-        f'<p style="margin:8px 0 0;color:#555;">{excerpt}</p>'
-    )
-    register_btn = _btn(event_url, "Register Now")
-
     context = {
         'event_title': event.title,
-        'info_box': info_box,
-        'register_btn': register_btn,
+        'event_date': event_date,
+        'event_excerpt': excerpt,
+        'event_url': event_url,
     }
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'event_notification')
     subject, title, body = _render_template('event_notification', context,
@@ -780,18 +731,12 @@ def send_event_registration_confirmation(user, event):
     if event.meeting_link:
         meeting_link_html = f'<p style="margin:4px 0;"><strong>Meeting Link:</strong> <a href="{event.meeting_link}" style="color:#1a56db;">Join here</a></p>'
 
-    info_box = _info_box(
-        f'<h3 style="margin:0 0 8px;">{event.title}</h3>'
-        f'<p style="margin:4px 0;"><strong>Date:</strong> {event_date}</p>'
-        f'{meeting_link_html}'
-    )
-    event_btn = _btn(event_url, "View Event Details")
-
     context = {
         'user_name': user.name,
         'event_title': event.title,
-        'info_box': info_box,
-        'event_btn': event_btn,
+        'event_date': event_date,
+        'meeting_link_html': meeting_link_html,
+        'event_url': event_url,
     }
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'event_registration')
     subject, title, body = _render_template('event_registration', context,
@@ -822,23 +767,13 @@ def send_single_initiative_notification(initiative_data, users):
         return
 
     title = initiative_data['title']
-    url = initiative_data['url']
+    initiative_url = initiative_data['url']
     desc = initiative_data.get('short_description', '')
-
-    desc_block = (
-        f'<p style="color:#555;font-size:0.95em;line-height:1.6;margin:8px 0 0;">{desc}</p>'
-        if desc else ""
-    )
-    info_box = _info_box(
-        f'<p style="margin:0;font-size:1.05em;font-weight:bold;color:#333;">{title}</p>'
-        f'{desc_block}'
-    )
-    initiative_btn = _btn(url, "Read Initiative \u2192")
 
     context = {
         'initiative_title': title,
-        'info_box': info_box,
-        'initiative_btn': initiative_btn,
+        'initiative_url': initiative_url,
+        'initiative_description': desc,
     }
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'initiative_single')
     subject, title, body = _render_template('initiative_single', context,
@@ -911,11 +846,12 @@ def send_single_policy_notification(policy_data, users):
         return
 
     title = policy_data['title']
-    url = policy_data['url']
+    policy_url = policy_data['url']
     summary = policy_data.get('short_summary', '')
     country = policy_data.get('country', '')
     published_date = policy_data.get('published_date', '')
 
+    items_html = ""
     meta_parts = []
     if country:
         meta_parts.append(f"Country: {country}")
@@ -929,16 +865,23 @@ def send_single_policy_notification(policy_data, users):
         f'<p style="color:#555;font-size:0.95em;line-height:1.6;margin:8px 0 0;">{summary}</p>'
         if summary else ""
     )
-    info_box = _info_box(
-        f'<p style="margin:0;font-size:1.05em;font-weight:bold;color:#333;">{title}</p>'
-        f'{meta_line}{summary_block}'
-    )
-    policy_btn = _btn(url, "Read Full Policy Development \u2192")
+    items_html += f"""
+        <div style="margin-bottom:12px;padding:16px 18px;background:#f8f9fa;
+                    border-left:4px solid #1a56db;border-radius:4px;">
+            <p style="margin:0;font-size:1.05em;font-weight:bold;color:#333;">{title}</p>
+            {meta_line}
+            {summary_block}
+            <p style="margin:12px 0 0;">
+                <a href="{policy_url}"
+                   style="font-size:0.85em;color:#1a56db;text-decoration:none;font-weight:bold;">
+                    Read more \u2192
+                </a>
+            </p>
+        </div>"""
 
     context = {
         'policy_title': title,
-        'info_box': info_box,
-        'policy_btn': policy_btn,
+        'items_html': items_html,
     }
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'policy_single')
     subject, title, body = _render_template('policy_single', context,
@@ -1021,11 +964,12 @@ def send_single_document_notification(doc_data, users):
         return
 
     title = doc_data['title']
-    url = doc_data['url']
+    doc_url = doc_data['url']
     description = doc_data.get('description', '')
     year = doc_data.get('year_published', '')
     file_type = doc_data.get('file_type', '')
 
+    items_html = ""
     meta_parts = []
     if file_type:
         meta_parts.append(f"Type: {file_type.upper()}")
@@ -1039,16 +983,23 @@ def send_single_document_notification(doc_data, users):
         f'<p style="color:#555;font-size:0.95em;line-height:1.6;margin:8px 0 0;">{description}</p>'
         if description else ""
     )
-    info_box = _info_box(
-        f'<p style="margin:0;font-size:1.05em;font-weight:bold;color:#333;">{title}</p>'
-        f'{meta_line}{desc_block}'
-    )
-    doc_btn = _btn(url, "View Document \u2192")
+    items_html += f"""
+        <div style="margin-bottom:12px;padding:16px 18px;background:#f8f9fa;
+                    border-left:4px solid #1a56db;border-radius:4px;">
+            <p style="margin:0;font-size:1.05em;font-weight:bold;color:#333;">{title}</p>
+            {meta_line}
+            {desc_block}
+            <p style="margin:12px 0 0;">
+                <a href="{doc_url}"
+                   style="font-size:0.85em;color:#1a56db;text-decoration:none;font-weight:bold;">
+                    View document \u2192
+                </a>
+            </p>
+        </div>"""
 
     context = {
         'doc_title': title,
-        'info_box': info_box,
-        'doc_btn': doc_btn,
+        'items_html': items_html,
     }
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'document_single')
     subject, title, body = _render_template('document_single', context,
@@ -1131,11 +1082,12 @@ def send_single_ta_notification(ta_data, users):
         return
 
     title = ta_data['title']
-    url = ta_data['url']
+    ta_url = ta_data['url']
     short_description = ta_data.get('short_description', '')
     country = ta_data.get('country', '')
     author = ta_data.get('author', '')
 
+    items_html = ""
     meta_parts = []
     if author:
         meta_parts.append(f"Submitted by: {author}")
@@ -1149,16 +1101,23 @@ def send_single_ta_notification(ta_data, users):
         f'<p style="color:#555;font-size:0.95em;line-height:1.6;margin:8px 0 0;">{short_description}</p>'
         if short_description else ""
     )
-    info_box = _info_box(
-        f'<p style="margin:0;font-size:1.05em;font-weight:bold;color:#333;">{title}</p>'
-        f'{meta_line}{desc_block}'
-    )
-    ta_btn = _btn(url, "View Technical Assistance Need \u2192")
+    items_html += f"""
+        <div style="margin-bottom:12px;padding:16px 18px;background:#f8f9fa;
+                    border-left:4px solid #28a745;border-radius:4px;">
+            <p style="margin:0;font-size:1.05em;font-weight:bold;color:#333;">{title}</p>
+            {meta_line}
+            {desc_block}
+            <p style="margin:12px 0 0;">
+                <a href="{ta_url}"
+                   style="font-size:0.85em;color:#1a56db;text-decoration:none;font-weight:bold;">
+                    Read more \u2192
+                </a>
+            </p>
+        </div>"""
 
     context = {
         'ta_title': title,
-        'info_box': info_box,
-        'ta_btn': ta_btn,
+        'items_html': items_html,
     }
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'ta_single')
     subject, title, body = _render_template('ta_single', context,
@@ -1237,7 +1196,7 @@ def send_bulk_ta_digest(ta_data_list, users):
 def send_ta_invitation_email(email, name, ta_url):
     context = {
         'user_name': name,
-        'ta_btn': _btn(ta_url, "Submit Your Technical Assistance Need"),
+        'ta_url': ta_url,
     }
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'ta_invitation')
     subject, title, body = _render_template('ta_invitation', context,

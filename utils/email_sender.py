@@ -21,6 +21,29 @@ def _site_name():
         pass
     return os.environ.get('SITE_NAME') or 'AU ECED-FLN Cluster Platform'
 
+def _site_tagline():
+    """Resolve the admin-configurable site tagline for email body text.
+    Prefers the live DB setting, falls back to the SITE_TAGLINE env var, then a default."""
+    try:
+        from app import get_setting
+        tagline = get_setting('site_tagline', None)
+        if tagline:
+            return tagline
+    except Exception:
+        pass
+    return os.environ.get('SITE_TAGLINE') or ('Accelerating Early Childhood Education and '
+                                               'Development & Foundational Learning across Africa.')
+
+def _site_contact_email():
+    """Resolve the contact email for email body text.
+    Parses it from MAIL_DEFAULT_SENDER (Name <email>), or falls back to ADMIN_EMAIL env var."""
+    sender = os.environ.get('MAIL_DEFAULT_SENDER', '')
+    if '<' in sender:
+        return sender.split('<')[1].replace('>', '').strip()
+    if sender:
+        return sender.strip()
+    return os.environ.get('ADMIN_EMAIL', 'cluster@eced-au.org')
+
 
 def _unsubscribe_url(email):
     """Return just the unsubscribe URL for a given email (no HTML wrapping)."""
@@ -242,16 +265,15 @@ def send_import_welcome_email(user):
         <p>Dear {user.name},</p>
         <p>You have been added to the <strong>{_site_name()}</strong> as a member representing
         <strong>{user.organization}</strong>.</p>
-        <p>This platform connects experts and organizations across Africa working to accelerate
-        Early Childhood Education and Foundational Learning. As a member you can:</p>
+        <p>{_site_tagline()} As a member you can:</p>
         <ul style="padding-left:20px;margin:8px 0 16px;">
-            <li>Share and explore ECED-FLN initiatives from across the continent</li>
+            <li>Share and explore initiatives from across the continent</li>
             <li>Participate in the Q&amp;A forum and contribute recommendations</li>
-            <li>Register for cluster events and complete polls</li>
+            <li>Register for events and complete polls</li>
             <li>Connect with other experts in the network</li>
         </ul>
         <p><strong>To get started, please log in and complete your profile</strong> by adding
-        descriptions of the ECED-FLN projects you are currently involved in or have worked on.
+        descriptions of your ongoing projects or areas of expertise.
         This helps other members find and connect with you based on your areas of expertise.</p>
         {_btn(login_url, "Log In to the Platform")}
         <p style="color:#666;font-size:0.9em;">Your registered email address is: {user.email}<br>
@@ -273,24 +295,20 @@ def send_invitation_email(email, name, organization=None):
     subject = f"Invitation for Experts from {organization} to Join {_site_name()}" if organization else f"Invitation to Join {_site_name()}"
     body = f"""
         <p>Dear {salutation},</p>
-        <p>The <strong>African Union Cluster on Early Childhood Education and Development &amp;
-        Foundational Learning (ECED-FLN)</strong> is pleased to invite experts {org_line}to join
+        <p><strong>{_site_name()}</strong> is pleased to invite experts {org_line}to join
         its digital collaboration platform.</p>
-        <p>The platform brings together experts, practitioners, and organisations from across Africa
-        to share knowledge, coordinate initiatives, and advance early childhood education and
-        foundational learning across the continent.</p>
-        <p>As a member your organisation will be able to:</p>
+        <p>{_site_tagline()} As a member your organisation will be able to:</p>
         <ul style="padding-left:20px;margin:8px 0 16px;">
-            <li>Share and explore ECED-FLN initiatives from across the continent</li>
+            <li>Share and explore initiatives from across the continent</li>
             <li>Participate in the Q&amp;A forum and contribute recommendations</li>
-            <li>Register for cluster events and engage in polls</li>
+            <li>Register for events and engage in polls</li>
             <li>Connect with other experts and organisations in the network</li>
         </ul>
         <p>We look forward to your participation.</p>
         {_btn(register_url, "Register Now")}
         <p style="margin:24px 0 0;color:#555;font-size:0.9em;">Should you have any questions,
         please do not hesitate to contact us at
-        <a href="mailto:cluster@eced-au.org" style="color:#1a56db;">cluster@eced-au.org</a>.</p>
+        <a href="mailto:{_site_contact_email()}" style="color:#1a56db;">{_site_contact_email()}</a>.</p>
     """
     html = _base_email(f"Invitation to Join {_site_name()}", body,
                        footer_html=_unsubscribe_footer(email))
@@ -304,21 +322,19 @@ def send_individual_invitation_email(email, name):
     subject = f'Invitation to Join the {_site_name()}'
     body = f"""
         <p>Dear {salutation},</p>
-        <p>We are pleased to invite you to join the <strong>{_site_name()}</strong> —
-        a digital platform that brings together educators, practitioners, and advocates from across
-        Africa to collaborate on Early Childhood Education and Foundational Learning.</p>
-        <p>As a member you will be able to:</p>
+        <p>We are pleased to invite you to join <strong>{_site_name()}</strong>.</p>
+        <p>{_site_tagline()} As a member you will be able to:</p>
         <ul style="padding-left:20px;margin:8px 0 16px;">
-            <li>Share and explore ECED-FLN initiatives from across the continent</li>
+            <li>Share and explore initiatives from across the continent</li>
             <li>Participate in the Q&amp;A forum and contribute recommendations</li>
-            <li>Register for cluster events and engage in polls</li>
+            <li>Register for events and engage in polls</li>
             <li>Connect with other experts and organisations in the network</li>
         </ul>
         <p>We look forward to your participation.</p>
         {_btn(register_url, "Register Now")}
         <p style="margin:24px 0 0;color:#555;font-size:0.9em;">Should you have any questions,
         please do not hesitate to contact us at
-        <a href="mailto:community@africateachers.org" style="color:#1a56db;">community@africateachers.org</a>.</p>
+        <a href="mailto:{_site_contact_email()}" style="color:#1a56db;">{_site_contact_email()}</a>.</p>
     """
     html = _base_email(f"Invitation to Join the {_site_name()}", body,
                        footer_html=_unsubscribe_footer(email))
@@ -622,7 +638,7 @@ def send_single_policy_notification(policy_data, users):
 
     for user in users:
         body = f"""
-            <p>A new ECED-FLN policy development has just been published on the platform:</p>
+            <p>A new policy development has just been published on the platform:</p>
             {_info_box(f'<p style="margin:0;font-size:1.05em;font-weight:bold;color:#333;">{title}</p>{meta_line}{summary_block}')}
             {_btn(url, "Read Full Policy Development →")}
             <p style="color:#666;font-size:0.88em;margin:0;">
@@ -923,8 +939,7 @@ def send_ta_invitation_email(email, name, ta_url):
         <p>Dear {name},</p>
         <p>As a <strong>Member State</strong> stakeholder on {_site_name()},
         you are invited to submit your <strong>Technical Assistance Need</strong>.</p>
-        <p>Member States can describe the specific technical assistance they require in the area
-        of Early Childhood Education &amp; Development or Foundational Learning. This helps
+        <p>Member States can describe the specific technical assistance they require. {_site_tagline()} This helps
         partners and development organisations identify where they can provide support.</p>
         {_btn(ta_url, "Submit Your Technical Assistance Need")}
         <p style="color:#666;font-size:0.88em;margin:8px 0 0;">

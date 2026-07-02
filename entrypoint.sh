@@ -5,7 +5,7 @@ python migrate.py
 
 python -c "
 import os
-from app import app, db, User, StakeholderType, Label, DEFAULT_STAKEHOLDER_TYPES, LABEL_DEFAULTS
+from app import app, db, User, StakeholderType, Label, EmailTemplate, DEFAULT_STAKEHOLDER_TYPES, LABEL_DEFAULTS
 from werkzeug.security import generate_password_hash
 
 with app.app_context():
@@ -30,6 +30,19 @@ with app.app_context():
         for key, _ in LABEL_DEFAULTS.items():
             db.session.add(Label(key=key, value='', category=key.split('_')[0]))
         print('Default labels seeded.')
+
+    # Seed default email templates (idempotent)
+    from utils.email_sender import EMAIL_TEMPLATES
+    if not EmailTemplate.query.first():
+        for et in EMAIL_TEMPLATES:
+            db.session.add(EmailTemplate(
+                key=et['key'],
+                subject=et['subject'],
+                title=et['title'],
+                body_html=et['body_html'],
+                is_confirmed=False,
+            ))
+        print(f'{len(EMAIL_TEMPLATES)} default email templates seeded.')
 
     # Create/update admin user from environment (idempotent)
     admin_email = os.environ.get('ADMIN_EMAIL', '').strip()

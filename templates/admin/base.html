@@ -172,6 +172,12 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_email_templates' %}active{% endif %}"
+                           href="{{ url_for('admin_email_templates') }}">
+                            <i class="bi bi-envelope-paper"></i> Email Templates
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'admin_stakeholder_types' %}active{% endif %}"
                            href="{{ url_for('admin_stakeholder_types') }}">
                             <i class="bi bi-tags"></i> Stakeholder Types

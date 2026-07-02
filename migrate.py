@@ -134,6 +134,15 @@ with app.app_context():
         conn.execute(db.text('CREATE INDEX IF NOT EXISTS ix_page_view_visitor_id ON page_view (visitor_id)'))
         conn.execute(db.text('CREATE INDEX IF NOT EXISTS ix_page_view_path ON page_view (path)'))
         conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS email_template (
+                id SERIAL PRIMARY KEY,
+                key VARCHAR(80) UNIQUE NOT NULL,
+                subject VARCHAR(500) NOT NULL,
+                body_html TEXT NOT NULL,
+                is_confirmed BOOLEAN DEFAULT FALSE
+            )
+        '''))
+        conn.execute(db.text('''
             CREATE TABLE IF NOT EXISTS certificate (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER UNIQUE NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,

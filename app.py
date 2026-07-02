@@ -297,6 +297,15 @@ class Label(db.Model):
 
 
 # NEW MODELS FOR EVENTS AND POLLS
+class EmailTemplate(db.Model):
+    id           = db.Column(db.Integer, primary_key=True)
+    key          = db.Column(db.String(80), unique=True, nullable=False)
+    subject      = db.Column(db.String(500), nullable=False)
+    title        = db.Column(db.String(500), nullable=False, default='')
+    body_html    = db.Column(db.Text, nullable=False)
+    is_confirmed = db.Column(db.Boolean, default=False)
+
+
 class Event(db.Model):
     id                 = db.Column(db.Integer, primary_key=True)
     title              = db.Column(db.String(200), nullable=False)
@@ -4073,6 +4082,86 @@ def admin_page_titles():
         key = f'page_title_{entry["key"]}'
         titles.append({**entry, 'key': key, 'value': db_labels.get(key, entry['default'])})
     return render_template('admin/page_titles.html', titles=titles)
+
+
+@app.route('/admin/email-templates', methods=['GET', 'POST'])
+@login_required
+def admin_email_templates():
+    if not current_user.is_admin:
+        abort(403)
+    from utils.email_sender import EMAIL_TEMPLATES
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'update':
+            key = request.form.get('key')
+            tmpl = EmailTemplate.query.filter_by(key=key).first()
+            subject = request.form.get('subject', '').strip()
+            title = request.form.get('title', '').strip()
+            body_html = request.form.get('body_html', '').strip()
+            if tmpl:
+                tmpl.subject = subject
+                tmpl.title = title
+                tmpl.body_html = body_html
+                tmpl.is_confirmed = False
+            else:
+                tmpl = EmailTemplate(key=key, subject=subject, title=title, body_html=body_html)
+                db.session.add(tmpl)
+            db.session.commit()
+            flash('Email template updated. It needs to be confirmed before use.', 'warning')
+        elif action == 'confirm':
+            key = request.form.get('key')
+            tmpl = EmailTemplate.query.filter_by(key=key).first()
+            if tmpl:
+                tmpl.is_confirmed = True
+                db.session.commit()
+                flash(f'Template "{key}" confirmed.', 'success')
+        elif action == 'confirm_all':
+            EmailTemplate.query.update({'is_confirmed': True})
+            db.session.commit()
+            flash('All templates confirmed.', 'success')
+        elif action == 'reset':
+            key = request.form.get('key')
+            from utils.email_sender import EMAIL_TEMPLATES
+            default = next((t for t in EMAIL_TEMPLATES if t['key'] == key), None)
+            if default:
+                tmpl = EmailTemplate.query.filter_by(key=key).first()
+                if tmpl:
+                    tmpl.subject = default['subject']
+                    tmpl.title = default['title']
+                    tmpl.body_html = default['body_html']
+                    tmpl.is_confirmed = False
+                else:
+                    tmpl = EmailTemplate(key=key, subject=default['subject'], title=default['title'], body_html=default['body_html'])
+                    db.session.add(tmpl)
+                db.session.commit()
+                flash(f'Template "{key}" reset to default.', 'info')
+        return redirect(url_for('admin_email_templates'))
+
+    db_templates = {t.key: t for t in EmailTemplate.query.all()}
+    from utils.email_sender import EMAIL_TEMPLATES
+    templates = []
+    for et in EMAIL_TEMPLATES:
+        db_t = db_templates.get(et['key'])
+        templates.append({
+            'key': et['key'],
+            'label': et['label'],
+            'description': et['description'],
+            'variables': et['variables'],
+            'subject': db_t.subject if db_t else et['subject'],
+            'title': db_t.title if db_t else et['title'],
+            'body_html': db_t.body_html if db_t else et['body_html'],
+            'is_confirmed': db_t.is_confirmed if db_t else False,
+            'is_default': db_t is None,
+        })
+
+    confirmed_count = sum(1 for t in templates if t['is_confirmed'])
+    unconfirmed_count = len(templates) - confirmed_count
+
+    return render_template('admin/email_templates.html',
+                           templates=templates,
+                           confirmed_count=confirmed_count,
+                           unconfirmed_count=unconfirmed_count)
+
 
 @app.route('/admin/trigger-nlp', methods=['POST'])
 @login_required

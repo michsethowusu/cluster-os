@@ -1,0 +1,135 @@
+{% extends "admin/base.html" %}
+{% block title %}Email Templates{% endblock %}
+{% block admin_content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0"><i class="bi bi-envelope-paper"></i> Email Templates</h4>
+    <div>
+        <span class="badge bg-secondary me-2">{{ confirmed_count }} confirmed / {{ templates|length }} total</span>
+        <form method="POST" style="display:inline">
+            <input type="hidden" name="action" value="confirm_all">
+            <button type="submit" class="btn btn-success btn-sm" {% if unconfirmed_count == 0 %}disabled{% endif %}>
+                <i class="bi bi-check-all"></i> Confirm All
+            </button>
+        </form>
+    </div>
+</div>
+
+{% if unconfirmed_count > 0 %}
+<div class="alert alert-warning" role="alert">
+    <i class="bi bi-exclamation-triangle"></i>
+    {{ unconfirmed_count }} email template{{ 's' if unconfirmed_count != 1 else '' }}
+    {{ 'are' if unconfirmed_count != 1 else 'is' }} not confirmed. Emails will use default text until confirmed.
+</div>
+{% endif %}
+
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th style="width:50px">Status</th>
+                <th style="width:200px">Key</th>
+                <th>Subject</th>
+                <th style="width:200px">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in templates %}
+            <tr>
+                <td class="text-center">
+                    {% if t.is_confirmed %}
+                    <i class="bi bi-check-circle-fill text-success fs-5" title="Confirmed"></i>
+                    {% else %}
+                    <i class="bi bi-exclamation-triangle-fill text-warning fs-5" title="Not confirmed"></i>
+                    {% endif %}
+                </td>
+                <td><code>{{ t.key }}</code></td>
+                <td>
+                    <span class="text-truncate d-inline-block" style="max-width:400px;">{{ t.subject }}</span>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal"
+                            data-bs-target="#editModal{{ loop.index }}">
+                        <i class="bi bi-pencil"></i> Edit
+                    </button>
+                    {% if not t.is_confirmed %}
+                    <form method="POST" style="display:inline">
+                        <input type="hidden" name="action" value="confirm">
+                        <input type="hidden" name="key" value="{{ t.key }}">
+                        <button type="submit" class="btn btn-sm btn-outline-success me-1">
+                            <i class="bi bi-check-lg"></i> Confirm
+                        </button>
+                    </form>
+                    {% endif %}
+                    <form method="POST" style="display:inline">
+                        <input type="hidden" name="action" value="reset">
+                        <input type="hidden" name="key" value="{{ t.key }}">
+                        <button type="submit" class="btn btn-sm btn-outline-secondary"
+                                onclick="return confirm('Reset &quot;{{ t.key }}&quot; to default?')">
+                            <i class="bi bi-arrow-counterclockwise"></i> Reset
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% for t in templates %}
+<div class="modal fade" id="editModal{{ loop.index }}" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <form method="POST">
+                <input type="hidden" name="action" value="update">
+                <input type="hidden" name="key" value="{{ t.key }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Template: <code>{{ t.key }}</code></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">{{ t.description }}</p>
+
+                    <div class="mb-3">
+                        <label class="form-label">Key</label>
+                        <input type="text" class="form-control" value="{{ t.key }}" readonly disabled>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Subject</label>
+                        <input type="text" class="form-control" name="subject" value="{{ t.subject }}" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Title (email header)</label>
+                        <input type="text" class="form-control" name="title" value="{{ t.title }}" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Body HTML</label>
+                        <textarea class="form-control font-monospace" name="body_html" rows="15">{{ t.body_html }}</textarea>
+                    </div>
+
+                    <div class="card bg-light">
+                        <div class="card-body py-2 px-3">
+                            <small class="fw-bold text-muted">Template Variables</small>
+                            <div class="mt-1">
+                                {% for var in t.variables %}
+                                <code class="me-2">{{ var }}</code>
+                                {% endfor %}
+                            </div>
+                            <small class="text-muted d-block mt-1">Use these placeholders in the subject, title, and body HTML above.</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Save
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

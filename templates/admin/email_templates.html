@@ -77,16 +77,16 @@
 
 {% for t in templates %}
 <div class="modal fade" id="editModal{{ loop.index }}" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable" style="max-height:90vh;">
-        <div class="modal-content">
-            <form method="POST">
+    <div class="modal-dialog modal-lg" style="max-height:90vh;">
+        <div class="modal-content" style="max-height:85vh;display:flex;flex-direction:column;overflow:hidden;">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Template: <code>{{ t.key }}</code></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
                 <input type="hidden" name="action" value="update">
                 <input type="hidden" name="key" value="{{ t.key }}">
-                <div class="modal-header">
-                    <h5 class="modal-title">Edit Template: <code>{{ t.key }}</code></h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
+                <div class="modal-body" style="overflow-y:auto;flex:1;">
                     <p class="text-muted small mb-3">{{ t.description }}</p>
 
                     <div class="mb-3">

@@ -3730,7 +3730,9 @@ def admin_appearance():
         set_setting('site_name', site_name)
         # Keep an env copy so context-free email sends pick up the override too.
         os.environ['SITE_NAME'] = site_name
-        set_setting('site_tagline', (request.form.get('site_tagline') or '').strip() or DEFAULT_SITE_TAGLINE)
+        site_tagline_val = (request.form.get('site_tagline') or '').strip() or DEFAULT_SITE_TAGLINE
+        set_setting('site_tagline', site_tagline_val)
+        os.environ['SITE_TAGLINE'] = site_tagline_val
         set_setting('footer_note', (request.form.get('footer_note') or '').strip())
         set_setting('certificates_enabled', 'true' if request.form.get('certificates_enabled') else 'false')
 

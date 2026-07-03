@@ -37,6 +37,42 @@ TEMPLATE_VARIABLE_DESCRIPTIONS = {
     'digest_items': 'HTML list items for digest emails.',
 }
 
+# These are filled in automatically for EVERY email — the admin never needs to
+# supply a value. They are the only placeholders that mean the same thing
+# everywhere on the site.
+SITE_WIDE_VARIABLES = ['site_name', 'contact_email', 'login_url', 'register_url']
+
+# Semantic style classes. Templates are written with readable markup like
+#   <p class="cta"><a class="button" href="{{ url }}">Label</a></p>
+# and these get expanded to full inline styles at send time (email clients need
+# inline CSS). This keeps the editable template bodies clean prose instead of
+# walls of inline style="..." attributes.
+EMAIL_STYLE_CLASSES = {
+    'button': 'display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;',
+    'cta': 'text-align:center;margin:28px 0;',
+    'panel': 'background:#f8f9fa;border-left:4px solid #1a56db;border-radius:4px;padding:16px 20px;margin:20px 0;',
+    'code': 'background:#f4f4f4;padding:20px;text-align:center;font-size:26px;font-weight:bold;letter-spacing:6px;margin:20px 0;border-radius:4px;',
+    'muted': 'color:#666;font-size:0.9em;',
+}
+
+# Short, admin-facing explanation of each style class, shown in the editor.
+EMAIL_STYLE_CLASS_DESCRIPTIONS = {
+    'button': 'A blue call-to-action button (put on a link inside a "cta" paragraph).',
+    'cta': 'Centres its contents — use for the paragraph that holds a button.',
+    'panel': 'A light box with a blue left border — for highlighting event/project details.',
+    'code': 'A large, spaced-out box — used to display the login code.',
+    'muted': 'Small, grey secondary text — for footnotes and fine print.',
+}
+
+
+def _expand_styles(html):
+    """Expand semantic class="..." markers into inline styles for email."""
+    for cls, style in EMAIL_STYLE_CLASSES.items():
+        html = html.replace(f'class="{cls}"', f'style="{style}"')
+        html = html.replace(f"class='{cls}'", f'style="{style}"')
+    return html
+
+
 EMAIL_TEMPLATES = [
     {
         'key': 'otp',
@@ -45,7 +81,7 @@ EMAIL_TEMPLATES = [
         'variables': ['otp', 'site_name'],
         'subject': 'Your Login OTP - {{ site_name }}',
         'title': 'Your Login Code',
-        'body_html': '<p>Your one-time password (OTP) for login is:</p>\n<div style="background:#f4f4f4;padding:20px;text-align:center;font-size:26px;font-weight:bold;letter-spacing:6px;margin:20px 0;border-radius:4px;">{{ otp }}</div>\n<p style="color:#666;font-size:0.9em;">This code expires in 10 minutes. If you didn\'t request this, please ignore this email.</p>',
+        'body_html': '<p>Your one-time password (OTP) for login is:</p>\n<div class="code">{{ otp }}</div>\n<p class="muted">This code expires in 10 minutes. If you didn\'t request this, please ignore this email.</p>',
     },
     {
         'key': 'approval',
@@ -54,7 +90,7 @@ EMAIL_TEMPLATES = [
         'variables': ['site_name', 'initiative_link', 'login_url'],
         'subject': 'Welcome to {{ site_name }}',
         'title': 'Welcome to {{ site_name }}',
-        'body_html': '<p>Your registration has been approved! You can now log in to submit initiatives and participate in discussions.</p>\n{{ initiative_link }}\n<div style="text-align:center;margin:28px 0;"><a href="{{ login_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Log In to the Platform</a></div>',
+        'body_html': '<p>Your registration has been approved! You can now log in to submit initiatives and participate in discussions.</p>\n{{ initiative_link }}\n<p class="cta"><a class="button" href="{{ login_url }}">Log In to the Platform</a></p>',
     },
     {
         'key': 'initiative_approved',
@@ -63,7 +99,7 @@ EMAIL_TEMPLATES = [
         'variables': ['user_name', 'initiative_title', 'initiative_url', 'site_name'],
         'subject': 'Your initiative has been published - {{ site_name }}',
         'title': 'Your Initiative Has Been Published',
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>Your initiative <strong>{{ initiative_title }}</strong> has been reviewed and is now live on {{ site_name }}.</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ initiative_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">View Your Initiative</a></div>',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>Your initiative <strong>{{ initiative_title }}</strong> has been reviewed and is now live on {{ site_name }}.</p>\n<p class="cta"><a class="button" href="{{ initiative_url }}">View Your Initiative</a></p>',
     },
     {
         'key': 'certificate',
@@ -72,7 +108,7 @@ EMAIL_TEMPLATES = [
         'variables': ['user_name', 'site_name', 'cert_url'],
         'subject': 'Your contributor certificate is ready - {{ site_name }}',
         'title': 'Your Contributor Certificate',
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>Thank you for contributing to <strong>{{ site_name }}</strong>! In recognition of your published contribution, we have created a personal contributor certificate in your name.</p>\n<p>You can view, print, or share it any time:</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ cert_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">View Your Certificate</a></div>\n<p style="color:#666;font-size:0.9em;margin-top:16px;">This is a live page \u2014 it stays up to date as you contribute more.</p>',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>Thank you for contributing to <strong>{{ site_name }}</strong>! In recognition of your published contribution, we have created a personal contributor certificate in your name.</p>\n<p>You can view, print, or share it any time:</p>\n<p class="cta"><a class="button" href="{{ cert_url }}">View Your Certificate</a></p>\n<p class="muted">This is a live page \u2014 it stays up to date as you contribute more.</p>',
     },
     {
         'key': 'initiative_pending',
@@ -81,7 +117,7 @@ EMAIL_TEMPLATES = [
         'variables': ['user_name', 'initiative_title', 'site_name', 'login_url'],
         'subject': 'Your initiative has been submitted for review - {{ site_name }}',
         'title': 'Initiative Submitted for Review',
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>Your initiative <strong>{{ initiative_title }}</strong> has been submitted to {{ site_name }} and is pending review by our team.</p>\n<p>You will receive another email once it has been approved and published.</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ login_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Log In to the Platform</a></div>',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>Your initiative <strong>{{ initiative_title }}</strong> has been submitted to {{ site_name }} and is pending review by our team.</p>\n<p>You will receive another email once it has been approved and published.</p>\n<p class="cta"><a class="button" href="{{ login_url }}">Log In to the Platform</a></p>',
     },
     {
         'key': 'import_welcome',
@@ -90,7 +126,7 @@ EMAIL_TEMPLATES = [
         'variables': ['user_name', 'organization', 'site_name', 'login_url', 'user_email'],
         'subject': "You've been added to the {{ site_name }}",
         'title': 'Welcome to the {{ site_name }}',
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>You have been added to the <strong>{{ site_name }}</strong> as a member representing <strong>{{ organization }}</strong>.</p>\n<p>A platform connecting experts and organisations. As a member you can:</p>\n<ul style="padding-left:20px;margin:8px 0 16px;">\n    <li>Share and explore initiatives from across the continent</li>\n    <li>Participate in the Q&amp;A forum and contribute recommendations</li>\n    <li>Register for events and complete polls</li>\n    <li>Connect with other experts in the network</li>\n</ul>\n<p><strong>To get started, please log in and complete your profile</strong> by adding descriptions of your ongoing projects or areas of expertise. This helps other members find and connect with you based on your areas of expertise.</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ login_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Log In to the Platform</a></div>\n<p style="color:#666;font-size:0.9em;">Your registered email address is: {{ user_email }}<br>\nUse this to log in \u2014 you will receive a one-time password (OTP) each time you sign in.</p>',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>You have been added to the <strong>{{ site_name }}</strong> as a member representing <strong>{{ organization }}</strong>.</p>\n<p>A platform connecting experts and organisations. As a member you can:</p>\n<ul>\n    <li>Share and explore initiatives from across the continent</li>\n    <li>Participate in the Q&amp;A forum and contribute recommendations</li>\n    <li>Register for events and complete polls</li>\n    <li>Connect with other experts in the network</li>\n</ul>\n<p><strong>To get started, please log in and complete your profile</strong> by adding descriptions of your ongoing projects or areas of expertise. This helps other members find and connect with you based on your areas of expertise.</p>\n<p class="cta"><a class="button" href="{{ login_url }}">Log In to the Platform</a></p>\n<p class="muted">Your registered email address is: {{ user_email }}<br>\nUse this to log in \u2014 you will receive a one-time password (OTP) each time you sign in.</p>',
     },
     {
         'key': 'invitation_org',
@@ -99,7 +135,7 @@ EMAIL_TEMPLATES = [
         'variables': ['user_name', 'organization', 'site_name', 'register_url', 'contact_email'],
         'subject': 'Invitation to Join {{ site_name }}',
         'title': 'Invitation to Join {{ site_name }}',
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p><strong>{{ site_name }}</strong> is pleased to invite experts on behalf of <strong>{{ organization }}</strong> to join its digital collaboration platform.</p>\n<p>A platform connecting experts and organisations. As a member your organisation will be able to:</p>\n<ul style="padding-left:20px;margin:8px 0 16px;">\n    <li>Share and explore initiatives from across the continent</li>\n    <li>Participate in the Q&amp;A forum and contribute recommendations</li>\n    <li>Register for events and engage in polls</li>\n    <li>Connect with other experts and organisations in the network</li>\n</ul>\n<p>We look forward to your participation.</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ register_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Register Now</a></div>\n<p style="margin:24px 0 0;color:#555;font-size:0.9em;">Should you have any questions, please do not hesitate to contact us at\n<a href="mailto:{{ contact_email }}" style="color:#1a56db;">{{ contact_email }}</a>.</p>',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p><strong>{{ site_name }}</strong> is pleased to invite experts on behalf of <strong>{{ organization }}</strong> to join its digital collaboration platform.</p>\n<p>A platform connecting experts and organisations. As a member your organisation will be able to:</p>\n<ul>\n    <li>Share and explore initiatives from across the continent</li>\n    <li>Participate in the Q&amp;A forum and contribute recommendations</li>\n    <li>Register for events and engage in polls</li>\n    <li>Connect with other experts and organisations in the network</li>\n</ul>\n<p>We look forward to your participation.</p>\n<p class="cta"><a class="button" href="{{ register_url }}">Register Now</a></p>\n<p class="muted">Should you have any questions, please do not hesitate to contact us at <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>.</p>',
     },
     {
         'key': 'invitation_individual',
@@ -108,7 +144,7 @@ EMAIL_TEMPLATES = [
         'variables': ['user_name', 'site_name', 'register_url', 'contact_email'],
         'subject': 'Invitation to Join the {{ site_name }}',
         'title': 'Invitation to Join the {{ site_name }}',
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>We are pleased to invite you to join <strong>{{ site_name }}</strong>.</p>\n<p>A platform connecting experts and organisations. As a member you will be able to:</p>\n<ul style="padding-left:20px;margin:8px 0 16px;">\n    <li>Share and explore initiatives from across the continent</li>\n    <li>Participate in the Q&amp;A forum and contribute recommendations</li>\n    <li>Register for events and engage in polls</li>\n    <li>Connect with other experts and organisations in the network</li>\n</ul>\n<p>We look forward to your participation.</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ register_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Register Now</a></div>\n<p style="margin:24px 0 0;color:#555;font-size:0.9em;">Should you have any questions, please do not hesitate to contact us at\n<a href="mailto:{{ contact_email }}" style="color:#1a56db;">{{ contact_email }}</a>.</p>',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>We are pleased to invite you to join <strong>{{ site_name }}</strong>.</p>\n<p>A platform connecting experts and organisations. As a member you will be able to:</p>\n<ul>\n    <li>Share and explore initiatives from across the continent</li>\n    <li>Participate in the Q&amp;A forum and contribute recommendations</li>\n    <li>Register for events and engage in polls</li>\n    <li>Connect with other experts and organisations in the network</li>\n</ul>\n<p>We look forward to your participation.</p>\n<p class="cta"><a class="button" href="{{ register_url }}">Register Now</a></p>\n<p class="muted">Should you have any questions, please do not hesitate to contact us at <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>.</p>',
     },
     {
         'key': 'event_invitation',
@@ -117,7 +153,7 @@ EMAIL_TEMPLATES = [
         'variables': ['user_name', 'event_title', 'event_date', 'event_url', 'site_name'],
         'subject': 'Invitation to {{ event_title }}',
         'title': "You're Invited: {{ event_title }}",
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>You have been invited to attend the following event on {{ site_name }}:</p>\n<div style="background:#f8f9fa;border-left:4px solid #1a56db;border-radius:4px;padding:16px 20px;margin:20px 0;">\n  <h3 style="margin:0 0 8px;">{{ event_title }}</h3>\n  <p style="margin:4px 0;"><strong>Date:</strong> {{ event_date }}</p>\n  <p style="margin:8px 0 0;color:#555;">Join us for this event where we will explore new ideas and share best practices with experts from across the continent.</p>\n</div>\n<div style="text-align:center;margin:28px 0;"><a href="{{ event_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">View Event &amp; Register</a></div>',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>You have been invited to attend the following event on {{ site_name }}:</p>\n<div class="panel">\n  <h3>{{ event_title }}</h3>\n  <p><strong>Date:</strong> {{ event_date }}</p>\n  <p class="muted">Join us for this event where we will explore new ideas and share best practices with experts from across the continent.</p>\n</div>\n<p class="cta"><a class="button" href="{{ event_url }}">View Event &amp; Register</a></p>',
     },
     {
         'key': 'project_signup',
@@ -126,7 +162,7 @@ EMAIL_TEMPLATES = [
         'variables': ['user_name', 'project_title', 'project_deadline', 'activity_items', 'project_url', 'site_name'],
         'subject': "You've joined: {{ project_title }} \u2013 {{ site_name }}",
         'title': "You've Joined a Project",
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>You have successfully signed up to participate in the following project:</p>\n<div style="background:#f8f9fa;border-left:4px solid #1a56db;border-radius:4px;padding:16px 20px;margin:20px 0;">\n  <h3 style="margin:0 0 8px;">{{ project_title }}</h3>\n  <p style="margin:4px 0;"><strong>Deadline:</strong> {{ project_deadline }}</p>\n  <p style="margin:12px 0 4px;"><strong>Activities you signed up for:</strong></p>\n  <ul style="margin:4px 0 0;padding-left:18px;">{{ activity_items }}</ul>\n</div>\n<div style="text-align:center;margin:28px 0;"><a href="{{ project_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">View Project</a></div>',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>You have successfully signed up to participate in the following project:</p>\n<div class="panel">\n  <h3>{{ project_title }}</h3>\n  <p><strong>Deadline:</strong> {{ project_deadline }}</p>\n  <p><strong>Activities you signed up for:</strong></p>\n  <ul>{{ activity_items }}</ul>\n</div>\n<p class="cta"><a class="button" href="{{ project_url }}">View Project</a></p>',
     },
     {
         'key': 'project_signup_admin',
@@ -135,7 +171,7 @@ EMAIL_TEMPLATES = [
         'variables': ['user_name', 'user_email', 'organization', 'project_title', 'project_deadline', 'activity_items', 'admin_url', 'site_name'],
         'subject': '[New Sign-up] {{ user_name }} joined "{{ project_title }}"',
         'title': 'New Project Sign-up',
-        'body_html': '<p>A member has just signed up for a project on {{ site_name }}.</p>\n<table style="width:100%;border-collapse:collapse;margin:16px 0;">\n    <tr>\n        <td style="padding:6px 12px 6px 0;font-weight:bold;width:130px;">Member</td>\n        <td style="padding:6px 0;">{{ user_name }} ({{ user_email }})</td>\n    </tr>\n    <tr style="background:#f9f9f9;">\n        <td style="padding:6px 12px 6px 0;font-weight:bold;">Organisation</td>\n        <td style="padding:6px 0;">{{ organization }}</td>\n    </tr>\n    <tr>\n        <td style="padding:6px 12px 6px 0;font-weight:bold;">Project</td>\n        <td style="padding:6px 0;">{{ project_title }}</td>\n    </tr>\n    <tr style="background:#f9f9f9;">\n        <td style="padding:6px 12px 6px 0;font-weight:bold;">Deadline</td>\n        <td style="padding:6px 0;">{{ project_deadline }}</td>\n    </tr>\n</table>\n<p><strong>Activities selected:</strong></p>\n<ul style="margin:8px 0 16px 20px;">{{ activity_items }}</ul>\n<div style="text-align:center;margin:28px 0;"><a href="{{ admin_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Manage Project in Admin</a></div>',
+        'body_html': '<p>A member has just signed up for a project on {{ site_name }}.</p>\n<div class="panel">\n  <p><strong>Member:</strong> {{ user_name }} ({{ user_email }})</p>\n  <p><strong>Organisation:</strong> {{ organization }}</p>\n  <p><strong>Project:</strong> {{ project_title }}</p>\n  <p><strong>Deadline:</strong> {{ project_deadline }}</p>\n</div>\n<p><strong>Activities selected:</strong></p>\n<ul>{{ activity_items }}</ul>\n<p class="cta"><a class="button" href="{{ admin_url }}">Manage Project in Admin</a></p>',
     },
     {
         'key': 'project_notification',
@@ -144,7 +180,7 @@ EMAIL_TEMPLATES = [
         'variables': ['project_title', 'project_deadline', 'project_url', 'site_name'],
         'subject': 'New Project: {{ project_title }}',
         'title': 'New Project on the Platform',
-        'body_html': '<p>A new collaborative project has been published on {{ site_name }}:</p>\n<div style="background:#f8f9fa;border-left:4px solid #1a56db;border-radius:4px;padding:16px 20px;margin:20px 0;">\n  <h3 style="margin:0 0 8px;">{{ project_title }}</h3>\n  <p style="margin:4px 0;color:#555;">A collaborative project bringing together experts to address key challenges and share knowledge.</p>\n  <p style="margin:8px 0 0;"><strong>Deadline:</strong> {{ project_deadline }}</p>\n</div>\n<div style="text-align:center;margin:28px 0;"><a href="{{ project_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">View Project &amp; Join</a></div>',
+        'body_html': '<p>A new collaborative project has been published on {{ site_name }}:</p>\n<div class="panel">\n  <h3>{{ project_title }}</h3>\n  <p class="muted">A collaborative project bringing together experts to address key challenges and share knowledge.</p>\n  <p><strong>Deadline:</strong> {{ project_deadline }}</p>\n</div>\n<p class="cta"><a class="button" href="{{ project_url }}">View Project &amp; Join</a></p>',
     },
     {
         'key': 'project_approved',
@@ -153,7 +189,7 @@ EMAIL_TEMPLATES = [
         'variables': ['user_name', 'project_title', 'project_url', 'site_name'],
         'subject': 'Your project has been published \u2013 {{ site_name }}',
         'title': 'Your Project Has Been Published',
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>Your project <strong>{{ project_title }}</strong> has been reviewed and is now live on {{ site_name }}. Members can now view it and sign up to participate.</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ project_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">View Your Project</a></div>',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>Your project <strong>{{ project_title }}</strong> has been reviewed and is now live on {{ site_name }}. Members can now view it and sign up to participate.</p>\n<p class="cta"><a class="button" href="{{ project_url }}">View Your Project</a></p>',
     },
     {
         'key': 'event_approved',
@@ -162,7 +198,7 @@ EMAIL_TEMPLATES = [
         'variables': ['user_name', 'event_title', 'event_date', 'event_url', 'site_name'],
         'subject': 'Your event has been published \u2013 {{ site_name }}',
         'title': 'Your Event Has Been Published',
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>Your event <strong>{{ event_title }}</strong> has been reviewed and is now live on {{ site_name }}. All members have been notified and can register.</p>\n<p><strong>Date:</strong> {{ event_date }}</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ event_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">View Your Event</a></div>',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>Your event <strong>{{ event_title }}</strong> has been reviewed and is now live on {{ site_name }}. All members have been notified and can register.</p>\n<p><strong>Date:</strong> {{ event_date }}</p>\n<p class="cta"><a class="button" href="{{ event_url }}">View Your Event</a></p>',
     },
     {
         'key': 'event_notification',
@@ -171,7 +207,7 @@ EMAIL_TEMPLATES = [
         'variables': ['event_title', 'event_date', 'event_url', 'site_name'],
         'subject': 'New Event: {{ event_title }}',
         'title': 'New Event: {{ event_title }}',
-        'body_html': '<p>A new event has been published on {{ site_name }}:</p>\n<div style="background:#f8f9fa;border-left:4px solid #1a56db;border-radius:4px;padding:16px 20px;margin:20px 0;">\n  <h3 style="margin:0 0 8px;">{{ event_title }}</h3>\n  <p style="margin:4px 0;"><strong>Date:</strong> {{ event_date }}</p>\n  <p style="margin:8px 0 0;color:#555;">Join us for this event where we will explore new ideas and share best practices with experts from across the continent.</p>\n</div>\n<div style="text-align:center;margin:28px 0;"><a href="{{ event_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Register Now</a></div>',
+        'body_html': '<p>A new event has been published on {{ site_name }}:</p>\n<div class="panel">\n  <h3>{{ event_title }}</h3>\n  <p><strong>Date:</strong> {{ event_date }}</p>\n  <p class="muted">Join us for this event where we will explore new ideas and share best practices with experts from across the continent.</p>\n</div>\n<p class="cta"><a class="button" href="{{ event_url }}">Register Now</a></p>',
     },
     {
         'key': 'event_registration',
@@ -180,7 +216,7 @@ EMAIL_TEMPLATES = [
         'variables': ['user_name', 'event_title', 'event_date', 'meeting_link_html', 'event_url', 'site_name'],
         'subject': 'Registration Confirmed: {{ event_title }} \u2013 {{ site_name }}',
         'title': 'Event Registration Confirmed',
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>You have successfully registered for the following event:</p>\n<div style="background:#f8f9fa;border-left:4px solid #1a56db;border-radius:4px;padding:16px 20px;margin:20px 0;">\n  <h3 style="margin:0 0 8px;">{{ event_title }}</h3>\n  <p style="margin:4px 0;"><strong>Date:</strong> {{ event_date }}</p>\n  {{ meeting_link_html }}\n</div>\n<div style="text-align:center;margin:28px 0;"><a href="{{ event_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">View Event Details</a></div>\n<p style="color:#666;font-size:0.9em;">We\'ll send you a reminder closer to the date.</p>',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>You have successfully registered for the following event:</p>\n<div class="panel">\n  <h3>{{ event_title }}</h3>\n  <p><strong>Date:</strong> {{ event_date }}</p>\n  {{ meeting_link_html }}\n</div>\n<p class="cta"><a class="button" href="{{ event_url }}">View Event Details</a></p>\n<p class="muted">We\'ll send you a reminder closer to the date.</p>',
     },
     {
         'key': 'custom_bulk',
@@ -198,7 +234,7 @@ EMAIL_TEMPLATES = [
         'variables': ['initiative_title', 'initiative_url', 'site_name'],
         'subject': '{{ initiative_title }}',
         'title': 'New Initiative Published',
-        'body_html': '<p>A new initiative has just been published on the platform:</p>\n<div style="background:#f8f9fa;border-left:4px solid #1a56db;border-radius:4px;padding:16px 20px;margin:20px 0;">\n  <p style="margin:0;font-size:1.05em;font-weight:bold;color:#333;">{{ initiative_title }}</p>\n  <p style="color:#555;font-size:0.95em;line-height:1.6;margin:8px 0 0;">Learn more about this initiative and how you can contribute to its success.</p>\n</div>\n<div style="text-align:center;margin:28px 0;"><a href="{{ initiative_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Read Initiative \u2192</a></div>',
+        'body_html': '<p>A new initiative has just been published on the platform:</p>\n<div class="panel">\n  <p><strong>{{ initiative_title }}</strong></p>\n  <p class="muted">Learn more about this initiative and how you can contribute to its success.</p>\n</div>\n<p class="cta"><a class="button" href="{{ initiative_url }}">Read Initiative \u2192</a></p>',
     },
     {
         'key': 'initiative_digest',
@@ -207,7 +243,7 @@ EMAIL_TEMPLATES = [
         'variables': ['subject_line', 'title_line', 'notification_intro', 'items_html', 'site_name'],
         'subject': '{{ subject_line }}',
         'title': '{{ title_line }}',
-        'body_html': '<p>{{ notification_intro }}</p>\n{{ items_html }}\n<p style="color:#666;font-size:0.88em;margin:20px 0 0;">You are receiving this because you are a member of {{ site_name }}.</p>',
+        'body_html': '<p>{{ notification_intro }}</p>\n{{ items_html }}\n<p class="muted">You are receiving this because you are a member of {{ site_name }}.</p>',
     },
     {
         'key': 'policy_single',
@@ -216,7 +252,7 @@ EMAIL_TEMPLATES = [
         'variables': ['policy_title', 'policy_url', 'site_name'],
         'subject': '{{ policy_title }}',
         'title': 'New Policy Development Published',
-        'body_html': '<p>A new policy development has just been published on the platform:</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ policy_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Read Full Policy Development \u2192</a></div>',
+        'body_html': '<p>A new policy development has just been published on the platform:</p>\n<p class="cta"><a class="button" href="{{ policy_url }}">Read Full Policy Development \u2192</a></p>',
     },
     {
         'key': 'policy_digest',
@@ -225,7 +261,7 @@ EMAIL_TEMPLATES = [
         'variables': ['subject_line', 'title_line', 'notification_intro', 'items_html', 'site_name'],
         'subject': '{{ subject_line }}',
         'title': '{{ title_line }}',
-        'body_html': '<p>{{ notification_intro }}</p>\n{{ items_html }}\n<p style="color:#666;font-size:0.88em;margin:20px 0 0;">You are receiving this because you are a member of {{ site_name }}.</p>',
+        'body_html': '<p>{{ notification_intro }}</p>\n{{ items_html }}\n<p class="muted">You are receiving this because you are a member of {{ site_name }}.</p>',
     },
     {
         'key': 'document_single',
@@ -234,7 +270,7 @@ EMAIL_TEMPLATES = [
         'variables': ['doc_title', 'doc_url', 'site_name'],
         'subject': '{{ doc_title }}',
         'title': 'New Document Published',
-        'body_html': '<p>A new document has just been published on the platform:</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ doc_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">View Document \u2192</a></div>',
+        'body_html': '<p>A new document has just been published on the platform:</p>\n<p class="cta"><a class="button" href="{{ doc_url }}">View Document \u2192</a></p>',
     },
     {
         'key': 'document_digest',
@@ -243,7 +279,7 @@ EMAIL_TEMPLATES = [
         'variables': ['subject_line', 'title_line', 'notification_intro', 'items_html', 'site_name'],
         'subject': '{{ subject_line }}',
         'title': '{{ title_line }}',
-        'body_html': '<p>{{ notification_intro }}</p>\n{{ items_html }}\n<p style="color:#666;font-size:0.88em;margin:20px 0 0;">You are receiving this because you are a member of {{ site_name }}.</p>',
+        'body_html': '<p>{{ notification_intro }}</p>\n{{ items_html }}\n<p class="muted">You are receiving this because you are a member of {{ site_name }}.</p>',
     },
     {
         'key': 'ta_single',
@@ -252,7 +288,7 @@ EMAIL_TEMPLATES = [
         'variables': ['ta_title', 'ta_url', 'site_name'],
         'subject': 'New Technical Assistance Need: {{ ta_title }}',
         'title': 'New Technical Assistance Need Published',
-        'body_html': '<p>A Member State has published a new technical assistance need on the platform:</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ ta_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">View Technical Assistance Need \u2192</a></div>',
+        'body_html': '<p>A Member State has published a new technical assistance need on the platform:</p>\n<p class="cta"><a class="button" href="{{ ta_url }}">View Technical Assistance Need \u2192</a></p>',
     },
     {
         'key': 'ta_digest',
@@ -261,7 +297,7 @@ EMAIL_TEMPLATES = [
         'variables': ['subject_line', 'title_line', 'notification_intro', 'items_html', 'site_name'],
         'subject': '{{ subject_line }}',
         'title': '{{ title_line }}',
-        'body_html': '<p>{{ notification_intro }}</p>\n{{ items_html }}\n<p style="color:#666;font-size:0.88em;margin:20px 0 0;">You are receiving this because you are a member of {{ site_name }}.</p>',
+        'body_html': '<p>{{ notification_intro }}</p>\n{{ items_html }}\n<p class="muted">You are receiving this because you are a member of {{ site_name }}.</p>',
     },
     {
         'key': 'ta_invitation',
@@ -270,7 +306,7 @@ EMAIL_TEMPLATES = [
         'variables': ['user_name', 'site_name', 'ta_url'],
         'subject': 'Submit Your Technical Assistance Need \u2013 {{ site_name }}',
         'title': 'Submit Your Technical Assistance Need',
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>As a <strong>Member State</strong> stakeholder on {{ site_name }}, you are invited to submit your <strong>Technical Assistance Need</strong>.</p>\n<p>Member States can describe the specific technical assistance they require. A platform connecting experts and organisations. This helps partners and development organisations identify where they can provide support.</p>\n<div style="text-align:center;margin:28px 0;"><a href="{{ ta_url }}" style="display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;">Submit Your Technical Assistance Need</a></div>\n<p style="color:#666;font-size:0.88em;margin:8px 0 0;">You are receiving this as a Member State stakeholder on {{ site_name }}.</p>',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p>As a <strong>Member State</strong> stakeholder on {{ site_name }}, you are invited to submit your <strong>Technical Assistance Need</strong>.</p>\n<p>Member States can describe the specific technical assistance they require. This helps partners and development organisations identify where they can provide support.</p>\n<p class="cta"><a class="button" href="{{ ta_url }}">Submit Your Technical Assistance Need</a></p>\n<p class="muted">You are receiving this as a Member State stakeholder on {{ site_name }}.</p>',
     },
 ]
 
@@ -367,7 +403,7 @@ def _render_template(template_key, context, subject_default='', title_default=''
     if tmpl and tmpl.is_confirmed:
         subject = tmpl.subject
         title = tmpl.title
-        body = tmpl.body_html
+        body = _expand_styles(tmpl.body_html)
     else:
         print(f"Email template '{template_key}' not confirmed — refusing to send.")
         return None, None, None

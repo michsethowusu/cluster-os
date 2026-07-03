@@ -5,6 +5,13 @@
     <h4 class="mb-0"><i class="bi bi-envelope-paper"></i> Email Templates</h4>
     <div>
         <span class="badge bg-secondary me-2">{{ confirmed_count }} confirmed / {{ templates|length }} total</span>
+        <form method="POST" style="display:inline"
+              onsubmit="return confirm('Reset ALL templates to their default text? Any custom wording you have saved will be lost, and every template will need re-confirming.')">
+            <input type="hidden" name="action" value="reset_all">
+            <button type="submit" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-counterclockwise"></i> Reset All
+            </button>
+        </form>
         <form method="POST" style="display:inline">
             <input type="hidden" name="action" value="confirm_all">
             <button type="submit" class="btn btn-success btn-sm" {% if unconfirmed_count == 0 %}disabled{% endif %}>
@@ -12,6 +19,14 @@
             </button>
         </form>
     </div>
+</div>
+
+<div class="alert alert-light border small mb-3">
+    <i class="bi bi-info-circle text-primary"></i>
+    Templates are plain text you can edit freely. The only things in
+    <code>{{ '{{ ' }}double braces{{ ' }}' }}</code> are <strong>placeholders</strong> that
+    the system fills in automatically — leave those as they are. Everything else is normal
+    wording you can change to suit the site.
 </div>
 
 {% if unconfirmed_count > 0 %}
@@ -105,22 +120,63 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Body HTML</label>
+                        <label class="form-label">Message body</label>
                         <textarea class="form-control font-monospace" name="body_html" rows="20">{{ t.body_html }}</textarea>
                     </div>
 
+                    {% if t.msg_vars %}
+                    <div class="card border-primary-subtle mb-2">
+                        <div class="card-body py-2 px-3">
+                            <small class="fw-bold text-primary"><i class="bi bi-braces"></i> Placeholders for this email</small>
+                            <p class="text-muted small mb-2 mt-1">
+                                These are filled in with the real values when the email is sent.
+                                Keep the braces exactly as shown; you can move them around in your text but don't rename them.
+                            </p>
+                            {% for var in t.msg_vars %}
+                            <div class="mb-1">
+                                <code class="me-1">{{ '{{ ' }}{{ var }}{{ ' }}' }}</code>
+                                <span class="text-muted small">— {{ variable_descriptions.get(var, '') }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if t.site_vars %}
+                    <div class="card bg-light mb-2">
+                        <div class="card-body py-2 px-3">
+                            <small class="fw-bold text-muted"><i class="bi bi-globe"></i> Site-wide placeholders</small>
+                            <p class="text-muted small mb-2 mt-1">
+                                These mean the same thing in every email and are filled in automatically
+                                from your site settings.
+                            </p>
+                            {% for var in t.site_vars %}
+                            <div class="mb-1">
+                                <code class="me-1">{{ '{{ ' }}{{ var }}{{ ' }}' }}</code>
+                                <span class="text-muted small">— {{ variable_descriptions.get(var, '') }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
                     <div class="card bg-light">
                         <div class="card-body py-2 px-3">
-                            <small class="fw-bold text-muted">Template Variables</small>
-                            <div class="mt-1">
-                                {% for var in t.variables %}
-                                <div class="mb-1">
-                                    <code class="me-1">{{ var }}</code>
-                                    <span class="text-muted small">— {{ variable_descriptions.get(var, '') }}</span>
-                                </div>
-                                {% endfor %}
+                            <small class="fw-bold text-muted"><i class="bi bi-palette"></i> Styling shortcuts (optional)</small>
+                            <p class="text-muted small mb-2 mt-1">
+                                To keep the wording readable, styling is applied with short
+                                <code>class="…"</code> names instead of long style code. They render as follows:
+                            </p>
+                            {% for cls, desc in style_classes.items() %}
+                            <div class="mb-1">
+                                <code class="me-1">class="{{ cls }}"</code>
+                                <span class="text-muted small">— {{ desc }}</span>
                             </div>
-                            <small class="text-muted d-block mt-1">Use these placeholders (including braces) in the subject, title, and body HTML above.</small>
+                            {% endfor %}
+                            <small class="text-muted d-block mt-1">
+                                e.g. a button is written as
+                                <code>&lt;p class="cta"&gt;&lt;a class="button" href="…"&gt;Label&lt;/a&gt;&lt;/p&gt;</code>
+                            </small>
                         </div>
                     </div>
                 </div>

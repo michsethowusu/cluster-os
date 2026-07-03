@@ -4119,6 +4119,24 @@ def admin_email_templates():
             EmailTemplate.query.update({'is_confirmed': True})
             db.session.commit()
             flash('All templates confirmed.', 'success')
+        elif action == 'reset_all':
+            # Restore every template body/subject/title to the built-in default.
+            # Leaves them unconfirmed so they get reviewed before use.
+            existing = {t.key: t for t in EmailTemplate.query.all()}
+            for default in EMAIL_TEMPLATES:
+                tmpl = existing.get(default['key'])
+                if tmpl:
+                    tmpl.subject = default['subject']
+                    tmpl.title = default['title']
+                    tmpl.body_html = default['body_html']
+                    tmpl.is_confirmed = False
+                else:
+                    db.session.add(EmailTemplate(
+                        key=default['key'], subject=default['subject'],
+                        title=default['title'], body_html=default['body_html'],
+                        is_confirmed=False))
+            db.session.commit()
+            flash('All templates reset to default. Review them and confirm before use.', 'info')
         elif action == 'reset':
             key = request.form.get('key')
             from utils.email_sender import EMAIL_TEMPLATES, TEMPLATE_VARIABLE_DESCRIPTIONS
@@ -4138,15 +4156,22 @@ def admin_email_templates():
         return redirect(url_for('admin_email_templates'))
 
     db_templates = {t.key: t for t in EmailTemplate.query.all()}
-    from utils.email_sender import EMAIL_TEMPLATES
+    from utils.email_sender import (EMAIL_TEMPLATES, SITE_WIDE_VARIABLES,
+                                     EMAIL_STYLE_CLASS_DESCRIPTIONS)
     templates = []
     for et in EMAIL_TEMPLATES:
         db_t = db_templates.get(et['key'])
+        # Split placeholders: site-wide ones are filled automatically everywhere;
+        # the rest are specific to this particular email.
+        site_vars = [v for v in et['variables'] if v in SITE_WIDE_VARIABLES]
+        msg_vars = [v for v in et['variables'] if v not in SITE_WIDE_VARIABLES]
         templates.append({
             'key': et['key'],
             'label': et['label'],
             'description': et['description'],
             'variables': et['variables'],
+            'site_vars': site_vars,
+            'msg_vars': msg_vars,
             'subject': db_t.subject if db_t else et['subject'],
             'title': db_t.title if db_t else et['title'],
             'body_html': db_t.body_html if db_t else et['body_html'],
@@ -4161,7 +4186,8 @@ def admin_email_templates():
                            templates=templates,
                            confirmed_count=confirmed_count,
                            unconfirmed_count=unconfirmed_count,
-                           variable_descriptions=TEMPLATE_VARIABLE_DESCRIPTIONS)
+                           variable_descriptions=TEMPLATE_VARIABLE_DESCRIPTIONS,
+                           style_classes=EMAIL_STYLE_CLASS_DESCRIPTIONS)
 
 
 @app.route('/admin/trigger-nlp', methods=['POST'])

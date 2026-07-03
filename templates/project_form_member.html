@@ -9,70 +9,65 @@
 
             <div class="mb-4">
                 <a href="{{ url_for('dashboard') }}" class="text-decoration-none text-muted">
-                    <i class="bi bi-arrow-left"></i> Back to Dashboard
+                    <i class="bi bi-arrow-left"></i> {{ label('form_back_to_dashboard') }}
                 </a>
             </div>
 
             <div class="stats-card">
-                <h2 class="mb-1 fw-bold">Submit a Project</h2>
-                <p class="text-muted mb-4">
-                    Propose a collaborative project for the cluster. An admin will review and publish it —
-                    you'll receive an email once it goes live.
-                </p>
+                <h2 class="mb-1 fw-bold">{{ label('projf_heading') }}</h2>
+                <p class="text-muted mb-4">{{ label('projf_help') }}</p>
 
                 <form method="POST" action="{{ url_for('member_new_project') }}">
 
                     <!-- Title -->
                     <div class="mb-4">
-                        <label class="form-label fw-semibold">Project Title <span class="text-danger">*</span></label>
+                        <label class="form-label fw-semibold">{{ label('projf_title_label') }} <span class="text-danger">*</span></label>
                         <input type="text" name="title" class="form-control" required
-                               placeholder="e.g. Early Grade Reading Assessment – East Africa">
+                               placeholder="{{ label('projf_title_ph') }}">
                     </div>
 
                     <!-- Description -->
                     <div class="mb-4">
-                        <label class="form-label fw-semibold">Description <span class="text-danger">*</span></label>
+                        <label class="form-label fw-semibold">{{ label('projf_desc_label') }} <span class="text-danger">*</span></label>
                         <textarea name="description" class="form-control" rows="5" required
-                                  placeholder="Describe the project goals, context, and expected outcomes..."></textarea>
+                                  placeholder="{{ label('projf_desc_ph') }}"></textarea>
                     </div>
 
                     <!-- Dates -->
                     <div class="row mb-4">
                         <div class="col-md-6">
-                            <label class="form-label fw-semibold">Start Date</label>
+                            <label class="form-label fw-semibold">{{ label('projf_start_label') }}</label>
                             <input type="datetime-local" name="start_date" class="form-control">
-                            <small class="text-muted">Leave blank if starting immediately.</small>
+                            <small class="text-muted">{{ label('projf_start_hint') }}</small>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label fw-semibold">Deadline <span class="text-danger">*</span></label>
+                            <label class="form-label fw-semibold">{{ label('projf_deadline_label') }} <span class="text-danger">*</span></label>
                             <input type="datetime-local" name="deadline" class="form-control" required>
                         </div>
                     </div>
 
                     <!-- Activities -->
                     <div class="mb-4">
-                        <label class="form-label fw-semibold">Activities</label>
-                        <p class="text-muted small mb-3">
-                            Break the project into specific activities that members can sign up for.
-                        </p>
+                        <label class="form-label fw-semibold">{{ label('projf_activities_label') }}</label>
+                        <p class="text-muted small mb-3">{{ label('projf_activities_help') }}</p>
                         <div id="activities-container">
                             <div class="activity-row border rounded p-3 mb-3">
                                 <div class="mb-2">
                                     <input type="text" name="activity_title[]" class="form-control"
-                                           placeholder="Activity title (e.g. Data collection)">
+                                           placeholder="{{ label('projf_activity_title_ph') }}">
                                 </div>
                                 <div class="mb-2">
                                     <textarea name="activity_desc[]" class="form-control" rows="2"
-                                              placeholder="Brief description of this activity..."></textarea>
+                                              placeholder="{{ label('projf_activity_desc_ph') }}"></textarea>
                                 </div>
                                 <div>
-                                    <label class="form-label small text-muted">Activity deadline (optional)</label>
+                                    <label class="form-label small text-muted">{{ label('projf_activity_deadline_hint') }}</label>
                                     <input type="datetime-local" name="activity_deadline[]" class="form-control">
                                 </div>
                             </div>
                         </div>
                         <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addActivity()">
-                            <i class="bi bi-plus-circle"></i> Add Another Activity
+                            <i class="bi bi-plus-circle"></i> {{ label('projf_add_activity_btn') }}
                         </button>
                     </div>
 
@@ -80,9 +75,9 @@
 
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-send"></i> Submit for Review
+                            <i class="bi bi-send"></i> {{ label('form_submit_review') }}
                         </button>
-                        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">Cancel</a>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">{{ label('btn_cancel') }}</a>
                     </div>
                 </form>
             </div>

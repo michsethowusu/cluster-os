@@ -1,91 +1,6 @@
 {% extends "base.html" %}
 
 {% block title %}{% if initiative %}Edit{% else %}New{% endif %} {{ label("page_title_initiative_form") }}{% endblock %}
-<script>
-(function () {
-    function countWords(str) {
-        return str.trim().split(/\s+/).filter(w => w.length > 0).length;
-    }
-
-    function makeCounter(id, label) {
-        const el = document.createElement('div');
-        el.id = id;
-        el.className = 'form-text mt-1';
-        return el;
-    }
-
-    const titleInput = document.querySelector('input[name="title"]');
-    if (titleInput) {
-        const counter = makeCounter('title-counter', 'title');
-        counter.textContent = '0 / 5 words minimum';
-        titleInput.parentNode.appendChild(counter);
-
-        function updateTitle() {
-            const words = countWords(titleInput.value);
-            const ok = words >= 5;
-            counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum 5 required');
-            counter.style.color = ok ? '#198754' : '#dc3545';
-            titleInput.classList.toggle('is-invalid', !ok && titleInput.value.length > 0);
-            titleInput.classList.toggle('is-valid', ok);
-        }
-        titleInput.addEventListener('input', updateTitle);
-        updateTitle();
-    }
-
-    const shortDescArea = document.querySelector('textarea[name="short_description"]');
-    if (shortDescArea) {
-        const counter = makeCounter('short-desc-counter', 'short description');
-        counter.textContent = '0 / 10 words minimum';
-        shortDescArea.parentNode.appendChild(counter);
-
-        function updateShortDesc() {
-            const words = countWords(shortDescArea.value);
-            const ok = words >= 10;
-            counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum 10 required');
-            counter.style.color = ok ? '#198754' : '#dc3545';
-            shortDescArea.classList.toggle('is-invalid', !ok && shortDescArea.value.length > 0);
-            shortDescArea.classList.toggle('is-valid', ok);
-        }
-        shortDescArea.addEventListener('input', updateShortDesc);
-        updateShortDesc();
-    }
-
-    const contentArea = document.querySelector('textarea[name="content"]');
-    if (contentArea) {
-        const counter = makeCounter('content-counter', 'content');
-        counter.textContent = '0 / 300 words minimum';
-        contentArea.parentNode.appendChild(counter);
-
-        function updateContent() {
-            const words = countWords(contentArea.value);
-            const ok = words >= 300;
-            counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum 300 required');
-            counter.style.color = ok ? '#198754' : '#dc3545';
-            contentArea.classList.toggle('is-invalid', !ok && contentArea.value.length > 0);
-            contentArea.classList.toggle('is-valid', ok);
-        }
-        contentArea.addEventListener('input', updateContent);
-        updateContent();
-    }
-
-    const form = document.querySelector('form[method="POST"]');
-    if (form) {
-        form.addEventListener('submit', function (e) {
-            const titleWords = titleInput ? countWords(titleInput.value) : 5;
-            const shortDescWords = shortDescArea ? countWords(shortDescArea.value) : 10;
-            const contentWords = contentArea ? countWords(contentArea.value) : 300;
-            const errors = [];
-            if (titleWords < 5) errors.push('Title must be at least 5 words (currently ' + titleWords + ').');
-            if (shortDescWords < 10) errors.push('Short description must be at least 10 words (currently ' + shortDescWords + ').');
-            if (contentWords < 300) errors.push('Full description must be at least 300 words (currently ' + contentWords + ').');
-            if (errors.length) {
-                e.preventDefault();
-                alert('Please fix the following before submitting:\n\n' + errors.join('\n'));
-            }
-        });
-    }
-})();
-</script>
 
 {% block content %}
 <div class="container mt-5 mb-5">
@@ -93,31 +8,31 @@
         <div class="col-lg-8">
             <div class="card shadow">
                 <div class="card-header bg-primary text-white">
-                    <h4 class="mb-0">{% if initiative %}Edit Initiative{% else %}Submit New Initiative{% endif %}</h4>
+                    <h4 class="mb-0">{% if initiative %}{{ label('initf_heading_edit') }}{% else %}{{ label('initf_heading_new') }}{% endif %}</h4>
                 </div>
                 <div class="card-body p-4">
                     <form method="POST" action="{% if initiative %}{{ url_for('edit_initiative', id=initiative.id) }}{% else %}{{ url_for('new_initiative') }}{% endif %}">
                         <div class="mb-3">
-                            <label class="form-label">Initiative Title *</label>
+                            <label class="form-label">{{ label('initf_title_label') }} *</label>
                             <input type="text" name="title" class="form-control" value="{{ initiative.title if initiative else '' }}" required>
                         </div>
-                        
+
                         <div class="mb-3">
-                            <label class="form-label">Short Description (max 300 characters) *</label>
-                            <textarea name="short_description" class="form-control" rows="2" maxlength="300" required placeholder="Brief summary of your initiative...">{{ initiative.short_description if initiative else '' }}</textarea>
-                            <div class="form-text">A concise summary that will appear in search results and cards.</div>
+                            <label class="form-label">{{ label('initf_short_label') }} (max {{ label('initf_short_max') }} characters) *</label>
+                            <textarea name="short_description" class="form-control" rows="2" maxlength="{{ label('initf_short_max') }}" required placeholder="{{ label('initf_short_ph') }}">{{ initiative.short_description if initiative else '' }}</textarea>
+                            <div class="form-text">{{ label('initf_short_help') }}</div>
                         </div>
-                        
+
                         <div class="mb-3">
-                            <label class="form-label">Full Description *</label>
+                            <label class="form-label">{{ label('initf_content_label') }} *</label>
                             <textarea name="content" class="form-control content-editor" rows="12" required
-                                      placeholder="Describe your initiative in detail. Include objectives, target beneficiaries, implementation approach, and any results or lessons learned...">{{ initiative.content if initiative else '' }}</textarea>
-                            <div class="form-text">You can use <a href="https://www.markdownguide.org/cheat-sheet/" target="_blank">Markdown</a> for formatting (headings, lists, links, etc.).</div>
+                                      placeholder="{{ label('initf_content_ph') }}">{{ initiative.content if initiative else '' }}</textarea>
+                            <div class="form-text">{{ label('form_markdown_hint')|safe }}</div>
                         </div>
                         
                         {% if initiative %}
                         <div class="mb-3">
-                            <label class="form-label">Tags</label>
+                            <label class="form-label">{{ label('initf_tags_label') }}</label>
                             <div id="tag-container" class="d-flex flex-wrap gap-1 mb-2">
                                 {% for tag in initiative.tags %}
                                 <span class="tag-badge" style="padding-right:5px;">
@@ -127,25 +42,25 @@
                                 {% endfor %}
                             </div>
                             <div class="input-group">
-                                <input type="text" id="tag-input" class="form-control form-control-sm" placeholder="Type a tag and press Enter or comma to add...">
-                                <button type="button" id="tag-add-btn" class="btn btn-outline-secondary btn-sm">Add</button>
+                                <input type="text" id="tag-input" class="form-control form-control-sm" placeholder="{{ label('initf_tags_ph') }}">
+                                <button type="button" id="tag-add-btn" class="btn btn-outline-secondary btn-sm">{{ label('initf_tag_add_btn') }}</button>
                             </div>
                             <input type="hidden" name="tags" id="tags-hidden" value="{{ initiative.tags | map(attribute='name') | join(',') }}">
-                            <div class="form-text mt-1">Add or remove tags manually, or check below to regenerate from AI.</div>
+                            <div class="form-text mt-1">{{ label('initf_tags_help') }}</div>
                         </div>
                         <div class="mb-3 form-check">
                             <input type="checkbox" class="form-check-input" name="regenerate_tags" id="regenerate_tags">
                             <label class="form-check-label" for="regenerate_tags">
-                                Regenerate tags from updated content (replaces manual tags)
+                                {{ label('initf_regen_label') }}
                             </label>
                         </div>
                         {% endif %}
                         
                         <div class="d-flex justify-content-between">
                             <a href="{% if initiative %}{{ url_for('view_initiative', slug=initiative.slug) }}{% else %}{{ url_for('dashboard') }}{% endif %}" 
-                               class="btn btn-outline-secondary">Cancel</a>
+                               class="btn btn-outline-secondary">{{ label('btn_cancel') }}</a>
                             <button type="submit" class="btn btn-primary btn-lg">
-                                {% if initiative %}Save Changes{% else %}Submit Initiative{% endif %}
+                                {% if initiative %}{{ label('initf_submit_edit') }}{% else %}{{ label('initf_submit_new') }}{% endif %}
                             </button>
                         </div>
                     </form>
@@ -157,6 +72,11 @@
 
 <script>
 (function () {
+    const FORM_MIN = {
+        title: {{ label('initf_title_min')|int }},
+        short: {{ label('initf_short_min')|int }},
+        full:  {{ label('initf_content_min')|int }}
+    };
     function countWords(str) {
         return str.trim().split(/\s+/).filter(w => w.length > 0).length;
     }
@@ -171,13 +91,13 @@
     const titleInput = document.querySelector('input[name="title"]');
     if (titleInput) {
         const counter = makeCounter('title-counter', 'title');
-        counter.textContent = '0 / 5 words minimum';
+        counter.textContent = '0 / ' + FORM_MIN.title + ' words minimum';
         titleInput.parentNode.appendChild(counter);
 
         function updateTitle() {
             const words = countWords(titleInput.value);
-            const ok = words >= 5;
-            counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum 5 required');
+            const ok = words >= FORM_MIN.title;
+            counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum ' + FORM_MIN.title + ' required');
             counter.style.color = ok ? '#198754' : '#dc3545';
             titleInput.classList.toggle('is-invalid', !ok && titleInput.value.length > 0);
             titleInput.classList.toggle('is-valid', ok);
@@ -189,13 +109,13 @@
     const shortDescArea = document.querySelector('textarea[name="short_description"]');
     if (shortDescArea) {
         const counter = makeCounter('short-desc-counter', 'short description');
-        counter.textContent = '0 / 10 words minimum';
+        counter.textContent = '0 / ' + FORM_MIN.short + ' words minimum';
         shortDescArea.parentNode.appendChild(counter);
 
         function updateShortDesc() {
             const words = countWords(shortDescArea.value);
-            const ok = words >= 10;
-            counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum 10 required');
+            const ok = words >= FORM_MIN.short;
+            counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum ' + FORM_MIN.short + ' required');
             counter.style.color = ok ? '#198754' : '#dc3545';
             shortDescArea.classList.toggle('is-invalid', !ok && shortDescArea.value.length > 0);
             shortDescArea.classList.toggle('is-valid', ok);
@@ -207,13 +127,13 @@
     const contentArea = document.querySelector('textarea[name="content"]');
     if (contentArea) {
         const counter = makeCounter('content-counter', 'content');
-        counter.textContent = '0 / 300 words minimum';
+        counter.textContent = '0 / ' + FORM_MIN.full + ' words minimum';
         contentArea.parentNode.appendChild(counter);
 
         function updateContent() {
             const words = countWords(contentArea.value);
-            const ok = words >= 300;
-            counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum 300 required');
+            const ok = words >= FORM_MIN.full;
+            counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum ' + FORM_MIN.full + ' required');
             counter.style.color = ok ? '#198754' : '#dc3545';
             contentArea.classList.toggle('is-invalid', !ok && contentArea.value.length > 0);
             contentArea.classList.toggle('is-valid', ok);
@@ -288,13 +208,13 @@
     const form = document.querySelector('form[method="POST"]');
     if (form) {
         form.addEventListener('submit', function (e) {
-            const titleWords = titleInput ? countWords(titleInput.value) : 5;
-            const shortDescWords = shortDescArea ? countWords(shortDescArea.value) : 10;
-            const contentWords = contentArea ? countWords(contentArea.value) : 300;
+            const titleWords = titleInput ? countWords(titleInput.value) : FORM_MIN.title;
+            const shortDescWords = shortDescArea ? countWords(shortDescArea.value) : FORM_MIN.short;
+            const contentWords = contentArea ? countWords(contentArea.value) : FORM_MIN.full;
             const errors = [];
-            if (titleWords < 5) errors.push('Title must be at least 5 words (currently ' + titleWords + ').');
-            if (shortDescWords < 10) errors.push('Short description must be at least 10 words (currently ' + shortDescWords + ').');
-            if (contentWords < 300) errors.push('Full description must be at least 300 words (currently ' + contentWords + ').');
+            if (titleWords < FORM_MIN.title) errors.push('Title must be at least ' + FORM_MIN.title + ' words (currently ' + titleWords + ').');
+            if (shortDescWords < FORM_MIN.short) errors.push('Short description must be at least ' + FORM_MIN.short + ' words (currently ' + shortDescWords + ').');
+            if (contentWords < FORM_MIN.full) errors.push('Full description must be at least ' + FORM_MIN.full + ' words (currently ' + contentWords + ').');
             if (errors.length) {
                 e.preventDefault();
                 alert('Please fix the following before submitting:\n\n' + errors.join('\n'));

@@ -624,10 +624,6 @@ LABEL_DEFAULTS = {
     'form_organization': 'Organization',
     'form_country': 'Country',
     'form_stakeholder_type': 'Stakeholder Type',
-    'form_initiative_title': 'Initiative Title',
-    'form_initiative_content': 'Initiative Content',
-    'form_initiative_short_desc': 'Short Description (min 10 words)',
-    'form_initiative_content': 'Full Initiative Description (min 300 words)',
     # Actions
     'btn_save': 'Save',
     'btn_cancel': 'Cancel',
@@ -722,7 +718,249 @@ LABEL_DEFAULTS = {
     'page_title_ta_form': 'Submit TA Need',
     # Dynamic page — suffix after the variable
     'page_title_suffix': 'AU ECED-FLN Cluster',
+
+    # ── Shared form strings (used across multiple forms) ──
+    'form_back_to_dashboard': 'Back to Dashboard',
+    'form_submit_review': 'Submit for Review',
+    'form_remove': 'Remove',
+    'form_markdown_hint': 'You can use <a href="https://www.markdownguide.org/basic-syntax/" target="_blank" rel="noopener">Markdown</a> for formatting (headings, lists, links, etc.).',
+
+    # ── Registration form: initiative section, placeholders, notices, button ──
+    'reg_org_ph': 'Start typing your organisation…',
+    'reg_country_ph': 'Select Country',
+    'reg_stakeholder_ph': 'Select Type',
+    'reg_initiative_heading': 'Your ECED-FLN Initiative',
+    'reg_initiative_help': 'Share an initiative you have led or contributed to in Early Childhood Education & Development or Foundational Learning. This is how other members will find you through expertise search, and it will be published on the platform once your account is approved.',
+    'reg_initiative_title_label': 'Initiative Title',
+    'reg_initiative_title_ph': 'e.g., Community-Based Early Literacy Programme in Northern Ghana',
+    'reg_initiative_title_min': '5',
+    'reg_short_desc_label': 'Short Description',
+    'reg_short_desc_hint': '— shown in search results',
+    'reg_short_desc_ph': 'A brief summary that will appear on member cards and search results.',
+    'reg_short_desc_min': '10',
+    'reg_content_label': 'Full Initiative Description',
+    'reg_content_hint': '(Markdown supported)',
+    'reg_content_help': "You can use **bold**, *italic*, bullet lists, and headings. This full description will appear on your initiative's dedicated page.",
+    'reg_content_ph': 'Describe the initiative in detail: objectives, target beneficiaries, geographic scope, outcomes, lessons learned, etc.',
+    'reg_content_min': '300',
+    'reg_notice_created': 'Your account will be created immediately. Your initiative will be published and visible on the platform right away.',
+    'reg_notice_ms_email': 'Member State stakeholders must use an official institutional email address (not Gmail, Yahoo, Hotmail, Outlook, or other personal email providers).',
+    'reg_notice_ms_join': "As a Member State stakeholder, you can join without submitting an initiative. After joining, you'll be able to submit your Technical Assistance Need from your dashboard.",
+    'reg_submit_btn': 'Join the Cluster',
+
+    # ── Initiative (article) form ──
+    'initf_heading_new': 'Submit New Initiative',
+    'initf_heading_edit': 'Edit Initiative',
+    'initf_title_label': 'Initiative Title',
+    'initf_short_label': 'Short Description',
+    'initf_short_max': '300',
+    'initf_short_help': 'A concise summary that will appear in search results and cards.',
+    'initf_short_ph': 'Brief summary of your initiative...',
+    'initf_short_min': '10',
+    'initf_content_label': 'Full Description',
+    'initf_content_ph': 'Describe your initiative in detail. Include objectives, target beneficiaries, implementation approach, and any results or lessons learned...',
+    'initf_content_min': '300',
+    'initf_title_min': '5',
+    'initf_tags_label': 'Tags',
+    'initf_tags_help': 'Add or remove tags manually, or check below to regenerate from AI.',
+    'initf_tags_ph': 'Type a tag and press Enter or comma to add...',
+    'initf_regen_label': 'Regenerate tags from updated content (replaces manual tags)',
+    'initf_tag_add_btn': 'Add',
+    'initf_submit_new': 'Submit Initiative',
+    'initf_submit_edit': 'Save Changes',
+
+    # ── Project form ──
+    'projf_heading': 'Submit a Project',
+    'projf_help': "Propose a collaborative project for the cluster. An admin will review and publish it — you'll receive an email once it goes live.",
+    'projf_title_label': 'Project Title',
+    'projf_title_ph': 'e.g. Early Grade Reading Assessment – East Africa',
+    'projf_desc_label': 'Description',
+    'projf_desc_ph': 'Describe the project goals, context, and expected outcomes...',
+    'projf_start_label': 'Start Date',
+    'projf_start_hint': 'Leave blank if starting immediately.',
+    'projf_deadline_label': 'Deadline',
+    'projf_activities_label': 'Activities',
+    'projf_activities_help': 'Break the project into specific activities that members can sign up for.',
+    'projf_activity_title_ph': 'Activity title (e.g. Data collection)',
+    'projf_activity_desc_ph': 'Brief description of this activity...',
+    'projf_activity_deadline_hint': 'Activity deadline (optional)',
+    'projf_add_activity_btn': 'Add Another Activity',
+
+    # ── Technical Assistance Need form ──
+    'taf_heading_new': 'Submit Technical Assistance Need',
+    'taf_heading_edit': 'Edit Technical Assistance Need',
+    'taf_notice': "As a Member State stakeholder, you can share your country's ECED/FLN technical assistance needs here. Once submitted, our admin team will review and publish it for cluster-wide visibility.",
+    'taf_title_label': 'Title',
+    'taf_title_ph': 'e.g. ECED Curriculum Development Support',
+    'taf_title_min': '5',
+    'taf_short_label': 'Short Description',
+    'taf_short_help': 'This appears on the listing card. Keep it concise and informative.',
+    'taf_short_ph': 'A brief summary of the technical assistance needed (max 300 characters)…',
+    'taf_short_max': '300',
+    'taf_content_label': 'Full Description',
+    'taf_content_help': 'words recommended for a clear and actionable TA need.',
+    'taf_content_min': '100',
+    'taf_content_ph': 'Describe the technical assistance your country needs. Include context, current gaps, priority areas, expected outcomes, and any relevant background…',
+    'taf_submit_edit': 'Save Changes',
+
+    # ── Question form ──
+    'qf_heading_new': 'Ask a Question',
+    'qf_heading_edit': 'Edit Question',
+    'qf_title_label': 'Question Title',
+    'qf_title_ph': 'e.g., How to improve literacy in rural areas?',
+    'qf_content_label': 'Detailed Description',
+    'qf_content_help': 'Be specific to get better recommendations from experts.',
+    'qf_content_ph': 'Provide context, background, and specific details about your question...',
+    'qf_notice': 'Your question will be reviewed by an admin before being published.',
+    'qf_submit_new': 'Submit Question',
+    'qf_submit_edit': 'Save Changes',
 }
+
+
+# Drives the unified "Forms" admin (/admin/forms). Each form groups the editable
+# label keys a user sees on it. Field = (label_key, friendly_name, kind) where
+# kind is 'text' | 'textarea' | 'number'. Only 'register' also manages the
+# structural custom fields (RegistrationField) via the existing field routes.
+FORM_DEFINITIONS = [
+    {
+        'key': 'register', 'name': 'Registration form', 'endpoint': 'register',
+        'has_custom_fields': True,
+        'groups': [
+            {'label': 'Heading & intro', 'fields': [
+                ('register_title', 'Form title', 'text'),
+                ('register_subtitle', 'Subtitle', 'text'),
+                ('reg_submit_btn', 'Submit button', 'text'),
+            ]},
+            {'label': 'Core field labels & placeholders', 'fields': [
+                ('form_full_name', 'Full name — label', 'text'),
+                ('form_email', 'Email — label', 'text'),
+                ('form_organization', 'Organization — label', 'text'),
+                ('reg_org_ph', 'Organization — placeholder', 'text'),
+                ('form_country', 'Country — label', 'text'),
+                ('reg_country_ph', 'Country — placeholder', 'text'),
+                ('form_stakeholder_type', 'Stakeholder type — label', 'text'),
+                ('reg_stakeholder_ph', 'Stakeholder type — placeholder', 'text'),
+            ]},
+            {'label': 'Initiative section', 'fields': [
+                ('reg_initiative_heading', 'Section heading', 'text'),
+                ('reg_initiative_help', 'Section help text', 'textarea'),
+                ('reg_initiative_title_label', 'Initiative title — label', 'text'),
+                ('reg_initiative_title_ph', 'Initiative title — placeholder', 'text'),
+                ('reg_initiative_title_min', 'Initiative title — min words', 'number'),
+                ('reg_short_desc_label', 'Short description — label', 'text'),
+                ('reg_short_desc_hint', 'Short description — hint', 'text'),
+                ('reg_short_desc_ph', 'Short description — placeholder', 'text'),
+                ('reg_short_desc_min', 'Short description — min words', 'number'),
+                ('reg_content_label', 'Full description — label', 'text'),
+                ('reg_content_hint', 'Full description — hint', 'text'),
+                ('reg_content_help', 'Full description — help text', 'textarea'),
+                ('reg_content_ph', 'Full description — placeholder', 'textarea'),
+                ('reg_content_min', 'Full description — min words', 'number'),
+            ]},
+            {'label': 'Notices', 'fields': [
+                ('reg_notice_created', 'After-submit notice', 'textarea'),
+                ('reg_notice_ms_email', 'Member State email notice (HTML allowed)', 'textarea'),
+                ('reg_notice_ms_join', 'Member State join notice (HTML allowed)', 'textarea'),
+            ]},
+        ],
+    },
+    {
+        'key': 'initiative', 'name': 'Initiative form', 'endpoint': 'new_initiative',
+        'groups': [
+            {'label': 'Headings & buttons', 'fields': [
+                ('initf_heading_new', 'Heading (new)', 'text'),
+                ('initf_heading_edit', 'Heading (edit)', 'text'),
+                ('initf_submit_new', 'Submit button (new)', 'text'),
+                ('initf_submit_edit', 'Submit button (edit)', 'text'),
+            ]},
+            {'label': 'Fields', 'fields': [
+                ('initf_title_label', 'Title — label', 'text'),
+                ('initf_title_min', 'Title — min words', 'number'),
+                ('initf_short_label', 'Short description — label', 'text'),
+                ('initf_short_max', 'Short description — max characters', 'number'),
+                ('initf_short_min', 'Short description — min words', 'number'),
+                ('initf_short_help', 'Short description — help', 'text'),
+                ('initf_short_ph', 'Short description — placeholder', 'text'),
+                ('initf_content_label', 'Full description — label', 'text'),
+                ('initf_content_min', 'Full description — min words', 'number'),
+                ('initf_content_ph', 'Full description — placeholder', 'textarea'),
+                ('initf_tags_label', 'Tags — label', 'text'),
+                ('initf_tags_help', 'Tags — help', 'text'),
+                ('initf_tags_ph', 'Tags — placeholder', 'text'),
+                ('initf_regen_label', 'Regenerate-tags checkbox', 'text'),
+                ('initf_tag_add_btn', 'Add-tag button', 'text'),
+            ]},
+        ],
+    },
+    {
+        'key': 'project', 'name': 'Project form', 'endpoint': 'member_new_project',
+        'groups': [
+            {'label': 'Heading & intro', 'fields': [
+                ('projf_heading', 'Heading', 'text'),
+                ('projf_help', 'Intro help text', 'textarea'),
+            ]},
+            {'label': 'Fields', 'fields': [
+                ('projf_title_label', 'Title — label', 'text'),
+                ('projf_title_ph', 'Title — placeholder', 'text'),
+                ('projf_desc_label', 'Description — label', 'text'),
+                ('projf_desc_ph', 'Description — placeholder', 'text'),
+                ('projf_start_label', 'Start date — label', 'text'),
+                ('projf_start_hint', 'Start date — hint', 'text'),
+                ('projf_deadline_label', 'Deadline — label', 'text'),
+                ('projf_activities_label', 'Activities — label', 'text'),
+                ('projf_activities_help', 'Activities — help', 'text'),
+                ('projf_activity_title_ph', 'Activity title — placeholder', 'text'),
+                ('projf_activity_desc_ph', 'Activity description — placeholder', 'text'),
+                ('projf_activity_deadline_hint', 'Activity deadline — hint', 'text'),
+                ('projf_add_activity_btn', 'Add-activity button', 'text'),
+            ]},
+        ],
+    },
+    {
+        'key': 'ta_need', 'name': 'Technical Assistance Need form', 'endpoint': 'new_ta_need',
+        'groups': [
+            {'label': 'Headings, notice & buttons', 'fields': [
+                ('taf_heading_new', 'Heading (new)', 'text'),
+                ('taf_heading_edit', 'Heading (edit)', 'text'),
+                ('taf_notice', 'Intro notice', 'textarea'),
+                ('taf_submit_edit', 'Submit button (edit)', 'text'),
+            ]},
+            {'label': 'Fields', 'fields': [
+                ('taf_title_label', 'Title — label', 'text'),
+                ('taf_title_ph', 'Title — placeholder', 'text'),
+                ('taf_title_min', 'Title — min words', 'number'),
+                ('taf_short_label', 'Short description — label', 'text'),
+                ('taf_short_help', 'Short description — help', 'text'),
+                ('taf_short_ph', 'Short description — placeholder', 'text'),
+                ('taf_short_max', 'Short description — max characters', 'number'),
+                ('taf_content_label', 'Full description — label', 'text'),
+                ('taf_content_min', 'Full description — recommended words', 'number'),
+                ('taf_content_help', 'Full description — help suffix', 'text'),
+                ('taf_content_ph', 'Full description — placeholder', 'textarea'),
+            ]},
+        ],
+    },
+    {
+        'key': 'question', 'name': 'Question form', 'endpoint': 'new_question',
+        'groups': [
+            {'label': 'Headings, notice & buttons', 'fields': [
+                ('qf_heading_new', 'Heading (new)', 'text'),
+                ('qf_heading_edit', 'Heading (edit)', 'text'),
+                ('qf_notice', 'Intro notice', 'textarea'),
+                ('qf_submit_new', 'Submit button (new)', 'text'),
+                ('qf_submit_edit', 'Submit button (edit)', 'text'),
+            ]},
+            {'label': 'Fields', 'fields': [
+                ('qf_title_label', 'Title — label', 'text'),
+                ('qf_title_ph', 'Title — placeholder', 'text'),
+                ('qf_content_label', 'Description — label', 'text'),
+                ('qf_content_help', 'Description — help', 'text'),
+                ('qf_content_ph', 'Description — placeholder', 'textarea'),
+            ]},
+        ],
+    },
+]
+
 
 DEFAULT_SITE_NAME = 'AU ECED-FLN'
 DEFAULT_SITE_TAGLINE = ('Accelerating Early Childhood Education and Development & '
@@ -3958,32 +4196,71 @@ BUILTIN_FORM_FIELDS = [
 ]
 
 
+@app.route('/admin/forms', methods=['GET', 'POST'])
+@login_required
+def admin_forms():
+    """Unified per-form editor: edit every user-visible string (and manage the
+    registration custom fields) in one place. Replaces the old Form Fields page."""
+    if not current_user.is_admin:
+        abort(403)
+
+    if request.method == 'POST':
+        # Scoped save: only upsert the label keys that belong to the submitted
+        # form panel — never touch keys from other forms. Blank value clears the
+        # override (falls back to the built-in default).
+        form_key = request.form.get('form_key')
+        definition = next((f for f in FORM_DEFINITIONS if f['key'] == form_key), None)
+        if not definition:
+            abort(400)
+        submitted_keys = [fld[0] for grp in definition['groups'] for fld in grp['fields']]
+        for key in submitted_keys:
+            val = (request.form.get(f'label_{key}') or '').strip()
+            existing = Label.query.filter_by(key=key).first()
+            if val:
+                if existing:
+                    existing.value = val
+                else:
+                    db.session.add(Label(key=key, value=val))
+            elif existing:
+                db.session.delete(existing)
+        db.session.commit()
+        flash(f"“{definition['name']}” text updated.", 'success')
+        return redirect(url_for('admin_forms', _anchor=form_key))
+
+    # GET: resolve current values for every field in every form definition.
+    db_labels = {l.key: l.value for l in Label.query.all()}
+    forms_data = []
+    for definition in FORM_DEFINITIONS:
+        groups = []
+        for grp in definition['groups']:
+            fields = []
+            for key, friendly, kind in grp['fields']:
+                default = LABEL_DEFAULTS.get(key, '')
+                override = db_labels.get(key) or ''
+                fields.append({
+                    'key': key, 'name': friendly, 'kind': kind,
+                    'value': override, 'default': default,
+                    'overridden': bool(override and override != default),
+                })
+            groups.append({'label': grp['label'], 'fields': fields})
+        forms_data.append({
+            'key': definition['key'], 'name': definition['name'],
+            'endpoint': definition.get('endpoint'),
+            'has_custom_fields': definition.get('has_custom_fields', False),
+            'groups': groups,
+        })
+
+    custom_fields = RegistrationField.query.order_by(RegistrationField.order).all()
+    return render_template('admin/forms.html', forms=forms_data, custom_fields=custom_fields)
+
+
 @app.route('/admin/fields', methods=['GET', 'POST'])
 @login_required
 def admin_fields():
+    # Superseded by the unified Forms editor; keep the URL working.
     if not current_user.is_admin:
         abort(403)
-    if request.method == 'POST':
-        field = RegistrationField(
-            field_name=request.form.get('field_name'),
-            field_label=request.form.get('field_label'),
-            field_type=request.form.get('field_type'),
-            is_required=request.form.get('is_required') == 'on',
-            options=request.form.get('options')
-        )
-        db.session.add(field)
-        db.session.commit()
-        flash('Field added.', 'success')
-        return redirect(url_for('admin_fields'))
-    fields = RegistrationField.query.order_by(RegistrationField.order).all()
-    db_labels = {l.key: l.value for l in Label.query.filter(Label.key.like('form_%')).all()}
-    builtin_fields = []
-    for bf in BUILTIN_FORM_FIELDS:
-        builtin_fields.append({
-            **bf,
-            'label': db_labels.get(bf['label_key'], LABEL_DEFAULTS.get(bf['label_key'], bf['field_name'])),
-        })
-    return render_template('admin/fields.html', fields=fields, builtin_fields=builtin_fields)
+    return redirect(url_for('admin_forms'))
 
 
 @app.route('/admin/field/update', methods=['POST'])
@@ -4028,7 +4305,7 @@ def admin_update_field():
         flash('Field updated.', 'success')
 
     db.session.commit()
-    return redirect(url_for('admin_fields'))
+    return redirect(url_for('admin_forms', _anchor='register'))
 
 
 @app.route('/admin/field/<int:id>/data')
@@ -4054,7 +4331,7 @@ def admin_delete_field(id):
     db.session.delete(field)
     db.session.commit()
     flash('Field deleted.', 'success')
-    return redirect(url_for('admin_fields'))
+    return redirect(url_for('admin_forms', _anchor='register'))
 
 @app.route('/admin/page-titles', methods=['GET', 'POST'])
 @login_required

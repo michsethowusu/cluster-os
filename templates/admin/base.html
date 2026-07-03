@@ -148,9 +148,9 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'admin_fields' %}active{% endif %}" 
-                           href="{{ url_for('admin_fields') }}">
-                            <i class="bi bi-input-cursor-text"></i> Form Fields
+                        <a class="nav-link {% if request.endpoint in ['admin_forms', 'admin_fields'] %}active{% endif %}"
+                           href="{{ url_for('admin_forms') }}">
+                            <i class="bi bi-input-cursor-text"></i> Forms
                         </a>
                     </li>
                     <li class="nav-item">

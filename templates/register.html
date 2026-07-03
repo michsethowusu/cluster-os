@@ -28,13 +28,13 @@
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">{{ label('form_organization') }} *</label>
-                                <input type="text" name="organization" id="orgInput" class="form-control" required autocomplete="off" placeholder="Start typing your organisation…">
+                                <input type="text" name="organization" id="orgInput" class="form-control" required autocomplete="off" placeholder="{{ label('reg_org_ph') }}">
                                 <ul id="orgSuggestions" class="list-group position-absolute z-3 w-100" style="display:none; max-height:220px; overflow-y:auto;"></ul>
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">{{ label('form_country') }} *</label>
                                 <select name="country" class="form-select" required>
-                                    <option value="">Select Country</option>
+                                    <option value="">{{ label('reg_country_ph') }}</option>
                                     <optgroup label="African Countries">
                                         <option>Algeria</option>
                                         <option>Angola</option>
@@ -101,7 +101,7 @@
                         <div class="mb-3">
                             <label class="form-label">{{ label('form_stakeholder_type') }} *</label>
                             <select name="stakeholder_type" id="stakeholderTypeSelect" class="form-select" required>
-                                <option value="">Select Type</option>
+                                <option value="">{{ label('reg_stakeholder_ph') }}</option>
                                 {% for type in stakeholder_types %}
                                     <option value="{{ type }}">{{ type }}</option>
                                 {% endfor %}
@@ -111,8 +111,7 @@
                         <!-- ── Member State official email notice (shown dynamically) ── -->
                         <div id="memberStateEmailNotice" class="alert alert-info small py-2 mb-3" style="display:none;">
                             <i class="bi bi-building me-1"></i>
-                            <strong>Member State stakeholders</strong> must use an <strong>official institutional email address</strong>
-                            (not Gmail, Yahoo, Hotmail, Outlook, or other personal email providers).
+                            {{ label('reg_notice_ms_email')|safe }}
                         </div>
 
                         <!-- ── Admin-configured custom fields ── -->
@@ -132,55 +131,46 @@
                         <!-- ── Initiative Section (hidden for Member State) ── -->
                         <div id="initiativeSection">
                         <hr class="my-4">
-                        <h5 class="mb-1">Your ECED-FLN Initiative *</h5>
-                        <p class="text-muted small mb-3">
-                            Share an initiative you have led or contributed to in Early Childhood Education &amp;
-                            Development or Foundational Learning. This is how other members will find you through
-                            expertise search, and it will be published on the platform once your account is approved.
-                        </p>
+                        <h5 class="mb-1">{{ label('reg_initiative_heading') }} *</h5>
+                        <p class="text-muted small mb-3">{{ label('reg_initiative_help') }}</p>
 
                         <div class="mb-3">
-                            <label class="form-label">Initiative Title (min 5 words) *</label>
+                            <label class="form-label">{{ label('reg_initiative_title_label') }} (min {{ label('reg_initiative_title_min') }} words) *</label>
                             <input type="text" name="initiative_title" id="initiativeTitleInput" class="form-control"
-                                   placeholder="e.g., Community-Based Early Literacy Programme in Northern Ghana">
+                                   placeholder="{{ label('reg_initiative_title_ph') }}">
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Short Description (min 10 words)
-                                <span class="text-muted fw-normal">— shown in search results</span>
+                            <label class="form-label">{{ label('reg_short_desc_label') }} (min {{ label('reg_short_desc_min') }} words)
+                                <span class="text-muted fw-normal">{{ label('reg_short_desc_hint') }}</span>
                             </label>
                             <textarea name="initiative_short_description" id="initiativeShortDesc" class="form-control" rows="2"
-                                      placeholder="A brief summary that will appear on member cards and search results."></textarea>
+                                      placeholder="{{ label('reg_short_desc_ph') }}"></textarea>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Full Initiative Description (min 300 words)
-                                <span class="text-muted fw-normal">(Markdown supported)</span>
+                            <label class="form-label">{{ label('reg_content_label') }} (min {{ label('reg_content_min') }} words)
+                                <span class="text-muted fw-normal">{{ label('reg_content_hint') }}</span>
                             </label>
                             <textarea name="initiative_content" id="initiativeContent" class="form-control" rows="8"
-                                      placeholder="Describe the initiative in detail: objectives, target beneficiaries, geographic scope, outcomes, lessons learned, etc."></textarea>
-                            <div class="form-text">
-                                You can use **bold**, *italic*, bullet lists, and headings.
-                                This full description will appear on your initiative's dedicated page.
-                            </div>
+                                      placeholder="{{ label('reg_content_ph') }}"></textarea>
+                            <div class="form-text">{{ label('reg_content_help') }}</div>
                         </div>
 
                         <div class="alert alert-info small py-2 mb-4">
                             <i class="bi bi-info-circle me-1"></i>
-                            Your account will be created immediately. Your initiative will be published
-                            and visible on the platform right away.
+                            {{ label('reg_notice_created') }}
                         </div>
                         </div><!-- end #initiativeSection -->
 
                         <!-- ── Member State notice (shown when Member State selected) ── -->
                         <div id="memberStateJoinNotice" class="alert alert-success small py-2 mb-4" style="display:none;">
                             <i class="bi bi-check-circle me-1"></i>
-                            As a Member State stakeholder, you can join without submitting an initiative.
-                            After joining, you'll be able to submit your <strong>Technical Assistance Need</strong> from your dashboard.
+                            {{ label('reg_notice_ms_join')|safe }}
                         </div>
 
                         <button type="submit" class="btn btn-primary btn-lg w-100">
-                            Join the Cluster
+                            {{ label('reg_submit_btn') }}
                         </button>
                     </form>
                 </div>
@@ -193,6 +183,11 @@
 {% block extra_js %}
 <script>
 const MEMBER_STATE_TYPE = '{{ member_state_type|e }}';
+const FORM_MIN = {
+    title: {{ label('reg_initiative_title_min')|int }},
+    short: {{ label('reg_short_desc_min')|int }},
+    full:  {{ label('reg_content_min')|int }}
+};
 function countWords(str) {
     return str.trim().split(/\s+/).filter(w => w.length > 0).length;
 }
@@ -239,13 +234,13 @@ if (stakeholderSelect) {
 const titleInput = document.getElementById('initiativeTitleInput');
 if (titleInput) {
     const counter = makeCounter('title-counter');
-    counter.textContent = '0 / 5 words minimum';
+    counter.textContent = '0 / ' + FORM_MIN.title + ' words minimum';
     titleInput.parentNode.appendChild(counter);
 
     function updateTitle() {
         const words = countWords(titleInput.value);
-        const ok = words >= 5;
-        counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum 5 required');
+        const ok = words >= FORM_MIN.title;
+        counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum ' + FORM_MIN.title + ' required');
         counter.style.color = ok ? '#198754' : '#dc3545';
         titleInput.classList.toggle('is-invalid', !ok && titleInput.value.length > 0);
         titleInput.classList.toggle('is-valid', ok);
@@ -258,13 +253,13 @@ if (titleInput) {
 const shortDescArea = document.getElementById('initiativeShortDesc');
 if (shortDescArea) {
     const counter = makeCounter('short-desc-counter');
-    counter.textContent = '0 / 10 words minimum';
+    counter.textContent = '0 / ' + FORM_MIN.short + ' words minimum';
     shortDescArea.parentNode.appendChild(counter);
 
     function updateShortDesc() {
         const words = countWords(shortDescArea.value);
-        const ok = words >= 10;
-        counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum 10 required');
+        const ok = words >= FORM_MIN.short;
+        counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum ' + FORM_MIN.short + ' required');
         counter.style.color = ok ? '#198754' : '#dc3545';
         shortDescArea.classList.toggle('is-invalid', !ok && shortDescArea.value.length > 0);
         shortDescArea.classList.toggle('is-valid', ok);
@@ -277,13 +272,13 @@ if (shortDescArea) {
 const contentArea = document.getElementById('initiativeContent');
 if (contentArea) {
     const counter = makeCounter('content-counter');
-    counter.textContent = '0 / 300 words minimum';
+    counter.textContent = '0 / ' + FORM_MIN.full + ' words minimum';
     contentArea.parentNode.appendChild(counter);
 
     function updateContent() {
         const words = countWords(contentArea.value);
-        const ok = words >= 300;
-        counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum 300 required');
+        const ok = words >= FORM_MIN.full;
+        counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum ' + FORM_MIN.full + ' required');
         counter.style.color = ok ? '#198754' : '#dc3545';
         contentArea.classList.toggle('is-invalid', !ok && contentArea.value.length > 0);
         contentArea.classList.toggle('is-valid', ok);
@@ -298,13 +293,13 @@ if (form) {
     form.addEventListener('submit', function (e) {
         const isMemberState = stakeholderSelect && stakeholderSelect.value === MEMBER_STATE_TYPE;
         if (isMemberState) return; // No initiative validation needed for Member State
-        const titleWords = titleInput ? countWords(titleInput.value) : 5;
-        const shortDescWords = shortDescArea ? countWords(shortDescArea.value) : 10;
-        const contentWords = contentArea ? countWords(contentArea.value) : 300;
+        const titleWords = titleInput ? countWords(titleInput.value) : FORM_MIN.title;
+        const shortDescWords = shortDescArea ? countWords(shortDescArea.value) : FORM_MIN.short;
+        const contentWords = contentArea ? countWords(contentArea.value) : FORM_MIN.full;
         const errors = [];
-        if (titleWords < 5) errors.push('Initiative title must be at least 5 words (currently ' + titleWords + ').');
-        if (shortDescWords < 10) errors.push('Short description must be at least 10 words (currently ' + shortDescWords + ').');
-        if (contentWords < 300) errors.push('Full description must be at least 300 words (currently ' + contentWords + ').');
+        if (titleWords < FORM_MIN.title) errors.push('Initiative title must be at least ' + FORM_MIN.title + ' words (currently ' + titleWords + ').');
+        if (shortDescWords < FORM_MIN.short) errors.push('Short description must be at least ' + FORM_MIN.short + ' words (currently ' + shortDescWords + ').');
+        if (contentWords < FORM_MIN.full) errors.push('Full description must be at least ' + FORM_MIN.full + ' words (currently ' + contentWords + ').');
         if (errors.length) {
             e.preventDefault();
             alert('Please fix the following before submitting:\n\n' + errors.join('\n'));

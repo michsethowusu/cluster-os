@@ -86,29 +86,6 @@ with app.app_context():
         conn.execute(db.text('ALTER TABLE policy_development ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0'))
         conn.execute(db.text('ALTER TABLE document_library ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0'))
         conn.execute(db.text('''
-            CREATE TABLE IF NOT EXISTS technical_assistance_need (
-                id SERIAL PRIMARY KEY,
-                title VARCHAR(200) NOT NULL,
-                slug VARCHAR(200) UNIQUE NOT NULL,
-                content TEXT NOT NULL,
-                short_description VARCHAR(300),
-                country VARCHAR(100),
-                is_published BOOLEAN DEFAULT FALSE,
-                view_count INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT NOW(),
-                updated_at TIMESTAMP DEFAULT NOW(),
-                user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE
-            )
-        '''))
-        conn.execute(db.text('''
-            CREATE TABLE IF NOT EXISTS technical_assistance_send_queue (
-                id SERIAL PRIMARY KEY,
-                ta_need_id INTEGER UNIQUE NOT NULL REFERENCES technical_assistance_need(id) ON DELETE CASCADE,
-                queued_at TIMESTAMP DEFAULT NOW(),
-                sent_at TIMESTAMP
-            )
-        '''))
-        conn.execute(db.text('''
             CREATE TABLE IF NOT EXISTS learn_more_request (
                 id              SERIAL PRIMARY KEY,
                 requester_id    INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
@@ -150,5 +127,19 @@ with app.app_context():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         '''))
+
+        # Merge the "Member State" stakeholder type into "Government" — they
+        # referred to the same real-world group and both ended up in use.
+        # Idempotent: safe to run on every deploy.
+        conn.execute(db.text('''
+            INSERT INTO stakeholder_type (name, is_member_state, is_active, "order")
+            SELECT 'Government', false, true, 0
+            WHERE NOT EXISTS (SELECT 1 FROM stakeholder_type WHERE name = 'Government')
+        '''))
+        conn.execute(db.text('UPDATE "user" SET stakeholder_type = \'Government\' WHERE stakeholder_type = \'Member State\''))
+        conn.execute(db.text('UPDATE initiative SET stakeholder_type = \'Government\' WHERE stakeholder_type = \'Member State\''))
+        conn.execute(db.text('DELETE FROM stakeholder_type WHERE name = \'Member State\''))
+        conn.execute(db.text('UPDATE stakeholder_type SET is_member_state = false'))
+
         conn.commit()
     print('DB ready.')

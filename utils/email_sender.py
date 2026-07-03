@@ -26,8 +26,6 @@ TEMPLATE_VARIABLE_DESCRIPTIONS = {
     'policy_url': 'Absolute URL to the policy page.',
     'doc_title': 'Title of the document.',
     'doc_url': 'Absolute URL to the document page.',
-    'ta_title': 'Title of the Technical Assistance Need.',
-    'ta_url': 'Absolute URL to submit/view a Technical Assistance Need.',
     'admin_url': 'Absolute URL to manage in the admin panel.',
     'activity_items': 'HTML list of activities the user signed up for.',
     'body_content': 'The custom message body (for bulk emails).',
@@ -289,33 +287,6 @@ EMAIL_TEMPLATES = [
         'subject': '{{ subject_line }}',
         'title': '{{ title_line }}',
         'body_html': '<p>{{ notification_intro }}</p>\n{{ items_html }}\n<p class="muted">You are receiving this because you are a member of {{ site_name }}.</p>',
-    },
-    {
-        'key': 'ta_single',
-        'label': 'Single TA Need Notification',
-        'description': 'Notify all subscribed members about a new Technical Assistance Need.',
-        'variables': ['ta_title', 'ta_url', 'site_name'],
-        'subject': 'New Technical Assistance Need: {{ ta_title }}',
-        'title': 'New Technical Assistance Need Published',
-        'body_html': '<p>A Member State has published a new technical assistance need on the platform:</p>\n<p class="cta"><a class="button" href="{{ ta_url }}">View Technical Assistance Need \u2192</a></p>',
-    },
-    {
-        'key': 'ta_digest',
-        'label': 'TA Needs Digest',
-        'description': 'Digest of multiple Technical Assistance Needs.',
-        'variables': ['subject_line', 'title_line', 'notification_intro', 'items_html', 'site_name'],
-        'subject': '{{ subject_line }}',
-        'title': '{{ title_line }}',
-        'body_html': '<p>{{ notification_intro }}</p>\n{{ items_html }}\n<p class="muted">You are receiving this because you are a member of {{ site_name }}.</p>',
-    },
-    {
-        'key': 'ta_invitation',
-        'label': 'TA Need Invitation',
-        'description': 'Invite a Member State stakeholder to submit their Technical Assistance Need.',
-        'variables': ['user_name', 'site_name', 'ta_url'],
-        'subject': 'Submit Your Technical Assistance Need \u2013 {{ site_name }}',
-        'title': 'Submit Your Technical Assistance Need',
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p>As a <strong>Member State</strong> stakeholder on {{ site_name }}, you are invited to submit your <strong>Technical Assistance Need</strong>.</p>\n<p>Member States can describe the specific technical assistance they require. This helps partners and development organisations identify where they can provide support.</p>\n<p class="cta"><a class="button" href="{{ ta_url }}">Submit Your Technical Assistance Need</a></p>\n<p class="muted">You are receiving this as a Member State stakeholder on {{ site_name }}.</p>',
     },
 ]
 
@@ -1112,134 +1083,3 @@ def send_bulk_documents_digest(docs_data, users):
         html = _base_email(title, body, footer_html=_unsubscribe_footer(user.email))
         send_email(user.email, subject, html)
 
-
-# ===================== TECHNICAL ASSISTANCE NEED EMAILS =====================
-
-def send_single_ta_notification(ta_data, users):
-    if not users or not ta_data:
-        return
-
-    title = ta_data['title']
-    ta_url = ta_data['url']
-    short_description = ta_data.get('short_description', '')
-    country = ta_data.get('country', '')
-    author = ta_data.get('author', '')
-
-    items_html = ""
-    meta_parts = []
-    if author:
-        meta_parts.append(f"Submitted by: {author}")
-    if country:
-        meta_parts.append(f"Country: {country}")
-    meta_line = (
-        f'<p style="margin:4px 0 12px;color:#777;font-size:0.88em;">{" | ".join(meta_parts)}</p>'
-        if meta_parts else ""
-    )
-    desc_block = (
-        f'<p style="color:#555;font-size:0.95em;line-height:1.6;margin:8px 0 0;">{short_description}</p>'
-        if short_description else ""
-    )
-    items_html += f"""
-        <div style="margin-bottom:12px;padding:16px 18px;background:#f8f9fa;
-                    border-left:4px solid #dee2e6;border-radius:4px;">
-            <p style="margin:0;font-size:1.05em;font-weight:bold;color:#333;">{title}</p>
-            {meta_line}
-            {desc_block}
-            <p style="margin:12px 0 0;">
-                <a href="{ta_url}"
-                   style="font-size:0.85em;color:#007451;text-decoration:none;font-weight:bold;">
-                    Read more \u2192
-                </a>
-            </p>
-        </div>"""
-
-    context = {
-        'ta_title': title,
-        'items_html': items_html,
-    }
-    defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'ta_single')
-    subject, title, body = _render_template('ta_single', context,
-        defaults['subject'], defaults['title'], defaults['body_html'])
-    if not subject:
-        return
-
-    for user in users:
-        html = _base_email(title, body, footer_html=_unsubscribe_footer(user.email))
-        send_email(user.email, subject, html)
-
-
-def send_bulk_ta_digest(ta_data_list, users):
-    if not users or not ta_data_list:
-        return
-
-    count = len(ta_data_list)
-    plural = 's' if count != 1 else ''
-    subject_line = f"{count} New Technical Assistance Need{plural} \u2013 {_site_name()}"
-    title_line = f"{count} New Technical Assistance Need{plural} Published"
-    notification_intro = (
-        f"The following {count} new technical assistance need{'s have' if count != 1 else ' has'} "
-        f"been published by Member States on {_site_name()}"
-    )
-
-    items_html = ""
-    for item in ta_data_list:
-        meta_parts = []
-        if item.get('author'):
-            meta_parts.append(f"Submitted by: {item['author']}")
-        if item.get('country'):
-            meta_parts.append(f"Country: {item['country']}")
-        meta_line = (
-            f'<p style="margin:4px 0 8px;color:#777;font-size:0.85em;">{" | ".join(meta_parts)}</p>'
-            if meta_parts else ""
-        )
-        desc_block = (
-            f'<p style="margin:6px 0 0;color:#555;font-size:0.9em;line-height:1.5;">'
-            f'{item["short_description"]}</p>'
-            if item.get("short_description") else ""
-        )
-        items_html += f"""
-        <div style="margin-bottom:12px;padding:16px 18px;background:#f8f9fa;
-                    border-left:4px solid #dee2e6;border-radius:4px;">
-            <a href="{item['url']}"
-               style="font-size:1em;font-weight:bold;color:#007451;text-decoration:none;line-height:1.4;">
-                {item['title']}
-            </a>
-            {meta_line}
-            {desc_block}
-            <p style="margin:10px 0 0;">
-                <a href="{item['url']}"
-                   style="font-size:0.85em;color:#007451;text-decoration:none;font-weight:bold;">
-                    Read more \u2192
-                </a>
-            </p>
-        </div>"""
-
-    context = {
-        'subject_line': subject_line,
-        'title_line': title_line,
-        'notification_intro': notification_intro,
-        'items_html': items_html,
-    }
-    defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'ta_digest')
-    subject, title, body = _render_template('ta_digest', context,
-        defaults['subject'], defaults['title'], defaults['body_html'])
-    if not subject:
-        return
-
-    for user in users:
-        html = _base_email(title, body, footer_html=_unsubscribe_footer(user.email))
-        send_email(user.email, subject, html)
-
-
-def send_ta_invitation_email(email, name, ta_url):
-    context = {
-        'user_name': name,
-        'ta_url': ta_url,
-    }
-    defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'ta_invitation')
-    subject, title, body = _render_template('ta_invitation', context,
-        defaults['subject'], defaults['title'], defaults['body_html'])
-    if not subject:
-        return False
-    html = _base_email(title, body)
-    send_email(email, subject, html)

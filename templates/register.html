@@ -108,12 +108,6 @@
                             </select>
                         </div>
 
-                        <!-- ── Member State official email notice (shown dynamically) ── -->
-                        <div id="memberStateEmailNotice" class="alert alert-info small py-2 mb-3" style="display:none;">
-                            <i class="bi bi-building me-1"></i>
-                            {{ label('reg_notice_ms_email')|safe }}
-                        </div>
-
                         <!-- ── Admin-configured custom fields ── -->
                         {% for field in custom_fields %}
                             <div class="mb-3">
@@ -163,12 +157,6 @@
                         </div>
                         </div><!-- end #initiativeSection -->
 
-                        <!-- ── Member State notice (shown when Member State selected) ── -->
-                        <div id="memberStateJoinNotice" class="alert alert-success small py-2 mb-4" style="display:none;">
-                            <i class="bi bi-check-circle me-1"></i>
-                            {{ label('reg_notice_ms_join')|safe }}
-                        </div>
-
                         <button type="submit" class="btn btn-primary btn-lg w-100">
                             {{ label('reg_submit_btn') }}
                         </button>
@@ -182,7 +170,6 @@
 
 {% block extra_js %}
 <script>
-const MEMBER_STATE_TYPE = '{{ member_state_type|e }}';
 const FORM_MIN = {
     title: {{ label('reg_initiative_title_min')|int }},
     short: {{ label('reg_short_desc_min')|int }},
@@ -197,37 +184,6 @@ function makeCounter(id) {
     el.id = id;
     el.className = 'form-text mt-1';
     return el;
-}
-
-// ── Member State toggle ───────────────────────────────────────────
-const stakeholderSelect = document.getElementById('stakeholderTypeSelect');
-const initiativeSection = document.getElementById('initiativeSection');
-const memberStateEmailNotice = document.getElementById('memberStateEmailNotice');
-const memberStateJoinNotice  = document.getElementById('memberStateJoinNotice');
-
-function updateMemberStateUI() {
-    const isMemberState = stakeholderSelect && stakeholderSelect.value === MEMBER_STATE_TYPE;
-    if (initiativeSection) {
-        initiativeSection.style.display = isMemberState ? 'none' : '';
-    }
-    if (memberStateEmailNotice) {
-        memberStateEmailNotice.style.display = isMemberState ? '' : 'none';
-    }
-    if (memberStateJoinNotice) {
-        memberStateJoinNotice.style.display = isMemberState ? '' : 'none';
-    }
-    // Disable/enable required on initiative fields so browser validation doesn't block submit
-    const initiativeFields = document.querySelectorAll(
-        '#initiativeTitleInput, #initiativeShortDesc, #initiativeContent'
-    );
-    initiativeFields.forEach(el => {
-        if (el) el.required = !isMemberState;
-    });
-}
-
-if (stakeholderSelect) {
-    stakeholderSelect.addEventListener('change', updateMemberStateUI);
-    updateMemberStateUI(); // run on load
 }
 
 // ── Title validation ──────────────────────────────────────────────
@@ -291,8 +247,6 @@ if (contentArea) {
 const form = document.querySelector('form[method="POST"]');
 if (form) {
     form.addEventListener('submit', function (e) {
-        const isMemberState = stakeholderSelect && stakeholderSelect.value === MEMBER_STATE_TYPE;
-        if (isMemberState) return; // No initiative validation needed for Member State
         const titleWords = titleInput ? countWords(titleInput.value) : FORM_MIN.title;
         const shortDescWords = shortDescArea ? countWords(shortDescArea.value) : FORM_MIN.short;
         const contentWords = contentArea ? countWords(contentArea.value) : FORM_MIN.full;

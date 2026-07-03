@@ -19,7 +19,7 @@ with app.app_context():
         for i, name in enumerate(DEFAULT_STAKEHOLDER_TYPES):
             db.session.add(StakeholderType(
                 name=name,
-                is_member_state=(name == 'Member State'),
+                is_member_state=False,
                 is_active=True,
                 order=i,
             ))

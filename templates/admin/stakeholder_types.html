@@ -19,7 +19,6 @@
                             <tr>
                                 <th style="width:40px">#</th>
                                 <th>Name</th>
-                                <th style="width:120px">Member State</th>
                                 <th style="width:80px">Active</th>
                                 <th style="width:100px">Actions</th>
                             </tr>
@@ -38,7 +37,6 @@
                                     <span class="text-muted"><s>{{ st.name }}</s></span>
                                     {% endif %}
                                 </td>
-                                <td>{% if st.is_member_state %}<span class="badge bg-success">Yes</span>{% endif %}</td>
                                 <td>{% if st.is_active %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
                                 <td>
                                     <button type="button" class="btn btn-sm btn-outline-primary"
@@ -68,13 +66,6 @@
                                                 <div class="mb-3">
                                                     <label class="form-label">Name</label>
                                                     <input type="text" name="name" class="form-control" value="{{ st.name }}" required>
-                                                </div>
-                                                <div class="form-check mb-2">
-                                                    <input class="form-check-input" type="checkbox" name="is_member_state" id="ms_{{ st.id }}"
-                                                           {% if st.is_member_state %}checked{% endif %}>
-                                                    <label class="form-check-label" for="ms_{{ st.id }}">
-                                                        Member State (eligible for Technical Assistance)
-                                                    </label>
                                                 </div>
                                                 <div class="form-check">
                                                     <input class="form-check-input" type="checkbox" name="is_active" id="active_{{ st.id }}"
@@ -112,12 +103,6 @@
                     <div class="mb-3">
                         <label class="form-label">Name</label>
                         <input type="text" name="name" class="form-control" placeholder="e.g. Private Sector" required>
-                    </div>
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" name="is_member_state" id="new_is_ms">
-                        <label class="form-check-label" for="new_is_ms">
-                            Member State (eligible for Technical Assistance)
-                        </label>
                     </div>
                     <button type="submit" class="btn btn-primary w-100">Add Type</button>
                 </form>

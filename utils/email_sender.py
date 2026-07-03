@@ -42,15 +42,24 @@ TEMPLATE_VARIABLE_DESCRIPTIONS = {
 # everywhere on the site.
 SITE_WIDE_VARIABLES = ['site_name', 'contact_email', 'login_url', 'register_url']
 
+# Email colour palette — kept in step with the site branding (base.html
+# --au-green navbar) but restrained for email: headings and body text stay
+# black/grey, and colour is reserved for interactive elements (buttons/links).
+EMAIL_BRAND = '#007451'        # site navbar green — buttons & links only
+EMAIL_HEADING = '#1a1a1a'      # near-black — email heading
+EMAIL_TEXT = '#333333'         # body text
+EMAIL_PANEL_BG = '#f8f9fa'     # light panel background
+EMAIL_BORDER = '#dee2e6'       # neutral grey — panel borders, dividers
+
 # Semantic style classes. Templates are written with readable markup like
 #   <p class="cta"><a class="button" href="{{ url }}">Label</a></p>
 # and these get expanded to full inline styles at send time (email clients need
 # inline CSS). This keeps the editable template bodies clean prose instead of
 # walls of inline style="..." attributes.
 EMAIL_STYLE_CLASSES = {
-    'button': 'display:inline-block;background:#1a56db;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;',
+    'button': f'display:inline-block;background:{EMAIL_BRAND};color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:0.95em;',
     'cta': 'text-align:center;margin:28px 0;',
-    'panel': 'background:#f8f9fa;border-left:4px solid #1a56db;border-radius:4px;padding:16px 20px;margin:20px 0;',
+    'panel': f'background:{EMAIL_PANEL_BG};border-left:4px solid {EMAIL_BORDER};border-radius:4px;padding:16px 20px;margin:20px 0;',
     'code': 'background:#f4f4f4;padding:20px;text-align:center;font-size:26px;font-weight:bold;letter-spacing:6px;margin:20px 0;border-radius:4px;',
     'muted': 'color:#666;font-size:0.9em;',
 }
@@ -373,7 +382,16 @@ def _base_email(title, body_html, footer_html=""):
 
     return f"""<!DOCTYPE html>
 <html>
-<body style="margin:0;padding:0;background:#f4f6f8;font-family:Arial,sans-serif;color:#333;">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    /* Links pick up the brand colour; buttons keep their own inline colour,
+       which overrides this rule. */
+    a {{ color: {EMAIL_BRAND}; }}
+  </style>
+</head>
+<body style="margin:0;padding:0;background:#f4f6f8;font-family:Arial,sans-serif;color:{EMAIL_TEXT};">
   <div style="max-width:600px;margin:24px auto;background:#ffffff;border-radius:6px;
               overflow:hidden;border:1px solid #e0e0e0;">
 
@@ -381,7 +399,7 @@ def _base_email(title, body_html, footer_html=""):
     <div style="padding:36px 32px 24px;line-height:1.6;">
       <p style="margin:0 0 24px;font-size:0.75em;color:#aaa;text-transform:uppercase;
                 letter-spacing:1px;font-weight:bold;text-align:center;">{site_name}</p>
-      <h2 style="margin:0 0 20px;color:#1a56db;font-size:1.25em;font-weight:bold;line-height:1.3;">
+      <h2 style="margin:0 0 20px;color:{EMAIL_HEADING};font-size:1.25em;font-weight:bold;line-height:1.3;">
         {title}
       </h2>
       {body_html}
@@ -496,7 +514,7 @@ def send_approval_email(email, initiative_slug=None):
         initiative_link = f"""
             <p>Your initiative has also been published:</p>
             <p style="margin:8px 0 20px;">
-                <a href="{link}" style="color:#1a56db;">View your initiative \u2192</a>
+                <a href="{link}" style="color:#007451;">View your initiative \u2192</a>
             </p>"""
 
     context = {'initiative_link': initiative_link}
@@ -751,7 +769,7 @@ def send_event_registration_confirmation(user, event):
 
     meeting_link_html = ""
     if event.meeting_link:
-        meeting_link_html = f'<p style="margin:4px 0;"><strong>Meeting Link:</strong> <a href="{event.meeting_link}" style="color:#1a56db;">Join here</a></p>'
+        meeting_link_html = f'<p style="margin:4px 0;"><strong>Meeting Link:</strong> <a href="{event.meeting_link}" style="color:#007451;">Join here</a></p>'
 
     context = {
         'user_name': user.name,
@@ -828,15 +846,15 @@ def send_bulk_initiatives_digest(initiatives_data, users):
         )
         items_html += f"""
         <div style="margin-bottom:12px;padding:16px 18px;background:#f8f9fa;
-                    border-left:4px solid #1a56db;border-radius:4px;">
+                    border-left:4px solid #dee2e6;border-radius:4px;">
             <a href="{item['url']}"
-               style="font-size:1em;font-weight:bold;color:#1a56db;text-decoration:none;line-height:1.4;">
+               style="font-size:1em;font-weight:bold;color:#007451;text-decoration:none;line-height:1.4;">
                 {item['title']}
             </a>
             {desc_block}
             <p style="margin:10px 0 0;">
                 <a href="{item['url']}"
-                   style="font-size:0.85em;color:#1a56db;text-decoration:none;font-weight:bold;">
+                   style="font-size:0.85em;color:#007451;text-decoration:none;font-weight:bold;">
                     Read more \u2192
                 </a>
             </p>
@@ -887,13 +905,13 @@ def send_single_policy_notification(policy_data, users):
     )
     items_html += f"""
         <div style="margin-bottom:12px;padding:16px 18px;background:#f8f9fa;
-                    border-left:4px solid #1a56db;border-radius:4px;">
+                    border-left:4px solid #dee2e6;border-radius:4px;">
             <p style="margin:0;font-size:1.05em;font-weight:bold;color:#333;">{title}</p>
             {meta_line}
             {summary_block}
             <p style="margin:12px 0 0;">
                 <a href="{policy_url}"
-                   style="font-size:0.85em;color:#1a56db;text-decoration:none;font-weight:bold;">
+                   style="font-size:0.85em;color:#007451;text-decoration:none;font-weight:bold;">
                     Read more \u2192
                 </a>
             </p>
@@ -945,16 +963,16 @@ def send_bulk_policies_digest(policies_data, users):
         )
         items_html += f"""
         <div style="margin-bottom:12px;padding:16px 18px;background:#f8f9fa;
-                    border-left:4px solid #1a56db;border-radius:4px;">
+                    border-left:4px solid #dee2e6;border-radius:4px;">
             <a href="{item['url']}"
-               style="font-size:1em;font-weight:bold;color:#1a56db;text-decoration:none;line-height:1.4;">
+               style="font-size:1em;font-weight:bold;color:#007451;text-decoration:none;line-height:1.4;">
                 {item['title']}
             </a>
             {meta_line}
             {summary_block}
             <p style="margin:10px 0 0;">
                 <a href="{item['url']}"
-                   style="font-size:0.85em;color:#1a56db;text-decoration:none;font-weight:bold;">
+                   style="font-size:0.85em;color:#007451;text-decoration:none;font-weight:bold;">
                     Read more \u2192
                 </a>
             </p>
@@ -1005,13 +1023,13 @@ def send_single_document_notification(doc_data, users):
     )
     items_html += f"""
         <div style="margin-bottom:12px;padding:16px 18px;background:#f8f9fa;
-                    border-left:4px solid #1a56db;border-radius:4px;">
+                    border-left:4px solid #dee2e6;border-radius:4px;">
             <p style="margin:0;font-size:1.05em;font-weight:bold;color:#333;">{title}</p>
             {meta_line}
             {desc_block}
             <p style="margin:12px 0 0;">
                 <a href="{doc_url}"
-                   style="font-size:0.85em;color:#1a56db;text-decoration:none;font-weight:bold;">
+                   style="font-size:0.85em;color:#007451;text-decoration:none;font-weight:bold;">
                     View document \u2192
                 </a>
             </p>
@@ -1063,16 +1081,16 @@ def send_bulk_documents_digest(docs_data, users):
         )
         items_html += f"""
         <div style="margin-bottom:12px;padding:16px 18px;background:#f8f9fa;
-                    border-left:4px solid #1a56db;border-radius:4px;">
+                    border-left:4px solid #dee2e6;border-radius:4px;">
             <a href="{item['url']}"
-               style="font-size:1em;font-weight:bold;color:#1a56db;text-decoration:none;line-height:1.4;">
+               style="font-size:1em;font-weight:bold;color:#007451;text-decoration:none;line-height:1.4;">
                 {item['title']}
             </a>
             {meta_line}
             {desc_block}
             <p style="margin:10px 0 0;">
                 <a href="{item['url']}"
-                   style="font-size:0.85em;color:#1a56db;text-decoration:none;font-weight:bold;">
+                   style="font-size:0.85em;color:#007451;text-decoration:none;font-weight:bold;">
                     View document \u2192
                 </a>
             </p>
@@ -1123,13 +1141,13 @@ def send_single_ta_notification(ta_data, users):
     )
     items_html += f"""
         <div style="margin-bottom:12px;padding:16px 18px;background:#f8f9fa;
-                    border-left:4px solid #28a745;border-radius:4px;">
+                    border-left:4px solid #dee2e6;border-radius:4px;">
             <p style="margin:0;font-size:1.05em;font-weight:bold;color:#333;">{title}</p>
             {meta_line}
             {desc_block}
             <p style="margin:12px 0 0;">
                 <a href="{ta_url}"
-                   style="font-size:0.85em;color:#1a56db;text-decoration:none;font-weight:bold;">
+                   style="font-size:0.85em;color:#007451;text-decoration:none;font-weight:bold;">
                     Read more \u2192
                 </a>
             </p>
@@ -1181,16 +1199,16 @@ def send_bulk_ta_digest(ta_data_list, users):
         )
         items_html += f"""
         <div style="margin-bottom:12px;padding:16px 18px;background:#f8f9fa;
-                    border-left:4px solid #28a745;border-radius:4px;">
+                    border-left:4px solid #dee2e6;border-radius:4px;">
             <a href="{item['url']}"
-               style="font-size:1em;font-weight:bold;color:#1a56db;text-decoration:none;line-height:1.4;">
+               style="font-size:1em;font-weight:bold;color:#007451;text-decoration:none;line-height:1.4;">
                 {item['title']}
             </a>
             {meta_line}
             {desc_block}
             <p style="margin:10px 0 0;">
                 <a href="{item['url']}"
-                   style="font-size:0.85em;color:#1a56db;text-decoration:none;font-weight:bold;">
+                   style="font-size:0.85em;color:#007451;text-decoration:none;font-weight:bold;">
                     Read more \u2192
                 </a>
             </p>

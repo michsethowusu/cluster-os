@@ -6,13 +6,17 @@ after the AI-summary feature ships and is a no-op on every deploy afterwards.
 Progress is written to the 'summaries_backfill_status' setting so it can be
 shown in the admin dashboard.
 """
+import os
 import time
 
 from app import app, db, Initiative, get_setting, set_setting
 from utils.ai_services import generate_summary
 
+# Set FORCE_SUMMARY_BACKFILL=1 (per-app env var) to re-run even if already done.
+force = os.environ.get('FORCE_SUMMARY_BACKFILL', '') == '1'
+
 with app.app_context():
-    if get_setting('summaries_backfilled', 'false') == 'true':
+    if not force and get_setting('summaries_backfilled', 'false') == 'true':
         print('[backfill_summaries] already completed; skipping.')
     else:
         ids = [row.id for row in Initiative.query.with_entities(Initiative.id).all()]

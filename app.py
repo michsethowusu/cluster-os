@@ -2801,11 +2801,39 @@ def admin_analytics():
          .group_by(PageView.referrer_host).order_by(func.count(PageView.id).desc()).limit(8).all()
     ]
 
+    # "Request to Learn More" stats
+    learn_more = {
+        'total': db.session.query(func.count(LearnMoreRequest.id)).scalar() or 0,
+        'last_30d': db.session.query(func.count(LearnMoreRequest.id))
+            .filter(LearnMoreRequest.created_at >= since30).scalar() or 0,
+        'senders': db.session.query(
+            func.count(distinct(LearnMoreRequest.requester_id))).scalar() or 0,
+    }
+    top_learn_more_articles = [
+        {'title': title, 'slug': slug, 'count': n}
+        for title, slug, n in db.session.query(
+            Initiative.title, Initiative.slug, func.count(LearnMoreRequest.id)
+        ).join(LearnMoreRequest, LearnMoreRequest.initiative_id == Initiative.id)
+         .group_by(Initiative.id, Initiative.title, Initiative.slug)
+         .order_by(func.count(LearnMoreRequest.id).desc()).limit(10).all()
+    ]
+    top_learn_more_senders = [
+        {'name': name, 'organization': org, 'count': n}
+        for name, org, n in db.session.query(
+            User.name, User.organization, func.count(LearnMoreRequest.id)
+        ).join(LearnMoreRequest, LearnMoreRequest.requester_id == User.id)
+         .group_by(User.id, User.name, User.organization)
+         .order_by(func.count(LearnMoreRequest.id).desc()).limit(10).all()
+    ]
+
     return render_template(
         'admin/analytics.html',
         analytics=analytics,
         daily_labels=daily_labels, daily_values=daily_values,
         top_pages=top_pages, top_referrers=top_referrers,
+        learn_more=learn_more,
+        top_learn_more_articles=top_learn_more_articles,
+        top_learn_more_senders=top_learn_more_senders,
     )
 
 # ===================== EVENTS AND POLLS =====================

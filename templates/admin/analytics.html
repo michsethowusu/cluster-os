@@ -76,6 +76,72 @@
     </div>
 </div>
 
+<!-- Request to Learn More -->
+<h5 class="mb-3"><i class="bi bi-envelope-heart-fill"></i> Request to Learn More</h5>
+<div class="row g-3 mb-4">
+    <div class="col-sm-4">
+        <div class="card"><div class="card-body">
+            <div class="text-muted small"><i class="bi bi-send"></i> Total requests sent</div>
+            <div class="h3 mb-0 fw-bold text-primary">{{ learn_more.total }}</div>
+        </div></div>
+    </div>
+    <div class="col-sm-4">
+        <div class="card"><div class="card-body">
+            <div class="text-muted small"><i class="bi bi-calendar3"></i> Sent (30 days)</div>
+            <div class="h3 mb-0 fw-bold text-primary">{{ learn_more.last_30d }}</div>
+        </div></div>
+    </div>
+    <div class="col-sm-4">
+        <div class="card"><div class="card-body">
+            <div class="text-muted small"><i class="bi bi-people"></i> Distinct senders</div>
+            <div class="h3 mb-0 fw-bold text-primary">{{ learn_more.senders }}</div>
+        </div></div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-fire"></i> Most-requested initiatives</h6></div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0 align-middle">
+                    <thead class="table-light"><tr><th>Initiative</th><th class="text-end">Requests</th></tr></thead>
+                    <tbody>
+                    {% for a in top_learn_more_articles %}
+                    <tr>
+                        <td><a href="{{ url_for('view_initiative', slug=a.slug) }}" target="_blank" class="text-decoration-none">{{ a.title }}</a></td>
+                        <td class="text-end fw-bold">{{ a.count }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="2" class="text-center text-muted">No requests yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-person-lines-fill"></i> Top senders</h6></div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0 align-middle">
+                    <thead class="table-light"><tr><th>Member</th><th class="text-end">Requests</th></tr></thead>
+                    <tbody>
+                    {% for s in top_learn_more_senders %}
+                    <tr>
+                        <td>{{ s.name }}{% if s.organization %} <span class="text-muted small">— {{ s.organization }}</span>{% endif %}</td>
+                        <td class="text-end fw-bold">{{ s.count }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="2" class="text-center text-muted">No requests yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
 <p class="text-muted small">Analytics are collected from anonymous page-view cookies (no personal data) and
    began on first deploy of this feature.</p>
 {% endblock %}

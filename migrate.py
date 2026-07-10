@@ -141,5 +141,16 @@ with app.app_context():
         conn.execute(db.text('DELETE FROM stakeholder_type WHERE name = \'Member State\''))
         conn.execute(db.text('UPDATE stakeholder_type SET is_member_state = false'))
 
+        # Contributor certificates are only for members with a published initiative
+        # scoring 3-5. Remove any certificate whose owner no longer qualifies
+        # (e.g. issued under the old rule). Idempotent.
+        conn.execute(db.text('''
+            DELETE FROM certificate
+            WHERE user_id NOT IN (
+                SELECT user_id FROM initiative
+                WHERE is_published = true AND quality_score >= 3
+            )
+        '''))
+
         conn.commit()
     print('DB ready.')

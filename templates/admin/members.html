@@ -90,7 +90,12 @@
                                             <i class="bi bi-pencil"></i>
                                         </a>
                                         {% if member.id != current_user.id and not member.is_admin %}
-                                        <form method="POST" action="{{ url_for('admin_delete_member', id=member.id) }}" class="d-inline" onsubmit="return confirm('Delete {{ member.name }}? This cannot be undone. Make sure they have no initiatives, questions, or recommendations first.');">
+                                        <form method="POST" action="{{ url_for('admin_reassign_member', id=member.id) }}" class="d-inline" onsubmit="return confirm('Reassign all of {{ member.name }}\'s content (initiatives, questions, recommendations, etc.) to you? Their published work stays on the site under your account, after which you can delete the member.');">
+                                            <button type="submit" class="btn btn-outline-secondary" title="Reassign this member's content to me">
+                                                <i class="bi bi-person-check"></i>
+                                            </button>
+                                        </form>
+                                        <form method="POST" action="{{ url_for('admin_delete_member', id=member.id) }}" class="d-inline" onsubmit="return confirm('Delete {{ member.name }}? This cannot be undone. If they have initiatives, questions, or recommendations, reassign their content to you first (the person icon).');">
                                             <button type="submit" class="btn btn-danger" title="Delete Member">
                                                 <i class="bi bi-trash"></i>
                                             </button>

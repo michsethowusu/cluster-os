@@ -5568,6 +5568,38 @@ def admin_delete_member(id):
     flash(f'Member {email} has been deleted.', 'success')
     return redirect(url_for('admin_dashboard'))
 
+
+@app.route('/admin/member/<int:id>/reassign', methods=['POST'])
+@login_required
+def admin_reassign_member(id):
+    """Reassign all of a member's content (initiatives, questions, recommendations,
+    projects, events, policy developments, documents) to the current admin. Lets an
+    admin take over a member's published work so the member can then be deleted
+    without losing that content."""
+    if not current_user.is_admin:
+        abort(403)
+    user = User.query.get_or_404(id)
+    if id == current_user.id:
+        flash('You already own your own content.', 'info')
+        return redirect(request.referrer or url_for('admin_members'))
+
+    admin_id = current_user.id
+    moved = 0
+    moved += Initiative.query.filter_by(user_id=id).update({'user_id': admin_id})
+    moved += Question.query.filter_by(user_id=id).update({'user_id': admin_id})
+    moved += Recommendation.query.filter_by(user_id=id).update({'user_id': admin_id})
+    moved += Project.query.filter_by(submitted_by=id).update({'submitted_by': admin_id})
+    moved += Event.query.filter_by(created_by=id).update({'created_by': admin_id})
+    moved += Event.query.filter_by(submitted_by=id).update({'submitted_by': admin_id})
+    moved += PolicyDevelopment.query.filter_by(submitted_by=id).update({'submitted_by': admin_id})
+    moved += DocumentLibrary.query.filter_by(submitted_by=id).update({'submitted_by': admin_id})
+    db.session.commit()
+
+    flash(f'Reassigned {moved} item(s) from {user.email} to you. '
+          'This member can now be deleted.', 'success')
+    return redirect(request.referrer or url_for('admin_members'))
+
+
 @app.route('/admin/member/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
 def admin_edit_member(id):

@@ -1387,11 +1387,15 @@ def award_points(user, activity=None, commit=True):
     if commit:
         db.session.commit()
 
-    # 3. Issue a contributor certificate on first published article (if enabled).
+    # 3. Issue a contributor certificate once the member has a published initiative
+    #    that scored well (3-5). Low-quality (1-2) and unscored initiatives do not
+    #    qualify, even if published.
     if activity in ('initiative_published', 'initiative_approved'):
         try:
-            if is_certificates_enabled() and Initiative.query.filter_by(
-                    user_id=user.id, is_published=True).count() > 0:
+            if is_certificates_enabled() and Initiative.query.filter(
+                    Initiative.user_id == user.id,
+                    Initiative.is_published == True,
+                    Initiative.quality_score >= AUTO_PUBLISH_MIN_SCORE).count() > 0:
                 grant_certificate(user)
         except Exception as e:
             app.logger.error(f"Certificate grant error for user {getattr(user, 'id', '?')}: {e}")
@@ -5546,21 +5550,30 @@ def admin_delete_member(id):
     user = User.query.get_or_404(id)
     email = user.email
     
-    # Check if user has content that might be important
+    # Block deletion while the member still owns content — reassign it first.
     initiative_count = Initiative.query.filter_by(user_id=id).count()
     question_count = Question.query.filter_by(user_id=id).count()
     recommendation_count = Recommendation.query.filter_by(user_id=id).count()
-    
-    if initiative_count > 0 or question_count > 0 or recommendation_count > 0:
-        flash(f'Cannot delete {email}: User has {initiative_count} initiative(s), {question_count} question(s), and {recommendation_count} recommendation(s). Please delete their content first or reassign it.', 'error')
+    document_count = DocumentLibrary.query.filter_by(submitted_by=id).count()
+
+    if initiative_count or question_count or recommendation_count or document_count:
+        flash(f'Cannot delete {email}: user still owns {initiative_count} initiative(s), '
+              f'{question_count} question(s), {recommendation_count} recommendation(s) and '
+              f'{document_count} document(s). Use "Reassign content to me" (the person icon) '
+              f'first, then delete.', 'error')
         return redirect(url_for('admin_dashboard'))
-    
-    # Delete user's projects and participations
+
+    # Remove the member's personal records that cannot be reassigned. (Comments are
+    # cascade-deleted at the DB level, but the certificate has a non-nullable FK with
+    # an ORM relationship, so it must be removed explicitly before the user.)
+    Certificate.query.filter_by(user_id=id).delete()
+    Comment.query.filter_by(user_id=id).delete()
+    LearnMoreRequest.query.filter_by(requester_id=id).delete()
     MemberProject.query.filter_by(user_id=id).delete()
     ProjectParticipation.query.filter_by(user_id=id).delete()
     EventRegistration.query.filter_by(user_id=id).delete()
     Vote.query.filter_by(user_id=id).delete()
-    
+
     # Delete the user
     db.session.delete(user)
     db.session.commit()

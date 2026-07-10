@@ -6291,6 +6291,27 @@ def admin_reprocess_policy(id):
 def health_check():
     return {"status": "ok", "message": "Application is running"}, 200
 
+
+@app.route('/backfill-status')
+def backfill_status():
+    """Read-only progress of the one-time AI backfills (no sensitive data)."""
+    import json as _json
+    try:
+        done_ids = _json.loads(get_setting('summaries_done_ids', '[]') or '[]')
+    except Exception:
+        done_ids = []
+    return {
+        'summaries': {
+            'status': get_setting('summaries_backfill_status') or 'pending',
+            'flag': get_setting('summaries_backfilled', 'false'),
+            'done_count': len(done_ids),
+        },
+        'titles': {
+            'status': get_setting('titles_backfill_status') or 'pending',
+            'flag': get_setting('titles_backfilled', 'false'),
+        },
+    }, 200
+
 @app.route('/api/translate', methods=['POST'])
 def api_translate():
     data = request.get_json()

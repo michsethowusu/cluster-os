@@ -81,7 +81,7 @@ with app.app_context():
 
 # One-time AI backfills (each guarded by its own DB flag, so they only do work
 # once). Run in the background so they never block startup.
-python backfill_summaries.py &
-python backfill_titles.py &
+python -u backfill_summaries.py &
+python -u backfill_titles.py &
 
 exec gunicorn -w 4 -b 0.0.0.0:3000 app:app

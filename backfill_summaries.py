@@ -3,6 +3,8 @@
 Runs in the background from entrypoint.sh and is guarded by the
 'summaries_backfilled' setting, so it does real work only on the first deploy
 after the AI-summary feature ships and is a no-op on every deploy afterwards.
+Progress is written to the 'summaries_backfill_status' setting so it can be
+shown in the admin dashboard.
 """
 import time
 
@@ -14,9 +16,11 @@ with app.app_context():
         print('[backfill_summaries] already completed; skipping.')
     else:
         ids = [row.id for row in Initiative.query.with_entities(Initiative.id).all()]
-        print(f'[backfill_summaries] regenerating summaries for {len(ids)} initiative(s)...')
+        total = len(ids)
+        print(f'[backfill_summaries] regenerating summaries for {total} initiative(s)...')
+        set_setting('summaries_backfill_status', f'running 0/{total}')
         done = 0
-        for iid in ids:
+        for n, iid in enumerate(ids, 1):
             try:
                 ini = Initiative.query.get(iid)
                 if not ini:
@@ -29,6 +33,9 @@ with app.app_context():
             except Exception as e:
                 db.session.rollback()
                 print(f'[backfill_summaries] error on initiative {iid}: {e}')
+            if n % 5 == 0 or n == total:
+                set_setting('summaries_backfill_status', f'running {n}/{total}')
             time.sleep(0.3)  # be gentle on the AI API
+        set_setting('summaries_backfill_status', f'done {done}/{total}')
         set_setting('summaries_backfilled', 'true')
-        print(f'[backfill_summaries] done: {done}/{len(ids)} summaries regenerated.')
+        print(f'[backfill_summaries] done: {done}/{total} summaries regenerated.')

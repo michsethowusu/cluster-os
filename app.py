@@ -54,7 +54,7 @@ from utils.email_sender import (
     send_bulk_documents_digest,
     send_certificate_email,
 )
-from utils.ai_services import generate_title_description, vet_tags_nvidia, rank_members_by_query, clean_tags_for_polls, score_initiative_quality, detect_language, generate_summary
+from utils.ai_services import generate_title_description, vet_tags_nvidia, rank_members_by_query, clean_tags_for_polls, score_initiative_quality, detect_language, generate_summary, clean_title
 from utils.nlp import extract_noun_phrases, update_noun_phrase_db
 from utils.translation import translate_text
 from utils.zoom_api import (
@@ -1702,6 +1702,15 @@ def register():
         def _process_tags_async(flask_app, initiative_id, content, title):
             with flask_app.app_context():
                 try:
+                    cleaned = clean_title(title)
+                    if cleaned and cleaned != title:
+                        ini = Initiative.query.get(initiative_id)
+                        if ini:
+                            ini.title = cleaned
+                            db.session.commit()
+                except Exception as e:
+                    flask_app.logger.error(f"Registration title cleanup error: {e}")
+                try:
                     summary = generate_summary(title, content)
                     if summary:
                         ini = Initiative.query.get(initiative_id)
@@ -1921,6 +1930,16 @@ def new_initiative():
         # otherwise leave unpublished so it lands in the admin approval queue.
         def _score_async(flask_app, initiative_id, title, content, author_id):
             with flask_app.app_context():
+                # Tidy the title's casing/punctuation (no rewording)
+                try:
+                    cleaned = clean_title(title)
+                    if cleaned and cleaned != title:
+                        ini = Initiative.query.get(initiative_id)
+                        if ini:
+                            ini.title = cleaned
+                            db.session.commit()
+                except Exception as e:
+                    flask_app.logger.error(f"Title cleanup error (initiative {initiative_id}): {e}")
                 # Generate the AI summary (the submitter no longer supplies one)
                 try:
                     summary = generate_summary(title, content)
@@ -3089,7 +3108,19 @@ def admin_dashboard():
     policy_queue_count = PolicySendQueue.query.filter_by(sent_at=None).count()
     pending_documents = DocumentLibrary.query.filter_by(is_published=False).count()
     undetected_lang_count = Initiative.query.filter(Initiative.detected_lang.is_(None)).count()
+
+    def _backfill_status(flag_key, status_key):
+        status = get_setting(status_key)
+        if status:
+            return status
+        return 'complete' if get_setting(flag_key, 'false') == 'true' else 'pending'
+    ai_backfills = [
+        {'label': 'Initiative summaries', 'status': _backfill_status('summaries_backfilled', 'summaries_backfill_status')},
+        {'label': 'Initiative titles', 'status': _backfill_status('titles_backfilled', 'titles_backfill_status')},
+    ]
+
     return render_template('admin/dashboard.html',
+                         ai_backfills=ai_backfills,
                          pending_users=pending_users,
                          pending_initiatives=pending_initiatives,
                          pending_questions=pending_questions,

@@ -91,6 +91,27 @@
 
 <div class="card mt-2">
     <div class="card-body">
+        <h5>AI Background Tasks</h5>
+        <p class="text-muted small mb-2">One-time AI backfills. Each runs once in the background after deploy.</p>
+        <ul class="list-group list-group-flush">
+            {% for task in ai_backfills %}
+            <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                <span>{{ task.label }}</span>
+                {% if task.status.startswith('done') or task.status == 'complete' %}
+                <span class="badge bg-success">✓ {{ task.status }}</span>
+                {% elif task.status.startswith('running') %}
+                <span class="badge bg-primary">{{ task.status }}</span>
+                {% else %}
+                <span class="badge bg-secondary">{{ task.status }}</span>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+
+<div class="card mt-2">
+    <div class="card-body">
         <h5>Maintenance Actions</h5>
         <div class="d-flex flex-wrap gap-2">
             <form action="{{ url_for('trigger_nlp') }}" method="POST" class="d-inline">

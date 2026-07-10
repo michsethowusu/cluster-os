@@ -1,6 +1,46 @@
 import os
+import re
 import requests
 import json
+
+
+def clean_title(title):
+    """Normalise a title's capitalisation and stray punctuation WITHOUT rewording it.
+
+    Fixes ALL-CAPS / all-lowercase to natural case, preserves acronyms, and trims
+    junk punctuation. Returns the ORIGINAL title unchanged if the AI alters any
+    actual word — a hard guarantee that this only tidies case/punctuation.
+    """
+    original = (title or '').strip()
+    if not original:
+        return original
+
+    def _words(s):
+        return re.findall(r'[a-z0-9]+', s.lower())
+
+    prompt = f"""You are copy-editing ONLY the capitalisation and punctuation of a title.
+
+Rules:
+- Keep EVERY word exactly the same. Do NOT add, remove, reorder, translate, expand, or replace any word.
+- Only fix letter casing — convert ALL CAPS or all-lowercase to natural title case.
+- Keep acronyms/abbreviations in uppercase (e.g. ECED, FLN, UN, NGO, ICT, STEM, AU, DRC, EU).
+- Remove clearly unwanted punctuation (trailing full stops, repeated !!!/??, stray surrounding quotes),
+  but keep meaningful punctuation such as hyphens, ampersands, colons, slashes, and apostrophes.
+- Return ONLY the corrected title text — no quotes, no labels, no explanation.
+
+Title:
+{original}"""
+    try:
+        cleaned = call_nvidia_api(prompt, max_tokens=80, temperature=0.0)
+        cleaned = ' '.join(cleaned.strip().strip('"').strip().split())
+        # Safety net: the sequence of words (ignoring case/punctuation) must be
+        # identical, otherwise the model reworded it — keep the original.
+        if cleaned and _words(cleaned) == _words(original):
+            return cleaned[:200]
+        return original
+    except Exception as e:
+        print(f"Title cleanup error: {e}")
+        return original
 
 def call_nvidia_api(prompt, max_tokens=300, temperature=0.7):
     """Call NVIDIA NIM API with the given prompt."""

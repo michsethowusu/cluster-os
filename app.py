@@ -1023,6 +1023,15 @@ def _brevo_already_contacted(email):
         app.logger.warning(f"Brevo contact lookup failed for {email}: {e}")
         return False
 
+# Quality-score gates (initiatives are scored 1-5 by AI).
+#   < AUTO_PUBLISH_MIN_SCORE  → held unpublished for admin approval (score 1-2)
+#   >= AUTO_PUBLISH_MIN_SCORE → auto-published (score 3-5)
+#   >= NOTIFY_MIN_SCORE       → also queued for the member-notification broadcast
+# A None score (scoring unavailable) is treated as passing, so content is never lost.
+AUTO_PUBLISH_MIN_SCORE = 3
+NOTIFY_MIN_SCORE = 4
+
+
 def _enqueue_initiative(flask_app_or_none, initiative_id):
     """Add an initiative to the send queue if not already there and not already sent.
     Safe to call both inside and outside an app context (pass flask_app for bg threads)."""
@@ -1589,17 +1598,17 @@ def register():
             flash('Please provide initiative content.', 'error')
             return redirect(url_for('register'))
 
-        # Auto-approve new registrations immediately
         # In individual-first mode the organisation field is removed from the form;
         # fall back to a neutral default so the (non-null) column is always satisfied.
         organization = (request.form.get('organization') or '').strip() or 'Independent'
+        # Approval is decided below from the initiative's AI quality score.
         user = User(
             email=email,
             name=request.form.get('name'),
             organization=organization,
             stakeholder_type=stakeholder_type,
             country=request.form.get('country'),
-            is_approved=True,
+            is_approved=False,
             is_admin=False
         )
         db.session.add(user)
@@ -1621,53 +1630,81 @@ def register():
             user_id=user.id,
             stakeholder_type=user.stakeholder_type,
             country=user.country,
-            is_published=True   # Auto-published on registration
+            is_published=False   # decided below from the AI quality score
         )
         db.session.add(initiative)
         db.session.commit()
 
-        # Award points for the published initiative
-        award_points(user, 'initiative_published')
-
-        # Send welcome/approval email
+        # Score the initiative now so we can decide whether to auto-publish it and
+        # auto-approve the account. Scores of 1-2 are held for admin review (the
+        # account stays unapproved and the initiative unpublished); 3+ (or an
+        # unavailable score) pass straight through.
         try:
-            send_approval_email(user.email, initiative.slug)
+            score = score_initiative_quality(initiative_title, initiative_content,
+                                             initiative_short_desc or "")
         except Exception as e:
-            app.logger.error(f"Registration welcome email error: {e}")
+            app.logger.error(f"Registration quality scoring error: {e}")
+            score = None
+        initiative.quality_score = score
+        approved = (score is None) or (score >= AUTO_PUBLISH_MIN_SCORE)
+        initiative.is_published = approved
+        user.is_approved = approved
+        db.session.commit()
 
-        # Auto-register new member for the next upcoming published event (if any)
-        now = datetime.utcnow()
-        next_event = Event.query.filter(
-            Event.start_date >= now,
-            Event.is_published == True
-        ).order_by(Event.start_date).first()
+        if approved:
+            # Award points for the published initiative
+            award_points(user, 'initiative_published')
 
-        if next_event:
-            existing_reg = EventRegistration.query.filter_by(
-                event_id=next_event.id, user_id=user.id
-            ).first()
-            if not existing_reg:
-                reg = EventRegistration(
-                    user_id=user.id,
-                    event_id=next_event.id,
-                    poll_answers={},
-                )
-                db.session.add(reg)
-                db.session.commit()
-                award_points(user, 'event_registered')
-                if next_event.zoom_webinar_id:
+            # Send welcome/approval email
+            try:
+                send_approval_email(user.email, initiative.slug)
+            except Exception as e:
+                app.logger.error(f"Registration welcome email error: {e}")
+
+            # High-quality initiatives are queued for the member broadcast
+            if score is not None and score >= NOTIFY_MIN_SCORE:
+                _enqueue_initiative(app, initiative.id)
+
+            # Auto-register new member for the next upcoming published event (if any)
+            now = datetime.utcnow()
+            next_event = Event.query.filter(
+                Event.start_date >= now,
+                Event.is_published == True
+            ).order_by(Event.start_date).first()
+
+            if next_event:
+                existing_reg = EventRegistration.query.filter_by(
+                    event_id=next_event.id, user_id=user.id
+                ).first()
+                if not existing_reg:
+                    reg = EventRegistration(
+                        user_id=user.id,
+                        event_id=next_event.id,
+                        poll_answers={},
+                    )
+                    db.session.add(reg)
+                    db.session.commit()
+                    award_points(user, 'event_registered')
+                    if next_event.zoom_webinar_id:
+                        try:
+                            register_user_for_webinar(next_event.zoom_webinar_id, user)
+                        except Exception as e:
+                            app.logger.error(f"Auto event Zoom registration error for new user {user.id}: {e}")
                     try:
-                        register_user_for_webinar(next_event.zoom_webinar_id, user)
+                        send_event_registration_confirmation(user, next_event)
                     except Exception as e:
-                        app.logger.error(f"Auto event Zoom registration error for new user {user.id}: {e}")
-                try:
-                    send_event_registration_confirmation(user, next_event)
-                except Exception as e:
-                    app.logger.error(f"Auto event confirmation email error for new user {user.id}: {e}")
-                session['new_member_event_title'] = next_event.title
-                session['new_member_event_id'] = next_event.id
+                        app.logger.error(f"Auto event confirmation email error for new user {user.id}: {e}")
+                    session['new_member_event_title'] = next_event.title
+                    session['new_member_event_id'] = next_event.id
+        else:
+            # Held for admin approval — tell the applicant it's under review
+            try:
+                send_initiative_pending_email(user, initiative_title)
+            except Exception as e:
+                app.logger.error(f"Registration pending email error: {e}")
 
-        # Extract and vet tags + score quality in a background thread
+        # Extract and vet tags + detect language in a background thread. This does
+        # not affect the publish/approval decision made above.
         def _process_tags_async(flask_app, initiative_id, content, title, short_desc):
             with flask_app.app_context():
                 try:
@@ -1687,18 +1724,6 @@ def register():
                 except Exception as e:
                     flask_app.logger.error(f"Registration initiative tag processing error: {e}")
                 try:
-                    from utils.ai_services import score_initiative_quality, detect_language
-                    score = score_initiative_quality(title, content, short_desc or "")
-                    if score is not None:
-                        ini = Initiative.query.get(initiative_id)
-                        if ini:
-                            ini.quality_score = score
-                            db.session.commit()
-                            if score >= 4:
-                                _enqueue_initiative(flask_app, initiative_id)
-                except Exception as e:
-                    flask_app.logger.error(f"Registration initiative quality scoring error: {e}")
-                try:
                     from utils.ai_services import detect_language
                     lang = detect_language(title, content)
                     if lang:
@@ -1716,10 +1741,17 @@ def register():
         )
         t.start()
 
-        flash(
-            'Welcome! Your account has been created and you can now log in.',
-            'success'
-        )
+        if approved:
+            flash(
+                'Welcome! Your account has been created and you can now log in.',
+                'success'
+            )
+        else:
+            flash(
+                'Thanks for registering! Your initiative has been submitted for review. '
+                "We'll email you once an administrator has approved your account.",
+                'info'
+            )
         return redirect(url_for('login'))
 
     return render_template('register.html', stakeholder_types=get_stakeholder_types(), custom_fields=custom_fields)
@@ -1877,7 +1909,7 @@ def new_initiative():
             user_id=current_user.id,
             stakeholder_type=current_user.stakeholder_type,
             country=current_user.country,
-            is_published=False  # Held until AI quality score is confirmed >= 4
+            is_published=False  # Held until AI quality score is confirmed (1-2 stay held for admin)
         )
         
         db.session.add(initiative)
@@ -1894,16 +1926,17 @@ def new_initiative():
                         ini = Initiative.query.get(initiative_id)
                         if ini:
                             ini.quality_score = score
-                            if score >= 4:
-                                # Good quality — auto-publish and reward the author
+                            if score >= AUTO_PUBLISH_MIN_SCORE:
+                                # Acceptable quality (3+) — auto-publish and reward the author
                                 ini.is_published = True
                                 db.session.commit()
                                 author = User.query.get(author_id)
                                 if author:
                                     award_points(author, 'initiative_published')
-                                _enqueue_initiative(flask_app, initiative_id)
+                                if score >= NOTIFY_MIN_SCORE:
+                                    _enqueue_initiative(flask_app, initiative_id)
                             else:
-                                # Below threshold — leave unpublished, notify author
+                                # Scored 1-2 — leave unpublished for admin approval, notify author
                                 db.session.commit()
                                 author = User.query.get(author_id)
                                 if author:

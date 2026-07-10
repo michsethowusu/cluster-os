@@ -79,4 +79,8 @@ with app.app_context():
     db.session.commit()
 "
 
+# One-time: regenerate all initiative summaries with AI (guarded by a DB flag,
+# so it only does work once). Runs in the background so it never blocks startup.
+python backfill_summaries.py &
+
 exec gunicorn -w 4 -b 0.0.0.0:3000 app:app

@@ -17,11 +17,13 @@
                             <input type="text" name="title" class="form-control" value="{{ initiative.title if initiative else '' }}" required>
                         </div>
 
+                        {% if initiative %}
                         <div class="mb-3">
-                            <label class="form-label">{{ label('initf_short_label') }} (max {{ label('initf_short_max') }} characters) *</label>
-                            <textarea name="short_description" class="form-control" rows="2" maxlength="{{ label('initf_short_max') }}" required placeholder="{{ label('initf_short_ph') }}">{{ initiative.short_description if initiative else '' }}</textarea>
+                            <label class="form-label">{{ label('initf_short_label') }} (max {{ label('initf_short_max') }} characters)</label>
+                            <textarea name="short_description" class="form-control" rows="2" maxlength="{{ label('initf_short_max') }}" placeholder="{{ label('initf_short_ph') }}">{{ initiative.short_description if initiative else '' }}</textarea>
                             <div class="form-text">{{ label('initf_short_help') }}</div>
                         </div>
+                        {% endif %}
 
                         <div class="mb-3">
                             <label class="form-label">{{ label('initf_content_label') }} *</label>
@@ -104,24 +106,6 @@
         }
         titleInput.addEventListener('input', updateTitle);
         updateTitle();
-    }
-
-    const shortDescArea = document.querySelector('textarea[name="short_description"]');
-    if (shortDescArea) {
-        const counter = makeCounter('short-desc-counter', 'short description');
-        counter.textContent = '0 / ' + FORM_MIN.short + ' words minimum';
-        shortDescArea.parentNode.appendChild(counter);
-
-        function updateShortDesc() {
-            const words = countWords(shortDescArea.value);
-            const ok = words >= FORM_MIN.short;
-            counter.textContent = words + ' word' + (words !== 1 ? 's' : '') + (ok ? ' ✓' : ' — minimum ' + FORM_MIN.short + ' required');
-            counter.style.color = ok ? '#198754' : '#dc3545';
-            shortDescArea.classList.toggle('is-invalid', !ok && shortDescArea.value.length > 0);
-            shortDescArea.classList.toggle('is-valid', ok);
-        }
-        shortDescArea.addEventListener('input', updateShortDesc);
-        updateShortDesc();
     }
 
     const contentArea = document.querySelector('textarea[name="content"]');
@@ -209,11 +193,9 @@
     if (form) {
         form.addEventListener('submit', function (e) {
             const titleWords = titleInput ? countWords(titleInput.value) : FORM_MIN.title;
-            const shortDescWords = shortDescArea ? countWords(shortDescArea.value) : FORM_MIN.short;
             const contentWords = contentArea ? countWords(contentArea.value) : FORM_MIN.full;
             const errors = [];
             if (titleWords < FORM_MIN.title) errors.push('Title must be at least ' + FORM_MIN.title + ' words (currently ' + titleWords + ').');
-            if (shortDescWords < FORM_MIN.short) errors.push('Short description must be at least ' + FORM_MIN.short + ' words (currently ' + shortDescWords + ').');
             if (contentWords < FORM_MIN.full) errors.push('Full description must be at least ' + FORM_MIN.full + ' words (currently ' + contentWords + ').');
             if (errors.length) {
                 e.preventDefault();

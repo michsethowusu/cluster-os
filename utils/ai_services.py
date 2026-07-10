@@ -116,6 +116,33 @@ Respond ONLY with a valid JSON object — no markdown, no explanation outside th
         return None
 
 
+def generate_summary(title, content):
+    """Generate a concise 1-2 sentence summary (<=300 chars) of an initiative,
+    used on listing cards and in search results. Returns '' on failure."""
+    prompt = f"""You are writing the short summary for an ECED-FLN (Early Childhood
+Education & Development / Foundational Learning) initiative. It appears on listing cards
+and in search results.
+
+Write ONE or TWO plain sentences (maximum 300 characters) that clearly say what the
+initiative is and what it does. Be specific and factual, drawn only from the text below.
+Do NOT include a title, markdown, quotation marks, or any preamble — return only the
+summary sentence(s).
+
+Title: {title}
+Content:
+{content[:3000]}
+"""
+    try:
+        text = call_nvidia_api(prompt, max_tokens=160, temperature=0.3)
+        text = text.strip().strip('"').strip()
+        # collapse whitespace/newlines into single spaces
+        text = ' '.join(text.split())
+        return text[:300]
+    except Exception as e:
+        print(f"Summary generation error: {e}")
+        return ''
+
+
 def generate_title_description(content):
     """Generate catchy title and short description from initiative content."""
     prompt = f"""

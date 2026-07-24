@@ -909,7 +909,16 @@ def record_ai_scoring_result(ok):
 
 
 def is_ai_scoring_healthy():
-    return get_setting('ai_scoring_healthy', 'true') == 'true'
+    # Healthy unless the most recent scoring attempt failed. The warning also
+    # auto-clears if there have been no failures for a while (avoids a stuck
+    # banner after a transient outage has passed).
+    if get_setting('ai_scoring_healthy', 'true') != 'false':
+        return True
+    try:
+        last = datetime.strptime(get_setting('ai_scoring_last_failure', ''), '%Y-%m-%d %H:%M UTC')
+        return (datetime.utcnow() - last).total_seconds() > 900  # 15 minutes
+    except Exception:
+        return False
 
 
 # ── Lightweight in-memory rate limiter (per-process backstop against floods) ──
@@ -931,6 +940,11 @@ def rate_ok(key, max_hits, window_seconds):
 
 
 def client_ip():
+    # Behind Cloudflare, remote_addr / the first X-Forwarded-For hop is Cloudflare's
+    # IP — use CF-Connecting-IP (the real visitor) so per-IP limits key correctly.
+    cf = request.headers.get('CF-Connecting-IP', '')
+    if cf:
+        return cf.strip()
     fwd = request.headers.get('X-Forwarded-For', '')
     if fwd:
         return fwd.split(',')[0].strip()

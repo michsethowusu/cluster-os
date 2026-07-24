@@ -13,6 +13,13 @@
                     
                     <form method="POST" action="{{ url_for('register') }}" class="needs-validation" novalidate>
 
+                        <!-- Anti-bot: hidden honeypot (humans never fill it) + load timestamp -->
+                        <div aria-hidden="true" style="position:absolute; left:-9999px; top:-9999px; height:0; overflow:hidden;">
+                            <label>Website</label>
+                            <input type="text" name="website" tabindex="-1" autocomplete="off">
+                        </div>
+                        <input type="hidden" name="form_ts" value="{{ form_ts }}">
+
                         <!-- ── Personal & Organisation Details ── -->
                         <div class="row">
                             <div class="col-md-6 mb-3">

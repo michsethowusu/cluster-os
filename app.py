@@ -1628,6 +1628,22 @@ def register():
         if not rate_ok(f'register:{client_ip()}', 5, 3600):
             flash('Too many sign-up attempts from your network. Please try again later.', 'error')
             return redirect(url_for('register'))
+        # Global backstop against distributed bot floods.
+        if not rate_ok('register:global', 60, 3600):
+            flash('Registrations are temporarily busy. Please try again shortly.', 'error')
+            return redirect(url_for('register'))
+        # Bot honeypot — a hidden field real users never see or fill.
+        if (request.form.get('website') or '').strip():
+            app.logger.warning(f"Registration honeypot triggered from {client_ip()}")
+            return redirect(url_for('login'))
+        # Reject near-instant submissions (bots post faster than a human can type).
+        try:
+            _loaded = int(request.form.get('form_ts', '0'))
+        except (TypeError, ValueError):
+            _loaded = 0
+        if not _loaded or (time.time() - _loaded) < 3:
+            app.logger.warning(f"Registration rejected (too fast / no token) from {client_ip()}")
+            return redirect(url_for('register'))
 
         email = request.form.get('email', '').lower().strip()
         stakeholder_type = request.form.get('stakeholder_type', '').strip()
@@ -1827,7 +1843,8 @@ def register():
             )
         return redirect(url_for('login'))
 
-    return render_template('register.html', stakeholder_types=get_stakeholder_types(), custom_fields=custom_fields)
+    return render_template('register.html', stakeholder_types=get_stakeholder_types(),
+                           custom_fields=custom_fields, form_ts=int(time.time()))
 
 @app.route('/profile/edit', methods=['GET', 'POST'])
 @login_required

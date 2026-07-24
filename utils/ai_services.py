@@ -1,5 +1,6 @@
 import os
 import re
+import time
 import requests
 import json
 
@@ -138,22 +139,38 @@ Respond ONLY with a valid JSON object — no markdown, no explanation outside th
 === INITIATIVE TO EVALUATE ===
 {combined}
 """
-    try:
-        response = call_nvidia_api(prompt, max_tokens=200, temperature=0.1)
-        clean = response.strip().replace('```json', '').replace('```', '').strip()
-        result = json.loads(clean)
-        q = max(1, min(5, int(result.get("quality_score", 3))))
-        i = max(1, min(5, int(result.get("implementation_score", 3))))
-        overall = round((q + i) / 2)
-        # Store the sub-scores in the result for optional logging
-        print(
-            f"[score_initiative_quality] quality={q} ({result.get('quality_reason','')}) | "
-            f"implementation={i} ({result.get('implementation_reason','')}) | overall={overall}"
-        )
-        return overall
-    except Exception as e:
-        print(f"Initiative quality scoring error: {e}")
-        return None
+    # Rate limits (HTTP 429) and transient 5xx/connection errors are NOT real
+    # failures — retry with backoff. Only give up (return None -> held for admin)
+    # after all attempts are exhausted.
+    attempts = 4
+    for attempt in range(attempts):
+        try:
+            response = call_nvidia_api(prompt, max_tokens=200, temperature=0.1)
+            clean = response.strip().replace('```json', '').replace('```', '').strip()
+            result = json.loads(clean)
+            q = max(1, min(5, int(result.get("quality_score", 3))))
+            i = max(1, min(5, int(result.get("implementation_score", 3))))
+            overall = round((q + i) / 2)
+            print(
+                f"[score_initiative_quality] quality={q} ({result.get('quality_reason','')}) | "
+                f"implementation={i} ({result.get('implementation_reason','')}) | overall={overall}"
+            )
+            return overall
+        except requests.RequestException as e:
+            status = getattr(getattr(e, 'response', None), 'status_code', None)
+            transient = status in (429, 500, 502, 503, 504) or status is None
+            if transient and attempt < attempts - 1:
+                wait = min(2 ** attempt, 8)  # 1s, 2s, 4s
+                print(f"Initiative quality scoring transient error ({status}); "
+                      f"retry {attempt + 1}/{attempts - 1} in {wait}s")
+                time.sleep(wait)
+                continue
+            print(f"Initiative quality scoring error (HTTP {status}): {e}")
+            return None
+        except Exception as e:
+            print(f"Initiative quality scoring error: {e}")
+            return None
+    return None
 
 
 def generate_summary(title, content):

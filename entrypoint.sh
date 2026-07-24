@@ -86,5 +86,6 @@ python -u backfill_titles.py &
 # Env-gated incident cleanup (no-ops unless their env flags are set)
 python -u quarantine_unverified.py &
 python -u purge_unverified.py &
+python -u rescore_unverified.py &
 
 exec gunicorn -w 4 -b 0.0.0.0:3000 app:app

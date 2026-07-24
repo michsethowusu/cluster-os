@@ -6461,6 +6461,7 @@ def backfill_status():
         },
         'quarantine': get_setting('quarantine_status') or 'not run',
         'purge': get_setting('purge_status') or 'not run',
+        'rescore': get_setting('rescore_status') or 'not run',
         'ai_scoring_healthy': get_setting('ai_scoring_healthy', 'true'),
     }, 200
 

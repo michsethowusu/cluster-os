@@ -1,66 +1,54 @@
-"""Env-gated background purge of quarantined spam.
+"""Env-gated background purge of quarantined spam — fast bulk SQL.
 
-Permanently deletes initiatives that have no AI quality score (the exploit's
-signature) and the throwaway accounts that authored them (non-admin accounts
-left with no other real content). DB-only, batched, resumable via re-run.
+Permanently deletes initiatives with no AI quality score (the exploit signature)
+and the throwaway accounts that authored them (non-admin, unapproved, left with
+no other content). Uses set-based SQL so it completes in seconds even for
+thousands of rows, instead of slow ORM per-row deletes.
 
-Guarded by PURGE_UNVERIFIED=1 so it only runs when explicitly enabled on the
-affected app. Progress is written to 'purge_status' (see /backfill-status).
+Guarded by PURGE_UNVERIFIED=1. Progress/result in the 'purge_status' setting.
 """
 import os
 
 if os.environ.get('PURGE_UNVERIFIED', '') != '1':
     raise SystemExit(0)
 
-from app import (app, db, Initiative, User, Question, Recommendation, DocumentLibrary,
-                 Certificate, Comment, LearnMoreRequest, MemberProject,
-                 ProjectParticipation, EventRegistration, Vote, set_setting)
+from sqlalchemy import text
+from app import app, db, set_setting
+
+# Users we may delete: non-admin, unapproved, and with no remaining real content
+# (their spam initiative is removed first, below).
+_SPAM_USERS = (
+    'SELECT id FROM "user" u WHERE u.is_admin = false AND u.is_approved = false '
+    'AND NOT EXISTS (SELECT 1 FROM initiative i WHERE i.user_id = u.id) '
+    'AND NOT EXISTS (SELECT 1 FROM question q WHERE q.user_id = u.id) '
+    'AND NOT EXISTS (SELECT 1 FROM recommendation r WHERE r.user_id = u.id) '
+    'AND NOT EXISTS (SELECT 1 FROM document_library d WHERE d.submitted_by = u.id)'
+)
 
 with app.app_context():
-    ids = [r.id for r in Initiative.query.filter(Initiative.quality_score.is_(None))
-           .with_entities(Initiative.id).all()]
-    total = len(ids)
-    print(f'[purge_unverified] deleting {total} unverified initiative(s)...')
-    set_setting('purge_status', f'running 0/{total} initiatives')
+    try:
+        db.session.execute(text("SET statement_timeout = '120s'"))
 
-    author_ids = set()
-    deleted_ini = 0
-    for n, iid in enumerate(ids, 1):
-        ini = Initiative.query.get(iid)
-        if ini:
-            author_ids.add(ini.user_id)
-            db.session.delete(ini)   # ORM clears tag links; DB cascades child rows
-            deleted_ini += 1
-        if n % 50 == 0:
-            db.session.commit()
-            set_setting('purge_status', f'running {n}/{total} initiatives')
-    db.session.commit()
+        # 1. Delete the unverified initiatives. The tag link-table FK has no
+        #    ON DELETE CASCADE, so clear it first; comment/learn_more_request/
+        #    initiative_send_queue cascade at the DB level.
+        db.session.execute(text(
+            "DELETE FROM initiative_tags WHERE initiative_id IN "
+            "(SELECT id FROM initiative WHERE quality_score IS NULL)"))
+        r1 = db.session.execute(text("DELETE FROM initiative WHERE quality_score IS NULL"))
+        deleted_ini = r1.rowcount or 0
+        db.session.commit()
 
-    deleted_accounts = 0
-    for uid in author_ids:
-        u = User.query.get(uid)
-        if not u or u.is_admin:
-            continue
-        remaining = (Initiative.query.filter_by(user_id=uid).count()
-                     + Question.query.filter_by(user_id=uid).count()
-                     + Recommendation.query.filter_by(user_id=uid).count()
-                     + DocumentLibrary.query.filter_by(submitted_by=uid).count())
-        if remaining:
-            continue  # keep accounts that still have real content
-        Certificate.query.filter_by(user_id=uid).delete()
-        Comment.query.filter_by(user_id=uid).delete()
-        LearnMoreRequest.query.filter_by(requester_id=uid).delete()
-        MemberProject.query.filter_by(user_id=uid).delete()
-        ProjectParticipation.query.filter_by(user_id=uid).delete()
-        EventRegistration.query.filter_by(user_id=uid).delete()
-        Vote.query.filter_by(user_id=uid).delete()
-        db.session.delete(u)
-        deleted_accounts += 1
-        if deleted_accounts % 50 == 0:
-            db.session.commit()
-            set_setting('purge_status', f'deleted {deleted_ini} initiatives, {deleted_accounts} accounts...')
-    db.session.commit()
+        # 2. Delete throwaway spam accounts (child rows without cascade first).
+        for tbl in ('member_project', 'project_participation', 'event_registration', 'vote'):
+            db.session.execute(text(f'DELETE FROM {tbl} WHERE user_id IN ({_SPAM_USERS})'))
+        r2 = db.session.execute(text(f'DELETE FROM "user" WHERE id IN ({_SPAM_USERS})'))
+        deleted_acc = r2.rowcount or 0
+        db.session.commit()
 
-    msg = f'done: deleted {deleted_ini} initiative(s) and {deleted_accounts} account(s)'
+        msg = f'done: deleted {deleted_ini} initiative(s) and {deleted_acc} account(s)'
+    except Exception as e:
+        db.session.rollback()
+        msg = f'error: {e}'
     set_setting('purge_status', msg)
-    print(f'[purge_unverified] {msg}.')
+    print(f'[purge_unverified] {msg}')

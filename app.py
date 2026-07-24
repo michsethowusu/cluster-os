@@ -1780,6 +1780,9 @@ def register():
                     vetted_tags = vet_tags_nvidia(phrases)
                     ini = Initiative.query.get(initiative_id)
                     for tag_name in vetted_tags:
+                        tag_name = (tag_name or '').strip()[:100]
+                        if not tag_name:
+                            continue
                         tag = Tag.query.filter_by(name=tag_name).first()
                         if not tag:
                             tag = Tag(name=tag_name, is_vetted=True)
@@ -1790,6 +1793,7 @@ def register():
                     db.session.commit()
                     update_noun_phrase_db(initiative_id, phrases)
                 except Exception as e:
+                    db.session.rollback()   # clear the aborted txn so it can't hold locks
                     flask_app.logger.error(f"Registration initiative tag processing error: {e}")
                 try:
                     from utils.ai_services import detect_language
@@ -1800,6 +1804,7 @@ def register():
                             ini.detected_lang = lang
                             db.session.commit()
                 except Exception as e:
+                    db.session.rollback()
                     flask_app.logger.error(f"Registration initiative language detection error: {e}")
 
         t = threading.Thread(

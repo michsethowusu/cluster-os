@@ -142,6 +142,12 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_unverified' %}active{% endif %}"
+                           href="{{ url_for('admin_unverified') }}">
+                            <i class="bi bi-shield-exclamation"></i> Unverified Submissions
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if request.endpoint in ['admin_forms', 'admin_fields'] %}active{% endif %}"
                            href="{{ url_for('admin_forms') }}">
                             <i class="bi bi-input-cursor-text"></i> Forms
@@ -246,6 +252,20 @@
                 </div>
             </div>
             
+            {% if not ai_scoring_healthy %}
+            <div class="alert alert-danger d-flex align-items-start gap-2" role="alert">
+                <i class="bi bi-exclamation-octagon-fill fs-5"></i>
+                <div>
+                    <strong>AI quality scoring is not working.</strong>
+                    New submissions are <strong>not</strong> being auto-approved — every new
+                    initiative and account is being <strong>held for your manual approval</strong>
+                    until this is fixed. Check the <code>NVIDIA_API_KEY</code> (it may have expired).
+                    {% if ai_scoring_last_failure %}<span class="text-muted">Last failure: {{ ai_scoring_last_failure }}.</span>{% endif %}
+                    Review pending items under <a href="{{ url_for('admin_approvals') }}" class="alert-link">Approvals</a>.
+                </div>
+            </div>
+            {% endif %}
+
             {% block admin_content %}{% endblock %}
         </main>
     </div>

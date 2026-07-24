@@ -893,6 +893,50 @@ def is_certificates_enabled():
     return get_setting('certificates_enabled', 'false').lower() == 'true'
 
 
+# ── AI quality-scoring health ────────────────────────────────────────────────
+# If scoring is unavailable (e.g. expired API key) we must NOT auto-publish or
+# auto-approve — everything is held for admin review, and admins are warned.
+def record_ai_scoring_result(ok):
+    try:
+        if ok:
+            if get_setting('ai_scoring_healthy', 'true') != 'true':
+                set_setting('ai_scoring_healthy', 'true')
+        else:
+            set_setting('ai_scoring_healthy', 'false')
+            set_setting('ai_scoring_last_failure', datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC'))
+    except Exception:
+        pass
+
+
+def is_ai_scoring_healthy():
+    return get_setting('ai_scoring_healthy', 'true') == 'true'
+
+
+# ── Lightweight in-memory rate limiter (per-process backstop against floods) ──
+_RATE_BUCKETS = {}
+_RATE_LOCK = threading.Lock()
+
+
+def rate_ok(key, max_hits, window_seconds):
+    """Return False if `key` has already hit `max_hits` within the window."""
+    now = time.time()
+    with _RATE_LOCK:
+        hits = [t for t in _RATE_BUCKETS.get(key, []) if now - t < window_seconds]
+        if len(hits) >= max_hits:
+            _RATE_BUCKETS[key] = hits
+            return False
+        hits.append(now)
+        _RATE_BUCKETS[key] = hits
+        return True
+
+
+def client_ip():
+    fwd = request.headers.get('X-Forwarded-For', '')
+    if fwd:
+        return fwd.split(',')[0].strip()
+    return request.remote_addr or 'unknown'
+
+
 def get_menu_overrides():
     """Return {key: {'hidden': bool, 'label': str}} from the stored JSON, safely."""
     try:
@@ -954,6 +998,8 @@ def inject_site_config():
             'labels': resolved,
             'stakeholder_types': get_stakeholder_types(),
             'member_state_type': get_member_state_type(),
+            'ai_scoring_healthy': is_ai_scoring_healthy(),
+            'ai_scoring_last_failure': get_setting('ai_scoring_last_failure', ''),
         }
     except Exception:
         return {
@@ -965,6 +1011,8 @@ def inject_site_config():
             'labels': dict(LABEL_DEFAULTS),
             'stakeholder_types': DEFAULT_STAKEHOLDER_TYPES,
             'member_state_type': '',
+            'ai_scoring_healthy': True,
+            'ai_scoring_last_failure': '',
         }
 
 
@@ -1575,6 +1623,12 @@ def register():
     custom_fields = RegistrationField.query.filter_by(is_active=True).order_by(RegistrationField.order).all()
 
     if request.method == 'POST':
+        # Anti-flood: cap registrations per network so nobody can mass-create
+        # accounts/initiatives and overload the server.
+        if not rate_ok(f'register:{client_ip()}', 5, 3600):
+            flash('Too many sign-up attempts from your network. Please try again later.', 'error')
+            return redirect(url_for('register'))
+
         email = request.form.get('email', '').lower().strip()
         stakeholder_type = request.form.get('stakeholder_type', '').strip()
 
@@ -1631,16 +1685,18 @@ def register():
         db.session.commit()
 
         # Score the initiative now so we can decide whether to auto-publish it and
-        # auto-approve the account. Scores of 1-2 are held for admin review (the
-        # account stays unapproved and the initiative unpublished); 3+ (or an
-        # unavailable score) pass straight through.
+        # auto-approve the account. Only a genuine score of 3-5 passes. If scoring
+        # is UNAVAILABLE (e.g. expired API key) we must NOT auto-approve — the
+        # account and initiative are held for admin review. Scores of 1-2 are held
+        # too.
         try:
             score = score_initiative_quality(initiative_title, initiative_content, "")
         except Exception as e:
             app.logger.error(f"Registration quality scoring error: {e}")
             score = None
+        record_ai_scoring_result(score is not None)
         initiative.quality_score = score
-        approved = (score is None) or (score >= AUTO_PUBLISH_MIN_SCORE)
+        approved = (score is not None) and (score >= AUTO_PUBLISH_MIN_SCORE)
         initiative.is_published = approved
         user.is_approved = approved
         db.session.commit()
@@ -1893,6 +1949,11 @@ def dashboard():
 @login_required
 def new_initiative():
     if request.method == 'POST':
+        # Anti-flood: cap how many initiatives one member can post per hour.
+        if not rate_ok(f'newinit:{current_user.id}', 10, 3600):
+            flash('You are submitting too quickly. Please wait a little before adding more initiatives.', 'warning')
+            return redirect(url_for('dashboard'))
+
         title = request.form.get('title')
         content = request.form.get('content')                     # MARKDOWN CHANGE: raw content
 
@@ -1953,53 +2014,48 @@ def new_initiative():
                 try:
                     from utils.ai_services import score_initiative_quality
                     score = score_initiative_quality(title, content, "")
-                    if score is not None:
-                        ini = Initiative.query.get(initiative_id)
-                        if ini:
-                            ini.quality_score = score
-                            if score >= AUTO_PUBLISH_MIN_SCORE:
-                                # Acceptable quality (3+) — auto-publish and reward the author
-                                ini.is_published = True
-                                db.session.commit()
-                                author = User.query.get(author_id)
-                                if author:
-                                    award_points(author, 'initiative_published')
-                                if score >= NOTIFY_MIN_SCORE:
-                                    _enqueue_initiative(flask_app, initiative_id)
-                            else:
-                                # Scored 1-2 — leave unpublished for admin approval, notify author
-                                db.session.commit()
-                                author = User.query.get(author_id)
-                                if author:
-                                    try:
-                                        send_initiative_pending_email(author, title)
-                                    except Exception as mail_err:
-                                        flask_app.logger.error(
-                                            f"Pending email error (initiative {initiative_id}): {mail_err}"
-                                        )
-                    else:
-                        # Scoring failed — fall back to auto-publish so nothing gets silently lost
-                        ini = Initiative.query.get(initiative_id)
-                        if ini:
+                    record_ai_scoring_result(score is not None)
+                    ini = Initiative.query.get(initiative_id)
+                    if ini and score is not None:
+                        ini.quality_score = score
+                        if score >= AUTO_PUBLISH_MIN_SCORE:
+                            # Acceptable quality (3+) — auto-publish and reward the author
                             ini.is_published = True
                             db.session.commit()
                             author = User.query.get(author_id)
                             if author:
                                 award_points(author, 'initiative_published')
-                            _enqueue_initiative(flask_app, initiative_id)
+                            if score >= NOTIFY_MIN_SCORE:
+                                _enqueue_initiative(flask_app, initiative_id)
+                        else:
+                            # Scored 1-2 — leave unpublished for admin approval, notify author
+                            db.session.commit()
+                            author = User.query.get(author_id)
+                            if author:
+                                try:
+                                    send_initiative_pending_email(author, title)
+                                except Exception as mail_err:
+                                    flask_app.logger.error(
+                                        f"Pending email error (initiative {initiative_id}): {mail_err}"
+                                    )
+                    else:
+                        # Scoring UNAVAILABLE — do NOT publish. Hold for admin review
+                        # (this is the safeguard against the auto-approve exploit).
+                        if ini:
+                            db.session.commit()  # stays unpublished, quality_score None
+                        author = User.query.get(author_id)
+                        if author:
+                            try:
+                                send_initiative_pending_email(author, title)
+                            except Exception as mail_err:
+                                flask_app.logger.error(
+                                    f"Pending email error (initiative {initiative_id}): {mail_err}"
+                                )
                 except Exception as e:
                     flask_app.logger.error(f"Quality scoring error (initiative {initiative_id}): {e}")
-                    # On unexpected error, publish defensively so content isn't lost
-                    try:
-                        ini = Initiative.query.get(initiative_id)
-                        if ini and not ini.is_published:
-                            ini.is_published = True
-                            db.session.commit()
-                            author = User.query.get(author_id)
-                            if author:
-                                award_points(author, 'initiative_published')
-                    except Exception:
-                        pass
+                    record_ai_scoring_result(False)
+                    # On error, leave the initiative unpublished (held for admin) —
+                    # never auto-publish unverified content.
                 # Detect language
                 try:
                     from utils.ai_services import detect_language
@@ -5565,6 +5621,63 @@ def admin_event_fetch_recording(id):
         flash(f'Failed to fetch recording: {e}', 'error')
     return redirect(url_for('admin_events'))
 
+# ===================== ADMIN: UNVERIFIED / SPAM CLEANUP =====================
+
+@app.route('/admin/unverified', methods=['GET', 'POST'])
+@login_required
+def admin_unverified():
+    """Review/clean submissions that were published without a real AI quality
+    score (the signature of the auto-approve exploit during an API outage)."""
+    if not current_user.is_admin:
+        abort(403)
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'approve':
+            ini = Initiative.query.get_or_404(request.form.get('id', type=int))
+            ini.is_published = True
+            author = User.query.get(ini.user_id)
+            if author:
+                author.is_approved = True
+            db.session.commit()
+            flash('Initiative published and its author approved.', 'success')
+        elif action == 'delete_all':
+            unverified = Initiative.query.filter(Initiative.quality_score.is_(None)).all()
+            author_ids = {i.user_id for i in unverified}
+            n_ini = len(unverified)
+            for ini in unverified:
+                db.session.delete(ini)   # ORM handles tags + cascades child rows
+            db.session.commit()
+            # Delete throwaway accounts: authors left with no real content, non-admin.
+            deleted_accounts = 0
+            for uid in author_ids:
+                u = User.query.get(uid)
+                if not u or u.is_admin:
+                    continue
+                remaining = (Initiative.query.filter_by(user_id=uid).count()
+                             + Question.query.filter_by(user_id=uid).count()
+                             + Recommendation.query.filter_by(user_id=uid).count()
+                             + DocumentLibrary.query.filter_by(submitted_by=uid).count())
+                if remaining:
+                    continue
+                Certificate.query.filter_by(user_id=uid).delete()
+                Comment.query.filter_by(user_id=uid).delete()
+                LearnMoreRequest.query.filter_by(requester_id=uid).delete()
+                MemberProject.query.filter_by(user_id=uid).delete()
+                ProjectParticipation.query.filter_by(user_id=uid).delete()
+                EventRegistration.query.filter_by(user_id=uid).delete()
+                Vote.query.filter_by(user_id=uid).delete()
+                db.session.delete(u)
+                deleted_accounts += 1
+            db.session.commit()
+            flash(f'Deleted {n_ini} unverified submission(s) and {deleted_accounts} spam account(s).', 'success')
+        return redirect(url_for('admin_unverified'))
+
+    items = (Initiative.query.filter(Initiative.quality_score.is_(None))
+             .order_by(Initiative.created_at.desc()).all())
+    return render_template('admin/unverified.html', items=items)
+
+
 # ===================== ADMIN MEMBERS ROUTES =====================
 
 @app.route('/admin/members')
@@ -6310,6 +6423,8 @@ def backfill_status():
             'status': get_setting('titles_backfill_status') or 'pending',
             'flag': get_setting('titles_backfilled', 'false'),
         },
+        'quarantine': get_setting('quarantine_status') or 'not run',
+        'ai_scoring_healthy': get_setting('ai_scoring_healthy', 'true'),
     }, 200
 
 @app.route('/api/translate', methods=['POST'])

@@ -83,7 +83,8 @@ with app.app_context():
 # once). Run in the background so they never block startup.
 python -u backfill_summaries.py &
 python -u backfill_titles.py &
-# Env-gated incident cleanup (no-op unless QUARANTINE_UNVERIFIED=1 is set)
+# Env-gated incident cleanup (no-ops unless their env flags are set)
 python -u quarantine_unverified.py &
+python -u purge_unverified.py &
 
 exec gunicorn -w 4 -b 0.0.0.0:3000 app:app

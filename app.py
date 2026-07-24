@@ -6424,6 +6424,7 @@ def backfill_status():
             'flag': get_setting('titles_backfilled', 'false'),
         },
         'quarantine': get_setting('quarantine_status') or 'not run',
+        'purge': get_setting('purge_status') or 'not run',
         'ai_scoring_healthy': get_setting('ai_scoring_healthy', 'true'),
     }, 200
 

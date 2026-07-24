@@ -29,12 +29,18 @@ with app.app_context():
     try:
         db.session.execute(text("SET statement_timeout = '120s'"))
 
-        # 1. Delete the unverified initiatives. The tag link-table FK has no
-        #    ON DELETE CASCADE, so clear it first; comment/learn_more_request/
-        #    initiative_send_queue cascade at the DB level.
-        db.session.execute(text(
-            "DELETE FROM initiative_tags WHERE initiative_id IN "
-            "(SELECT id FROM initiative WHERE quality_score IS NULL)"))
+        # 1. Clear every child table that references the target initiatives (some
+        #    FKs lack ON DELETE CASCADE), then delete the initiatives themselves.
+        target = "(SELECT id FROM initiative WHERE quality_score IS NULL)"
+        for child, col in [
+            ('noun_phrase', 'initiative_id'),
+            ('recommendation', 'initiative_id'),
+            ('comment', 'initiative_id'),
+            ('learn_more_request', 'initiative_id'),
+            ('initiative_send_queue', 'initiative_id'),
+            ('initiative_tags', 'initiative_id'),
+        ]:
+            db.session.execute(text(f"DELETE FROM {child} WHERE {col} IN {target}"))
         r1 = db.session.execute(text("DELETE FROM initiative WHERE quality_score IS NULL"))
         deleted_ini = r1.rowcount or 0
         db.session.commit()

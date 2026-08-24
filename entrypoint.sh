@@ -87,5 +87,6 @@ python -u backfill_titles.py &
 python -u quarantine_unverified.py &
 python -u purge_unverified.py &
 python -u rescore_unverified.py &
+python -u import_teacher_docs.py &
 
 exec gunicorn -w 4 -b 0.0.0.0:3000 app:app

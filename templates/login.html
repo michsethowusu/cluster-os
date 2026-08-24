@@ -15,6 +15,7 @@
                         <p class="text-muted text-center mb-4">Enter your admin password</p>
                         <form method="POST" action="{{ url_for('login') }}">
                             <input type="hidden" name="email" value="{{ email }}">
+                            {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
                             <div class="mb-3">
                                 <label class="form-label">Password</label>
                                 <input type="password" name="password" class="form-control form-control-lg"
@@ -32,6 +33,7 @@
                         {# Step 1: email entry (all users) #}
                         <p class="text-muted text-center mb-4">Enter your email to continue</p>
                         <form method="POST" action="{{ url_for('login') }}">
+                            {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
                             <div class="mb-3">
                                 <label class="form-label">Email Address</label>
                                 <input type="email" name="email" class="form-control form-control-lg"
@@ -45,7 +47,7 @@
                         <hr class="my-4">
 
                         <p class="text-center text-muted mb-0">
-                            Not a member? <a href="{{ url_for('register') }}">Request Access</a>
+                            Not a member? <a href="{{ url_for('register', next=next) if next else url_for('register') }}">Request Access</a>
                         </p>
                     {% endif %}
 

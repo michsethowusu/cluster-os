@@ -1546,25 +1546,34 @@ def index():
     
     return render_template('index.html', stats=stats, initiatives=recent_initiatives)
 
+def _safe_next(target):
+    """Return `target` only if it's a safe same-site relative path (blocks open
+    redirects); otherwise None."""
+    if target and target.startswith('/') and not target.startswith('//'):
+        return target
+    return None
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    nxt = _safe_next(request.values.get('next'))
     if request.method == 'POST':
         email = request.form.get('email')
         user = User.query.filter_by(email=email).first()
-        
+
         if not user or not user.is_approved:
             flash('Email not found or account pending approval.', 'error')
-            return redirect(url_for('login'))
+            return redirect(url_for('login', next=nxt))
             
         # Admin uses password + OTP (OTP can be disabled via ADMIN_OTP_ENABLED=false)
         if user.is_admin:
             from werkzeug.security import check_password_hash
             password = request.form.get('password')
             if not password:
-                return render_template('login.html', show_password=True, email=email)
+                return render_template('login.html', show_password=True, email=email, next=nxt)
             if not user.password_hash or not check_password_hash(user.password_hash, password):
                 flash('Invalid password.', 'error')
-                return redirect(url_for('login'))
+                return redirect(url_for('login', next=nxt))
 
             # If OTP is disabled, log the admin in directly after password check
             otp_enabled = app.config.get('ADMIN_OTP_ENABLED', True)
@@ -1573,7 +1582,7 @@ def login():
             if not otp_enabled:
                 login_user(user)
                 flash('Welcome back!', 'success')
-                return redirect(url_for('dashboard'))
+                return redirect(nxt or url_for('dashboard'))
 
             # Password correct — send OTP to ADMIN_OTP_EMAIL if configured,
             # otherwise fall back to the admin's own email.
@@ -1587,7 +1596,7 @@ def login():
             otp_dest = app.config.get('ADMIN_OTP_EMAIL') or user.email
             send_otp_email(otp_dest, otp)
             flash(f'Password accepted. OTP sent to {otp_dest}.', 'info')
-            return redirect(url_for('verify_otp', email=email))
+            return redirect(url_for('verify_otp', email=email, next=nxt))
         
         # Regular users get OTP
         otp = ''.join(random.choices(string.digits, k=6))
@@ -1597,33 +1606,34 @@ def login():
         
         send_otp_email(user.email, otp)
         flash('OTP sent to your email.', 'info')
-        return redirect(url_for('verify_otp', email=email))
-    
-    return render_template('login.html')
+        return redirect(url_for('verify_otp', email=email, next=nxt))
+
+    return render_template('login.html', next=nxt)
 
 @app.route('/verify-otp', methods=['GET', 'POST'])
 def verify_otp():
     email = request.args.get('email') or request.form.get('email')
+    nxt = _safe_next(request.values.get('next'))
     user = User.query.filter_by(email=email).first()
-    
+
     if not user:
         flash('User not found.', 'error')
         return redirect(url_for('login'))
-    
+
     if request.method == 'POST':
         otp = request.form.get('otp')
-        
+
         if user.otp == otp and user.otp_expiry > datetime.utcnow():
             user.otp = None
             user.otp_expiry = None
             db.session.commit()
             login_user(user)
             flash('Welcome back!', 'success')
-            return redirect(url_for('dashboard'))
+            return redirect(nxt or url_for('dashboard'))
         else:
             flash('Invalid or expired OTP.', 'error')
-    
-    return render_template('verify_otp.html', email=email)
+
+    return render_template('verify_otp.html', email=email, next=nxt)
     
 @app.route('/logout')
 @login_required

@@ -13,6 +13,7 @@
                     
                     <form method="POST" action="{{ url_for('verify_otp') }}">
                         <input type="hidden" name="email" value="{{ email }}">
+                        {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
                         <div class="mb-3">
                             <input type="text" name="otp" class="form-control form-control-lg text-center" 
                                    placeholder="000000" maxlength="6" pattern="\d{6}" required

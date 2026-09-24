@@ -67,9 +67,12 @@ with app.app_context():
     try:
         db.session.execute(text("SET statement_timeout = '120s'"))
 
+        # Held junk = unpublished initiatives that are either unscored or AI-scored
+        # 1-2. Published initiatives and unpublished score>=3 are always kept.
+        where = "is_published = false AND (quality_score IS NULL OR quality_score IN (1,2))"
         # 1. Clear every child table that references the target initiatives (some
         #    FKs lack ON DELETE CASCADE), then delete the initiatives themselves.
-        target = "(SELECT id FROM initiative WHERE quality_score IS NULL)"
+        target = f"(SELECT id FROM initiative WHERE {where})"
         for child, col in [
             ('noun_phrase', 'initiative_id'),
             ('recommendation', 'initiative_id'),
@@ -79,7 +82,7 @@ with app.app_context():
             ('initiative_tags', 'initiative_id'),
         ]:
             db.session.execute(text(f"DELETE FROM {child} WHERE {col} IN {target}"))
-        r1 = db.session.execute(text("DELETE FROM initiative WHERE quality_score IS NULL"))
+        r1 = db.session.execute(text(f"DELETE FROM initiative WHERE {where}"))
         deleted_ini = r1.rowcount or 0
         db.session.commit()
 

@@ -1157,6 +1157,38 @@ def client_ip():
     return request.remote_addr or 'unknown'
 
 
+# ── Cloudflare Turnstile (bot challenge on the registration form) ─────────────
+# Active only when both env vars are set, so the feature is opt-in per site and a
+# no-op locally / where it isn't configured.
+TURNSTILE_SITE_KEY = os.environ.get('TURNSTILE_SITE_KEY', '').strip()
+TURNSTILE_SECRET_KEY = os.environ.get('TURNSTILE_SECRET_KEY', '').strip()
+
+
+def turnstile_enabled():
+    return bool(TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY)
+
+
+def verify_turnstile():
+    """Verify the Turnstile token from the form. Returns True when not configured.
+    A missing token is rejected; a transient verify error fails open (logged) so a
+    Cloudflare hiccup never locks out real sign-ups."""
+    if not TURNSTILE_SECRET_KEY:
+        return True
+    token = (request.form.get('cf-turnstile-response') or '').strip()
+    if not token:
+        return False
+    try:
+        import requests as _requests
+        resp = _requests.post(
+            'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+            data={'secret': TURNSTILE_SECRET_KEY, 'response': token, 'remoteip': client_ip()},
+            timeout=10)
+        return bool(resp.json().get('success'))
+    except Exception as e:
+        app.logger.warning(f'Turnstile verify error (failing open): {e}')
+        return True
+
+
 def get_menu_overrides():
     """Return {key: {'hidden': bool, 'label': str}} from the stored JSON, safely."""
     try:
@@ -1882,6 +1914,11 @@ def register():
         if not _loaded or (time.time() - _loaded) < 3:
             app.logger.warning(f"Registration rejected (too fast / no token) from {client_ip()}")
             return redirect(url_for('register'))
+        # Cloudflare Turnstile challenge (no-op unless configured).
+        if not verify_turnstile():
+            app.logger.warning(f"Registration rejected (Turnstile failed) from {client_ip()}")
+            flash('Please complete the verification challenge and try again.', 'error')
+            return redirect(url_for('register'))
 
         email = request.form.get('email', '').lower().strip()
         stakeholder_type = request.form.get('stakeholder_type', '').strip()
@@ -2082,7 +2119,8 @@ def register():
         return redirect(url_for('login'))
 
     return render_template('register.html', stakeholder_types=get_stakeholder_types(),
-                           custom_fields=custom_fields, form_ts=int(time.time()))
+                           custom_fields=custom_fields, form_ts=int(time.time()),
+                           turnstile_sitekey=TURNSTILE_SITE_KEY)
 
 @app.route('/profile/edit', methods=['GET', 'POST'])
 @login_required

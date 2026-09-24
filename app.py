@@ -6795,9 +6795,14 @@ def glossary():
         pagination = query.paginate(page=page, per_page=24, error_out=False)
         terms = pagination.items
     total = GlossaryTerm.query.filter(GlossaryTerm.is_published == True).count()  # noqa: E712
+    # only offer A–Z letters that actually have terms
+    rows = (db.session.query(db.func.upper(db.func.substr(GlossaryTerm.term, 1, 1)))
+            .filter(GlossaryTerm.is_published == True)  # noqa: E712
+            .distinct().all())
+    available = {r[0] for r in rows if r[0] and r[0].isalpha()}
+    alphabet = [chr(c) for c in range(65, 91) if chr(c) in available]
     return render_template('glossary.html', terms=terms, pagination=pagination,
-                           q=q, letter=letter, total=total,
-                           alphabet=[chr(c) for c in range(65, 91)])
+                           q=q, letter=letter, total=total, alphabet=alphabet)
 
 
 @app.route('/glossary/<slug>')

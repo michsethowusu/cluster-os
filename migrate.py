@@ -152,5 +152,50 @@ with app.app_context():
             )
         '''))
 
+        # Glossary
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS glossary_term (
+                id SERIAL PRIMARY KEY,
+                term VARCHAR(200) NOT NULL,
+                slug VARCHAR(200) UNIQUE NOT NULL,
+                definition TEXT,
+                occurrences INTEGER DEFAULT 0,
+                countries TEXT,
+                is_published BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        '''))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS glossary_alias (
+                id SERIAL PRIMARY KEY,
+                term_id INTEGER NOT NULL REFERENCES glossary_term(id) ON DELETE CASCADE,
+                alias VARCHAR(200) NOT NULL
+            )
+        '''))
+        conn.execute(db.text('CREATE INDEX IF NOT EXISTS ix_glossary_alias_alias ON glossary_alias (lower(alias))'))
+        conn.execute(db.text('CREATE INDEX IF NOT EXISTS ix_glossary_alias_term ON glossary_alias (term_id)'))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS glossary_comment (
+                id SERIAL PRIMARY KEY,
+                term_id INTEGER NOT NULL REFERENCES glossary_term(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+                content TEXT NOT NULL,
+                status VARCHAR(20) DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        '''))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS glossary_revision (
+                id SERIAL PRIMARY KEY,
+                term_id INTEGER NOT NULL REFERENCES glossary_term(id) ON DELETE CASCADE,
+                definition TEXT,
+                source VARCHAR(30) DEFAULT 'admin',
+                note VARCHAR(500),
+                created_by INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        '''))
+
         conn.commit()
     print('DB ready.')

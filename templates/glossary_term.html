@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}{{ term.term }} — {{ label('page_title_glossary') }}{% endblock %}
+
+{% block content %}
+<div class="container mt-5 mb-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb small">
+                    <li class="breadcrumb-item"><a href="{{ url_for('glossary') }}">{{ label('glossary_heading') }}</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">{{ term.term }}</li>
+                </ol>
+            </nav>
+
+            <article class="initiative-card p-4 mb-4">
+                <h1 class="h3 mb-2">{{ term.term }}</h1>
+                {% if not term.is_published %}
+                <span class="badge bg-warning text-dark mb-2">Unpublished (admin preview)</span>
+                {% endif %}
+
+                {% if aliases %}
+                <p class="text-muted mb-3">
+                    <span class="fw-semibold">{{ label('glossary_aliases_label') }}:</span>
+                    {% for a in aliases %}<span class="tag-badge">{{ a }}</span> {% endfor %}
+                </p>
+                {% endif %}
+
+                <div class="content fs-5 lh-base mb-3">
+                    {{ term.definition or 'Definition coming soon.' }}
+                </div>
+
+                <div class="d-flex flex-wrap gap-3 text-muted small border-top pt-3">
+                    <span><i class="bi bi-quote"></i> {{ term.occurrences }} supporting mention{{ '' if term.occurrences == 1 else 's' }}</span>
+                    {% if term.updated_at %}<span><i class="bi bi-clock-history"></i> Updated {{ term.updated_at | format_date }}</span>{% endif %}
+                </div>
+            </article>
+
+            <!-- Countries -->
+            <div class="initiative-card p-4 mb-4">
+                <h5 class="mb-3"><i class="bi bi-geo-alt"></i> {{ label('glossary_countries_label') }}</h5>
+                {% if countries %}
+                <p class="text-muted small mb-2">Countries whose initiatives use this term:</p>
+                <div class="d-flex flex-wrap gap-2">
+                    {% for c in countries %}<span class="badge bg-light text-dark border">{{ c }}</span>{% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">No country data recorded yet.</p>
+                {% endif %}
+            </div>
+
+            <!-- Revision history -->
+            {% if revisions %}
+            <div class="initiative-card p-4 mb-4">
+                <a class="d-flex justify-content-between align-items-center text-reset text-decoration-none"
+                   data-bs-toggle="collapse" href="#revHistory" role="button" aria-expanded="false">
+                    <h5 class="mb-0"><i class="bi bi-clock-history"></i> {{ label('glossary_history_label') }}
+                        <span class="badge bg-secondary ms-1">{{ revisions|length }}</span></h5>
+                    <i class="bi bi-chevron-down"></i>
+                </a>
+                <div class="collapse mt-3" id="revHistory">
+                    {% for r in revisions %}
+                    <div class="border-start ps-3 mb-3 {% if loop.first %}border-primary{% else %}border-secondary-subtle{% endif %}">
+                        <div class="small text-muted mb-1">
+                            {% if loop.first %}<span class="badge bg-primary">Current</span>{% endif %}
+                            {{ r.created_at | format_date }} ·
+                            {% if r.source == 'ai' %}AI-assisted{% elif r.source == 'import' %}Imported{% else %}Editor{% endif %}
+                        </div>
+                        <div>{{ r.definition }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Suggestions (eligible contributors + admins only) -->
+            <div id="suggest" class="initiative-card p-4">
+                <h5 class="mb-3"><i class="bi bi-pencil-square"></i> {{ label('glossary_suggest_heading') }}</h5>
+                {% if can_suggest %}
+                    <p class="text-muted small">{{ label('glossary_suggest_help') }}</p>
+                    <form method="POST" action="{{ url_for('glossary_suggest', slug=term.slug) }}" class="mb-4">
+                        <textarea name="content" class="form-control mb-2" rows="3" maxlength="2000" required
+                                  placeholder="{{ label('glossary_suggest_placeholder') }}"></textarea>
+                        <button type="submit" class="btn btn-primary btn-sm">{{ label('glossary_suggest_button') }}</button>
+                    </form>
+
+                    {% if comments %}
+                    <h6 class="text-muted small text-uppercase">Suggestions</h6>
+                    {% for c in comments %}
+                    <div class="d-flex gap-3 mb-3">
+                        <div class="flex-shrink-0">
+                            <div style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#007451,#004a34);
+                                        display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;">
+                                {{ c.author.name[0]|upper }}
+                            </div>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="small">
+                                <span class="fw-semibold">{{ c.author.name }}</span>
+                                <span class="text-muted">· {{ c.created_at | format_date }}</span>
+                                {% if c.status == 'applied' %}<span class="badge bg-success ms-1">applied</span>
+                                {% elif c.status == 'pending' %}<span class="badge bg-secondary ms-1">pending</span>{% endif %}
+                            </div>
+                            <div>{{ c.content }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                {% elif current_user.is_authenticated %}
+                    <p class="text-muted mb-0"><i class="bi bi-lock"></i>
+                        Only contributors whose initiative was rated highly can suggest revisions to glossary definitions.</p>
+                {% else %}
+                    <p class="text-muted mb-0"><i class="bi bi-lock"></i>
+                        <a href="{{ url_for('login', next=url_for('glossary_term', slug=term.slug)) }}">Log in</a>
+                        to suggest a revision (open to highly-rated contributors).</p>
+                {% endif %}
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

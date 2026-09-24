@@ -500,6 +500,69 @@ document_tags = db.Table('document_tags',
 )
 
 
+class GlossaryTerm(db.Model):
+    """A canonical ECED-FLN glossary term with a grounded definition.
+
+    Aliases (spelling variants, abbreviations, synonyms) are stored in
+    GlossaryAlias and power alias-aware search + auto-linking in initiatives.
+    Every definition change is kept in GlossaryRevision (full history).
+    """
+    id            = db.Column(db.Integer, primary_key=True)
+    term          = db.Column(db.String(200), nullable=False)          # canonical label
+    slug          = db.Column(db.String(200), unique=True, nullable=False)
+    definition    = db.Column(db.Text, nullable=True)                  # current definition
+    occurrences   = db.Column(db.Integer, default=0)                  # supporting sentence count
+    countries     = db.Column(db.Text, nullable=True)                 # JSON list of countries
+    is_published  = db.Column(db.Boolean, default=True)
+    created_at    = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at    = db.Column(db.DateTime, default=datetime.utcnow)
+
+    aliases   = db.relationship('GlossaryAlias', backref='term', lazy='dynamic',
+                                cascade='all, delete-orphan')
+    comments  = db.relationship('GlossaryComment', backref='term', lazy='dynamic',
+                                cascade='all, delete-orphan')
+    revisions = db.relationship('GlossaryRevision', backref='term', lazy='dynamic',
+                                cascade='all, delete-orphan')
+
+    def country_list(self):
+        try:
+            return json.loads(self.countries or '[]')
+        except Exception:
+            return []
+
+
+class GlossaryAlias(db.Model):
+    """An alternate surface form (variant/abbreviation/synonym) of a term."""
+    id      = db.Column(db.Integer, primary_key=True)
+    term_id = db.Column(db.Integer, db.ForeignKey('glossary_term.id'), nullable=False)
+    alias   = db.Column(db.String(200), nullable=False)
+
+
+class GlossaryComment(db.Model):
+    """A revision suggestion submitted by an eligible contributor."""
+    id         = db.Column(db.Integer, primary_key=True)
+    term_id    = db.Column(db.Integer, db.ForeignKey('glossary_term.id'), nullable=False)
+    user_id    = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    content    = db.Column(db.Text, nullable=False)
+    status     = db.Column(db.String(20), default='pending')   # pending / applied / dismissed
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    author = db.relationship('User', foreign_keys=[user_id])
+
+
+class GlossaryRevision(db.Model):
+    """A saved version of a term's definition (history is never deleted)."""
+    id          = db.Column(db.Integer, primary_key=True)
+    term_id     = db.Column(db.Integer, db.ForeignKey('glossary_term.id'), nullable=False)
+    definition  = db.Column(db.Text, nullable=True)
+    source      = db.Column(db.String(30), default='admin')   # import / ai / admin
+    note        = db.Column(db.String(500), nullable=True)
+    created_by  = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+
+    editor = db.relationship('User', foreign_keys=[created_by])
+
+
 # ===================== HELPER FUNCTIONS =====================
 
 def get_setting(key, default=None):
@@ -582,6 +645,19 @@ LABEL_DEFAULTS = {
     'section_recent_initiatives': 'Recent Initiatives',
     'section_view_all': 'View All',
     'read_more': 'Read More',
+    # Glossary
+    'page_title_glossary': 'Glossary',
+    'glossary_heading': 'ECED-FLN Glossary',
+    'glossary_intro': 'Browse and search key Early Childhood Education & Development and Foundational Learning terms, drawn from initiatives across Africa.',
+    'glossary_search_placeholder': 'Search a term or abbreviation…',
+    'glossary_aliases_label': 'Also known as',
+    'glossary_countries_label': 'Seen in',
+    'glossary_history_label': 'Revision history',
+    'glossary_suggest_heading': 'Suggest a revision',
+    'glossary_suggest_help': 'Contributors with a highly-rated initiative can suggest improvements to this definition.',
+    'glossary_suggest_placeholder': 'Suggest a correction or improvement to this definition…',
+    'glossary_suggest_button': 'Submit suggestion',
+    'glossary_suggest_thanks': 'Thank you — your suggestion has been sent to the editors.',
     'cta_title': 'Join the Cluster',
     'cta_text': 'Share your ECED/FLN initiatives and connect with stakeholders across Africa.',
     'cta_button': 'Request Access',
@@ -882,6 +958,7 @@ NAV_ITEMS = [
     {'key': 'home',        'endpoint': 'index',     'label': 'Home'},
     {'key': 'initiatives', 'endpoint': 'search',    'label': 'Initiatives'},
     {'key': 'documents',   'endpoint': 'documents', 'label': 'Policy Documents'},
+    {'key': 'glossary',    'endpoint': 'glossary',  'label': 'Glossary'},
     {'key': 'events',      'endpoint': 'events',    'label': 'Events'},
     {'key': 'members',     'endpoint': 'members',   'label': 'Stakeholders'},
     {'key': 'stats',       'endpoint': 'stats',     'label': 'Participation'},
@@ -891,6 +968,117 @@ NAV_ITEMS = [
 
 def is_certificates_enabled():
     return get_setting('certificates_enabled', 'false').lower() == 'true'
+
+
+# ── Glossary enablement (only sites that have imported terms show it) ─────────
+_GLOSSARY_CACHE = {'enabled': None, 'ts': 0.0}
+
+
+def glossary_enabled():
+    """True if this site has any glossary terms. Cached for 60s to avoid a
+    COUNT on every request; the nav link/feature auto-hides where unseeded."""
+    now = time.time()
+    if _GLOSSARY_CACHE['enabled'] is None or now - _GLOSSARY_CACHE['ts'] > 60:
+        try:
+            _GLOSSARY_CACHE['enabled'] = db.session.query(GlossaryTerm.id).first() is not None
+        except Exception:
+            _GLOSSARY_CACHE['enabled'] = False
+        _GLOSSARY_CACHE['ts'] = now
+    return _GLOSSARY_CACHE['enabled']
+
+
+def invalidate_glossary_cache():
+    _GLOSSARY_CACHE['enabled'] = None
+    _GLOSSARY_CACHE['ts'] = 0.0
+    _GLOSSARY_LINK_CACHE['ts'] = 0.0
+
+
+def user_can_suggest_glossary(user):
+    """Only contributors whose initiative scored 4-5 (and admins) may suggest
+    glossary revisions."""
+    try:
+        if not user or not getattr(user, 'is_authenticated', False):
+            return False
+        if getattr(user, 'is_admin', False):
+            return True
+        return db.session.query(Initiative.id).filter(
+            Initiative.user_id == user.id,
+            Initiative.quality_score != None,   # noqa: E711
+            Initiative.quality_score >= 4,
+        ).first() is not None
+    except Exception:
+        return False
+
+
+# ── Alias auto-linking inside initiative content ─────────────────────────────
+# Longest-alias-first, whole-word, case-insensitive; first occurrence per term
+# per page; skips text inside existing tags/links. Regex + map cached for 5 min.
+_GLOSSARY_LINK_CACHE = {'ts': 0.0, 'regex': None, 'map': {}}
+
+
+def _build_glossary_linkmap():
+    pairs = []  # (alias_lower, slug)
+    try:
+        rows = db.session.query(GlossaryAlias.alias, GlossaryTerm.slug).join(
+            GlossaryTerm, GlossaryAlias.term_id == GlossaryTerm.id).filter(
+            GlossaryTerm.is_published == True).all()  # noqa: E712
+    except Exception:
+        rows = []
+    amap = {}
+    for alias, slug in rows:
+        a = (alias or '').strip()
+        if len(a) < 3:
+            continue
+        key = a.lower()
+        # keep the first slug seen for a given alias spelling
+        amap.setdefault(key, slug)
+    # longest alias first so multi-word terms win over their sub-words
+    aliases_sorted = sorted(amap.keys(), key=len, reverse=True)
+    if not aliases_sorted:
+        _GLOSSARY_LINK_CACHE.update(ts=time.time(), regex=None, map={})
+        return
+    pattern = r'(?<![\w-])(' + '|'.join(re.escape(a) for a in aliases_sorted) + r')(?![\w-])'
+    _GLOSSARY_LINK_CACHE.update(ts=time.time(), regex=re.compile(pattern, re.IGNORECASE), map=amap)
+
+
+def linkify_glossary_html(html):
+    """Inject glossary links into already-rendered, sanitised HTML."""
+    now = time.time()
+    if _GLOSSARY_LINK_CACHE['regex'] is None or now - _GLOSSARY_LINK_CACHE['ts'] > 300:
+        _build_glossary_linkmap()
+    rx = _GLOSSARY_LINK_CACHE['regex']
+    amap = _GLOSSARY_LINK_CACHE['map']
+    if not rx:
+        return html
+    linked = set()          # terms (slugs) already linked once
+    in_anchor = False
+    out = []
+    # tokenise into tags vs text so we never rewrite inside a tag or an <a>
+    for token in re.split(r'(<[^>]+>)', html):
+        if not token:
+            continue
+        if token.startswith('<'):
+            low = token.lower()
+            if low.startswith('<a'):
+                in_anchor = True
+            elif low.startswith('</a'):
+                in_anchor = False
+            out.append(token)
+            continue
+        if in_anchor:
+            out.append(token)
+            continue
+
+        def _sub(m):
+            word = m.group(1)
+            slug = amap.get(word.lower())
+            if not slug or slug in linked:
+                return word
+            linked.add(slug)
+            return (f'<a href="/glossary/{slug}" target="_blank" rel="noopener" '
+                    f'class="glossary-link" title="Glossary: open in new tab">{word}</a>')
+        out.append(rx.sub(_sub, token))
+    return ''.join(out)
 
 
 # ── AI quality-scoring health ────────────────────────────────────────────────
@@ -967,6 +1155,8 @@ def build_nav():
         ov = overrides.get(item['key'], {})
         if ov.get('hidden'):
             continue
+        if item['key'] == 'glossary' and not glossary_enabled():
+            continue
         label = (ov.get('label') or '').strip() or item['label']
         try:
             href = item['url'] if item.get('external') else url_for(item['endpoint'])
@@ -986,6 +1176,12 @@ def label(key, default=''):
     if not default and key in LABEL_DEFAULTS:
         default = LABEL_DEFAULTS[key]
     return get_label(key, default)
+
+
+@app.template_global()
+def can_suggest_glossary():
+    """Template helper: may the current user submit glossary revisions?"""
+    return user_can_suggest_glossary(current_user)
 
 
 @app.context_processor
@@ -6474,6 +6670,7 @@ def backfill_status():
         'rescore': get_setting('rescore_status') or 'not run',
         'teacher_docs_import': get_setting('teacher_docs_import_status') or 'not run',
         'terminology': get_setting('terminology_status') or 'not run',
+        'glossary_import': get_setting('glossary_import_status') or 'not run',
         'ai_scoring_healthy': get_setting('ai_scoring_healthy', 'true'),
     }
     # Derived terminology deliverables (unique terms / grounded sentence rows) are
@@ -6533,6 +6730,238 @@ def api_organisations():
     )
     return jsonify([r[0] for r in results if r[0]])
 
+# ===================== GLOSSARY =====================
+
+def _glossary_search(q, limit=None):
+    """Return published terms matching q by canonical term or any alias.
+    Each result: (GlossaryTerm, matched_alias_or_None)."""
+    q = (q or '').strip()
+    if not q:
+        return []
+    like = f'%{q}%'
+    term_ids = [r[0] for r in db.session.query(GlossaryAlias.term_id)
+                .filter(GlossaryAlias.alias.ilike(like)).all()]
+    query = GlossaryTerm.query.filter(GlossaryTerm.is_published == True)  # noqa: E712
+    query = query.filter(db.or_(GlossaryTerm.term.ilike(like),
+                                GlossaryTerm.id.in_(term_ids) if term_ids else False))
+    query = query.order_by(GlossaryTerm.occurrences.desc(), GlossaryTerm.term.asc())
+    if limit:
+        query = query.limit(limit)
+    results = []
+    ql = q.lower()
+    for t in query.all():
+        matched = None
+        if ql not in t.term.lower():
+            a = t.aliases.filter(GlossaryAlias.alias.ilike(like)).first()
+            matched = a.alias if a else None
+        results.append((t, matched))
+    return results
+
+
+@app.route('/glossary')
+def glossary():
+    if not glossary_enabled():
+        abort(404)
+    q = (request.args.get('q') or '').strip()
+    letter = (request.args.get('letter') or '').strip().upper()
+    page = request.args.get('page', 1, type=int)
+    if q:
+        matches = _glossary_search(q)
+        terms = [t for t, _ in matches]
+        pagination = None
+    else:
+        query = GlossaryTerm.query.filter(GlossaryTerm.is_published == True)  # noqa: E712
+        if letter and len(letter) == 1 and letter.isalpha():
+            query = query.filter(GlossaryTerm.term.ilike(f'{letter}%'))
+        query = query.order_by(GlossaryTerm.term.asc())
+        pagination = query.paginate(page=page, per_page=24, error_out=False)
+        terms = pagination.items
+    total = GlossaryTerm.query.filter(GlossaryTerm.is_published == True).count()  # noqa: E712
+    return render_template('glossary.html', terms=terms, pagination=pagination,
+                           q=q, letter=letter, total=total,
+                           alphabet=[chr(c) for c in range(65, 91)])
+
+
+@app.route('/glossary/<slug>')
+def glossary_term(slug):
+    if not glossary_enabled():
+        abort(404)
+    term = GlossaryTerm.query.filter_by(slug=slug).first_or_404()
+    if not term.is_published and not current_user.is_admin:
+        abort(404)
+    revisions = term.revisions.order_by(GlossaryRevision.created_at.desc()).all()
+    can_suggest = user_can_suggest_glossary(current_user)
+    comments = []
+    if can_suggest:
+        comments = term.comments.filter(GlossaryComment.status != 'dismissed') \
+            .order_by(GlossaryComment.created_at.desc()).all()
+    aliases = [a.alias for a in term.aliases.order_by(GlossaryAlias.alias.asc()).all()
+               if a.alias.lower() != term.term.lower()]
+    return render_template('glossary_term.html', term=term, revisions=revisions,
+                           comments=comments, can_suggest=can_suggest, aliases=aliases,
+                           countries=term.country_list())
+
+
+@app.route('/api/glossary')
+def api_glossary():
+    if not glossary_enabled():
+        return jsonify([])
+    q = (request.args.get('q') or '').strip()
+    if len(q) < 2:
+        return jsonify([])
+    out = []
+    for t, matched in _glossary_search(q, limit=10):
+        out.append({'term': t.term, 'slug': t.slug,
+                    'url': url_for('glossary_term', slug=t.slug),
+                    'alias': matched})
+    return jsonify(out)
+
+
+@app.route('/glossary/<slug>/suggest', methods=['POST'])
+@login_required
+def glossary_suggest(slug):
+    term = GlossaryTerm.query.filter_by(slug=slug).first_or_404()
+    if not user_can_suggest_glossary(current_user):
+        abort(403)
+    content = (request.form.get('content') or '').strip()
+    if not content or len(content) > 2000:
+        flash('Please enter a suggestion (up to 2000 characters).', 'error')
+        return redirect(url_for('glossary_term', slug=slug) + '#suggest')
+    if not rate_ok(f'glossary_suggest:{current_user.id}', 10, 3600):
+        flash('You have submitted several suggestions recently — please try again later.', 'error')
+        return redirect(url_for('glossary_term', slug=slug) + '#suggest')
+    db.session.add(GlossaryComment(term_id=term.id, user_id=current_user.id,
+                                   content=bleach.clean(content), status='pending'))
+    db.session.commit()
+    flash(label('glossary_suggest_thanks'), 'success')
+    return redirect(url_for('glossary_term', slug=slug) + '#suggest')
+
+
+# ---- glossary admin ----
+
+def _save_glossary_revision(term, new_definition, source, note, user_id):
+    """Set the current definition and append a history revision (old kept)."""
+    term.definition = new_definition
+    term.updated_at = datetime.utcnow()
+    db.session.add(GlossaryRevision(term_id=term.id, definition=new_definition,
+                                    source=source, note=(note or '')[:500], created_by=user_id))
+    invalidate_glossary_cache()
+
+
+@app.route('/admin/glossary')
+@login_required
+def admin_glossary():
+    if not current_user.is_admin:
+        abort(403)
+    q = (request.args.get('q') or '').strip()
+    page = request.args.get('page', 1, type=int)
+    query = GlossaryTerm.query
+    if q:
+        query = query.filter(GlossaryTerm.term.ilike(f'%{q}%'))
+    query = query.order_by(GlossaryTerm.term.asc())
+    pagination = query.paginate(page=page, per_page=30, error_out=False)
+    pending = dict(db.session.query(GlossaryComment.term_id, db.func.count(GlossaryComment.id))
+                   .filter(GlossaryComment.status == 'pending')
+                   .group_by(GlossaryComment.term_id).all())
+    total_pending = sum(pending.values())
+    return render_template('admin/glossary.html', pagination=pagination, terms=pagination.items,
+                           pending=pending, q=q, total_pending=total_pending,
+                           total_terms=GlossaryTerm.query.count())
+
+
+@app.route('/admin/glossary/<int:id>', methods=['GET'])
+@login_required
+def admin_glossary_term(id):
+    if not current_user.is_admin:
+        abort(403)
+    term = GlossaryTerm.query.get_or_404(id)
+    comments = term.comments.order_by(GlossaryComment.created_at.desc()).all()
+    revisions = term.revisions.order_by(GlossaryRevision.created_at.desc()).all()
+    proposed = session.pop('glossary_proposed_' + str(id), None)
+    return render_template('admin/glossary_term.html', term=term, comments=comments,
+                           revisions=revisions, proposed=proposed)
+
+
+@app.route('/admin/glossary/<int:id>/edit', methods=['POST'])
+@login_required
+def admin_glossary_edit(id):
+    if not current_user.is_admin:
+        abort(403)
+    term = GlossaryTerm.query.get_or_404(id)
+    new_def = (request.form.get('definition') or '').strip()
+    if new_def and new_def != (term.definition or ''):
+        _save_glossary_revision(term, bleach.clean(new_def), 'admin', 'Manual edit', current_user.id)
+        db.session.commit()
+        flash('Definition updated.', 'success')
+    return redirect(url_for('admin_glossary_term', id=id))
+
+
+@app.route('/admin/glossary/<int:id>/ai-revise', methods=['POST'])
+@login_required
+def admin_glossary_ai_revise(id):
+    if not current_user.is_admin:
+        abort(403)
+    term = GlossaryTerm.query.get_or_404(id)
+    ids = request.form.getlist('comment_ids')
+    notes = [c.content for c in term.comments.filter(
+        GlossaryComment.id.in_([int(i) for i in ids if i.isdigit()])).all()] if ids else \
+        [c.content for c in term.comments.filter_by(status='pending').all()]
+    try:
+        from utils.ai_services import revise_definition
+        proposed = revise_definition(term.term, term.definition, notes)
+        session['glossary_proposed_' + str(id)] = proposed
+        flash('AI proposed a revised definition below — review and apply it.', 'success')
+    except Exception as e:
+        flash(f'AI revision failed: {e}', 'error')
+    return redirect(url_for('admin_glossary_term', id=id))
+
+
+@app.route('/admin/glossary/<int:id>/apply', methods=['POST'])
+@login_required
+def admin_glossary_apply(id):
+    if not current_user.is_admin:
+        abort(403)
+    term = GlossaryTerm.query.get_or_404(id)
+    new_def = (request.form.get('definition') or '').strip()
+    source = request.form.get('source', 'ai')
+    if new_def:
+        _save_glossary_revision(term, bleach.clean(new_def),
+                                'ai' if source == 'ai' else 'admin',
+                                'Applied from suggestions', current_user.id)
+        # mark pending suggestions as applied
+        for c in term.comments.filter_by(status='pending').all():
+            c.status = 'applied'
+        db.session.commit()
+        flash('New definition published; previous version kept in history.', 'success')
+    return redirect(url_for('admin_glossary_term', id=id))
+
+
+@app.route('/admin/glossary/<int:id>/comment/<int:cid>/<action>', methods=['POST'])
+@login_required
+def admin_glossary_comment_action(id, cid, action):
+    if not current_user.is_admin:
+        abort(403)
+    c = GlossaryComment.query.filter_by(id=cid, term_id=id).first_or_404()
+    if action in ('dismiss', 'applied', 'pending'):
+        c.status = 'dismissed' if action == 'dismiss' else action
+        db.session.commit()
+        flash('Suggestion updated.', 'success')
+    return redirect(url_for('admin_glossary_term', id=id))
+
+
+@app.route('/admin/glossary/<int:id>/toggle', methods=['POST'])
+@login_required
+def admin_glossary_toggle(id):
+    if not current_user.is_admin:
+        abort(403)
+    term = GlossaryTerm.query.get_or_404(id)
+    term.is_published = not term.is_published
+    db.session.commit()
+    invalidate_glossary_cache()
+    flash(f"Term {'published' if term.is_published else 'unpublished'}.", 'success')
+    return redirect(url_for('admin_glossary_term', id=id))
+
+
 # ===================== TEMPLATE FILTER =====================
 
 @app.template_filter('format_date')
@@ -6569,6 +6998,20 @@ def markdown_filter(text):
     
     # CRITICAL FIX: Wrap in Markup() so Jinja2 doesn't escape it
     return Markup(cleaned_html)
+
+
+@app.template_filter('glossary_links')
+def glossary_links_filter(html):
+    """Auto-link glossary aliases inside already-rendered initiative HTML.
+    No-op where no glossary is loaded (e.g. africateachers)."""
+    if not html:
+        return html
+    try:
+        if not glossary_enabled():
+            return html
+        return Markup(linkify_glossary_html(str(html)))
+    except Exception:
+        return html
 
 # ===================== INIT DB COMMAND =====================
 

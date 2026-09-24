@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}{{ label("page_title_glossary") }}{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                <div>
+                    <h3>{{ label('glossary_heading') }}</h3>
+                    <p class="text-muted mb-0">{{ label('glossary_intro') }}</p>
+                </div>
+                <span class="badge bg-secondary">{{ total }} terms</span>
+            </div>
+
+            <!-- Search with alias-aware suggestions -->
+            <form method="GET" action="{{ url_for('glossary') }}" class="mb-3" autocomplete="off">
+                <div class="input-group position-relative">
+                    <input type="text" class="form-control" name="q" id="glossaryInput"
+                           placeholder="{{ label('glossary_search_placeholder') }}"
+                           value="{{ q or '' }}" autocomplete="off">
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i></button>
+                    <ul id="glossarySuggestions" class="list-group position-absolute w-100 shadow-sm"
+                        style="display:none; max-height:280px; overflow-y:auto; top:100%; z-index:1050;"></ul>
+                </div>
+                <div class="form-text">Type a term or an abbreviation — e.g. “ECD”, “play based” — and pick the matching entry.</div>
+            </form>
+
+            <!-- A–Z index -->
+            {% if not q %}
+            <div class="mb-4 d-flex flex-wrap gap-1">
+                <a href="{{ url_for('glossary') }}" class="btn btn-sm {% if not letter %}btn-primary{% else %}btn-outline-secondary{% endif %}">All</a>
+                {% for L in alphabet %}
+                <a href="{{ url_for('glossary', letter=L) }}"
+                   class="btn btn-sm {% if letter == L %}btn-primary{% else %}btn-outline-secondary{% endif %}">{{ L }}</a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted">Showing results for “<strong>{{ q }}</strong>”.
+                <a href="{{ url_for('glossary') }}">Clear</a></p>
+            {% endif %}
+
+            {% if terms %}
+            <div class="row">
+                {% for t in terms %}
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <a href="{{ url_for('glossary_term', slug=t.slug) }}" class="text-decoration-none text-reset">
+                        <div class="initiative-card h-100 d-flex flex-column">
+                            <div class="card-body d-flex flex-column p-3">
+                                <h5 class="card-title mb-2">{{ t.term }}</h5>
+                                <p class="card-text text-muted small flex-grow-1 mb-2" style="
+                                    overflow:hidden; display:-webkit-box; -webkit-line-clamp:3;
+                                    -webkit-box-orient:vertical; word-break:break-word;">
+                                    {{ t.definition or 'Definition coming soon.' }}
+                                </p>
+                                <div class="mt-auto d-flex justify-content-between align-items-center text-muted small">
+                                    <span><i class="bi bi-geo-alt"></i> {{ t.country_list()|length }} countries</span>
+                                    <span class="text-primary">Open <i class="bi bi-arrow-right-short"></i></span>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if pagination and (pagination.has_prev or pagination.has_next) %}
+            <nav aria-label="Page navigation" class="mt-2">
+                <ul class="pagination justify-content-center">
+                    {% if pagination.has_prev %}
+                    <li class="page-item"><a class="page-link" href="{{ url_for('glossary', page=pagination.prev_num, letter=letter) }}">Previous</a></li>
+                    {% endif %}
+                    {% for page_num in pagination.iter_pages() %}
+                        {% if page_num %}
+                            {% if page_num != pagination.page %}
+                            <li class="page-item"><a class="page-link" href="{{ url_for('glossary', page=page_num, letter=letter) }}">{{ page_num }}</a></li>
+                            {% else %}
+                            <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
+                            {% endif %}
+                        {% else %}
+                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                        {% endif %}
+                    {% endfor %}
+                    {% if pagination.has_next %}
+                    <li class="page-item"><a class="page-link" href="{{ url_for('glossary', page=pagination.next_num, letter=letter) }}">Next</a></li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+
+            {% else %}
+            <div class="alert alert-info text-center py-5">
+                <i class="bi bi-journal-text display-4 text-muted mb-3 d-block"></i>
+                <h5>No terms found</h5>
+                <p>{% if q or letter %}Nothing matches your search.{% else %}The glossary is empty.{% endif %}</p>
+                {% if q or letter %}<a href="{{ url_for('glossary') }}" class="btn btn-primary">Back to all terms</a>{% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const input = document.getElementById('glossaryInput');
+    const box = document.getElementById('glossarySuggestions');
+    if (!input || !box) return;
+    let timer = null, items = [], active = -1;
+
+    function hide() { box.style.display = 'none'; active = -1; }
+    function render() {
+        if (!items.length) { hide(); return; }
+        box.innerHTML = '';
+        items.forEach((it, i) => {
+            const li = document.createElement('li');
+            li.className = 'list-group-item list-group-item-action' + (i === active ? ' active' : '');
+            li.style.cursor = 'pointer';
+            li.innerHTML = it.alias
+                ? '<strong>' + it.term + '</strong> <span class="text-muted small">← ' + it.alias + '</span>'
+                : '<strong>' + it.term + '</strong>';
+            li.addEventListener('mousedown', function (e) { e.preventDefault(); window.location = it.url; });
+            box.appendChild(li);
+        });
+        box.style.display = 'block';
+    }
+    input.addEventListener('input', function () {
+        const q = input.value.trim();
+        clearTimeout(timer);
+        if (q.length < 2) { hide(); return; }
+        timer = setTimeout(function () {
+            fetch('{{ url_for("api_glossary") }}?q=' + encodeURIComponent(q))
+                .then(r => r.json()).then(d => { items = d || []; active = -1; render(); })
+                .catch(() => hide());
+        }, 200);
+    });
+    input.addEventListener('keydown', function (e) {
+        if (box.style.display === 'none') return;
+        if (e.key === 'ArrowDown') { e.preventDefault(); active = Math.min(active + 1, items.length - 1); render(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); active = Math.max(active - 1, 0); render(); }
+        else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); window.location = items[active].url; }
+        else if (e.key === 'Escape') { hide(); }
+    });
+    input.addEventListener('blur', function () { setTimeout(hide, 150); });
+})();
+</script>
+{% endblock %}

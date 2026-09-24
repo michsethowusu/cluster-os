@@ -1,0 +1,80 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}Glossary{% endblock %}
+
+{% block admin_actions %}
+<a href="{{ url_for('glossary') }}" class="btn btn-outline-primary" target="_blank">
+    <i class="bi bi-eye"></i> View Public Page
+</a>
+{% endblock %}
+
+{% block admin_content %}
+
+<div class="row mb-3">
+    <div class="col-md-4">
+        <div class="card"><div class="card-body py-3">
+            <div class="text-muted small">Total terms</div>
+            <div class="h4 mb-0">{{ total_terms }}</div>
+        </div></div>
+    </div>
+    <div class="col-md-4">
+        <div class="card"><div class="card-body py-3">
+            <div class="text-muted small">Pending suggestions</div>
+            <div class="h4 mb-0">{{ total_pending }}</div>
+        </div></div>
+    </div>
+</div>
+
+<form method="GET" action="{{ url_for('admin_glossary') }}" class="mb-3">
+    <div class="input-group" style="max-width:420px;">
+        <input type="text" class="form-control" name="q" value="{{ q }}" placeholder="Search terms…">
+        <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-search"></i></button>
+    </div>
+</form>
+
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>Term</th>
+                <th>Aliases</th>
+                <th>Uses</th>
+                <th>Status</th>
+                <th>Suggestions</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in terms %}
+            <tr>
+                <td><strong>{{ t.term }}</strong></td>
+                <td class="text-muted small">{{ t.aliases.count() }}</td>
+                <td>{{ t.occurrences }}</td>
+                <td>
+                    {% if t.is_published %}<span class="badge bg-success">Published</span>
+                    {% else %}<span class="badge bg-secondary">Hidden</span>{% endif %}
+                </td>
+                <td>
+                    {% if pending.get(t.id) %}<span class="badge bg-warning text-dark">{{ pending.get(t.id) }} pending</span>
+                    {% else %}<span class="text-muted small">—</span>{% endif %}
+                </td>
+                <td class="text-end">
+                    <a href="{{ url_for('admin_glossary_term', id=t.id) }}" class="btn btn-sm btn-outline-primary">Manage</a>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="text-center text-muted py-4">No terms. Import the glossary to populate it.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if pagination and (pagination.has_prev or pagination.has_next) %}
+<nav class="mt-3"><ul class="pagination justify-content-center">
+    {% if pagination.has_prev %}<li class="page-item"><a class="page-link" href="{{ url_for('admin_glossary', page=pagination.prev_num, q=q) }}">Previous</a></li>{% endif %}
+    <li class="page-item disabled"><span class="page-link">Page {{ pagination.page }} / {{ pagination.pages }}</span></li>
+    {% if pagination.has_next %}<li class="page-item"><a class="page-link" href="{{ url_for('admin_glossary', page=pagination.next_num, q=q) }}">Next</a></li>{% endif %}
+</ul></nav>
+{% endif %}
+
+{% endblock %}

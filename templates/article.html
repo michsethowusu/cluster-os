@@ -39,7 +39,7 @@
                 {% endif %}
                 
                 <div class="content">
-                    {{ initiative.content | markdown }}
+                    {{ initiative.content | markdown | glossary_links }}
                 </div>
                 
                 <div class="mt-4">

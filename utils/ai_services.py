@@ -67,6 +67,34 @@ def call_nvidia_api(prompt, max_tokens=300, temperature=0.7):
     return data['choices'][0]['message']['content'].strip()
 
 
+def revise_definition(term, current_definition, comments):
+    """Propose a revised glossary definition for `term`, taking the current
+    definition and a list of reviewer suggestion strings into account.
+
+    Returns a single clean definition sentence, or raises on API failure.
+    Reviewers are ECED-FLN contributors suggesting corrections/improvements.
+    """
+    notes = "\n".join(f"- {c.strip()}" for c in comments if c and c.strip()) or "(no specific notes)"
+    prompt = f"""You are editing a glossary for the Early Childhood Education and Development (ECED) \
+and Foundational Learning and Numeracy (FLN) sector in Africa.
+
+Term: {term}
+
+Current definition:
+{current_definition or '(none yet)'}
+
+Reviewer suggestions (from sector contributors):
+{notes}
+
+Write ONE improved definition of the term (about 15-45 words). Incorporate the valid points in the \
+reviewer suggestions, keep it accurate and general (do not reference "the reviewers", a specific \
+initiative, organisation, or country), and do not start with the term's own name. Return ONLY the \
+definition text — no quotes, no label, no explanation."""
+    out = call_nvidia_api(prompt, max_tokens=160, temperature=0.2)
+    out = " ".join(out.strip().strip('"').strip().split())
+    return out[:1000]
+
+
 def score_initiative_quality(title, content, short_description=""):
     """
     Score an initiative on two dimensions, each 1–5, then return the average

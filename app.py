@@ -563,6 +563,24 @@ class GlossaryRevision(db.Model):
     editor = db.relationship('User', foreign_keys=[created_by])
 
 
+class GlossaryTermInitiative(db.Model):
+    """Links a glossary term to an initiative that mentions it (any alias)."""
+    id            = db.Column(db.Integer, primary_key=True)
+    term_id       = db.Column(db.Integer, db.ForeignKey('glossary_term.id'), nullable=False)
+    initiative_id = db.Column(db.Integer, db.ForeignKey('initiative.id'), nullable=False)
+    __table_args__ = (db.UniqueConstraint('term_id', 'initiative_id', name='uq_glossary_term_initiative'),)
+
+
+class GlossaryBackup(db.Model):
+    """A full JSON snapshot of the glossary, taken before a regeneration so it
+    can be restored later."""
+    id         = db.Column(db.Integer, primary_key=True)
+    label      = db.Column(db.String(200), nullable=True)
+    term_count = db.Column(db.Integer, default=0)
+    data       = db.Column(db.Text, nullable=False)   # JSON snapshot
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 # ===================== HELPER FUNCTIONS =====================
 
 def get_setting(key, default=None):
@@ -6797,9 +6815,15 @@ def glossary_term(slug):
             .order_by(GlossaryComment.created_at.desc()).all()
     aliases = [a.alias for a in term.aliases.order_by(GlossaryAlias.alias.asc()).all()
                if a.alias.lower() != term.term.lower()]
+    initiatives = (Initiative.query
+                   .join(GlossaryTermInitiative, GlossaryTermInitiative.initiative_id == Initiative.id)
+                   .filter(GlossaryTermInitiative.term_id == term.id,
+                           Initiative.is_published == True)  # noqa: E712
+                   .order_by(Initiative.view_count.desc(), Initiative.created_at.desc())
+                   .all())
     return render_template('glossary_term.html', term=term, revisions=revisions,
                            comments=comments, can_suggest=can_suggest, aliases=aliases,
-                           countries=term.country_list())
+                           countries=term.country_list(), initiatives=initiatives)
 
 
 @app.route('/api/glossary')
@@ -6864,9 +6888,100 @@ def admin_glossary():
                    .filter(GlossaryComment.status == 'pending')
                    .group_by(GlossaryComment.term_id).all())
     total_pending = sum(pending.values())
+    backups = GlossaryBackup.query.order_by(GlossaryBackup.created_at.desc()).limit(20).all()
     return render_template('admin/glossary.html', pagination=pagination, terms=pagination.items,
                            pending=pending, q=q, total_pending=total_pending,
-                           total_terms=GlossaryTerm.query.count())
+                           total_terms=GlossaryTerm.query.count(),
+                           backups=backups, gen_status=get_gen_status())
+
+
+def get_gen_status():
+    try:
+        return json.loads(get_setting('glossary_gen_status', '') or '{}')
+    except Exception:
+        return {}
+
+
+def _gen_running():
+    st = get_gen_status()
+    if st.get('state') != 'running':
+        return False
+    # treat as stale (crashed) if no progress update for 20 minutes
+    try:
+        upd = datetime.strptime(st.get('updated_at', ''), '%Y-%m-%d %H:%M:%S UTC')
+        return (datetime.utcnow() - upd).total_seconds() < 1200
+    except Exception:
+        return True
+
+
+def _spawn_glossary_job(env_extra):
+    import subprocess
+    import sys as _sys
+    base = os.path.dirname(os.path.abspath(__file__))
+    env = dict(os.environ)
+    env.update(env_extra)
+    log = open(os.path.join(base, 'glossary_job.log'), 'a')
+    subprocess.Popen([_sys.executable, '-u', 'generate_glossary.py'], cwd=base, env=env,
+                     stdout=log, stderr=log, start_new_session=True)
+
+
+@app.route('/admin/glossary/regenerate', methods=['POST'])
+@login_required
+def admin_glossary_regenerate():
+    if not current_user.is_admin:
+        abort(403)
+    if _gen_running():
+        flash('A glossary generation is already running.', 'error')
+        return redirect(url_for('admin_glossary'))
+    set_setting('glossary_gen_status', json.dumps({
+        'state': 'running', 'phase': 'queued', 'message': 'Queued…',
+        'started_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+        'updated_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+        'processed': 0, 'total': 0,
+    }))
+    _spawn_glossary_job({'GLOSSARY_GENERATE': '1'})
+    flash('Glossary generation started — this runs in the background; progress is shown below.', 'success')
+    return redirect(url_for('admin_glossary'))
+
+
+@app.route('/admin/glossary/gen-status')
+@login_required
+def admin_glossary_gen_status():
+    if not current_user.is_admin:
+        abort(403)
+    return jsonify(get_gen_status())
+
+
+@app.route('/admin/glossary/restore/<int:backup_id>', methods=['POST'])
+@login_required
+def admin_glossary_restore(backup_id):
+    if not current_user.is_admin:
+        abort(403)
+    if _gen_running():
+        flash('A glossary job is already running — wait for it to finish.', 'error')
+        return redirect(url_for('admin_glossary'))
+    if not GlossaryBackup.query.get(backup_id):
+        abort(404)
+    set_setting('glossary_gen_status', json.dumps({
+        'state': 'running', 'phase': 'restore', 'message': 'Restoring…',
+        'started_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+        'updated_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+    }))
+    _spawn_glossary_job({'GLOSSARY_RESTORE': str(backup_id)})
+    flash(f'Restoring backup #{backup_id} in the background.', 'success')
+    return redirect(url_for('admin_glossary'))
+
+
+@app.route('/admin/glossary/backup/<int:backup_id>/delete', methods=['POST'])
+@login_required
+def admin_glossary_backup_delete(backup_id):
+    if not current_user.is_admin:
+        abort(403)
+    bk = GlossaryBackup.query.get_or_404(backup_id)
+    db.session.delete(bk)
+    db.session.commit()
+    flash('Backup deleted.', 'success')
+    return redirect(url_for('admin_glossary'))
 
 
 @app.route('/admin/glossary/<int:id>', methods=['GET'])

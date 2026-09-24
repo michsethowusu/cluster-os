@@ -2,8 +2,17 @@
 
 {% block title %}{{ term.term }} — {{ label('page_title_glossary') }}{% endblock %}
 
+{% block extra_css %}
+<style>
+    /* The stacked panels here must size to their content, not stretch to the
+       column height like the grid cards do (.initiative-card sets height:100%). */
+    .glossary-detail .initiative-card { height: auto; }
+    .glossary-detail .initiative-card + .initiative-card { margin-top: 0; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container mt-5 mb-5">
+<div class="container mt-5 mb-5 glossary-detail">
     <div class="row justify-content-center">
         <div class="col-lg-8">
 
@@ -49,6 +58,22 @@
                 <p class="text-muted mb-0">No country data recorded yet.</p>
                 {% endif %}
             </div>
+
+            <!-- Initiatives that mention this term -->
+            {% if initiatives %}
+            <div class="initiative-card p-4 mb-4">
+                <h5 class="mb-3"><i class="bi bi-file-text"></i> Mentioned in initiatives
+                    <span class="badge bg-secondary ms-1">{{ initiatives|length }}</span></h5>
+                <ul class="list-group list-group-flush">
+                    {% for i in initiatives %}
+                    <li class="list-group-item px-0 d-flex justify-content-between align-items-start gap-2">
+                        <a href="{{ url_for('view_initiative', slug=i.slug) }}" class="text-decoration-none">{{ i.title }}</a>
+                        <span class="text-muted small text-nowrap">{{ i.country or i.author.country }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
 
             <!-- Revision history -->
             {% if revisions %}

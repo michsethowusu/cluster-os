@@ -25,6 +25,71 @@
     </div>
 </div>
 
+<!-- Generate / regenerate pipeline -->
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-arrow-repeat"></i> Generate glossary from initiatives</span>
+    </div>
+    <div class="card-body">
+        <p class="text-muted small mb-3">
+            Rebuilds the glossary from published initiatives scored 4–5: extracts terminology,
+            clusters aliases, writes grounded definitions, and links initiatives. The current glossary
+            is backed up first (restore below). Runs in the background — you can leave this page.
+        </p>
+        {% set running = gen_status.get('state') == 'running' %}
+        <form method="POST" action="{{ url_for('admin_glossary_regenerate') }}"
+              onsubmit="return confirm('Regenerate the glossary? The current glossary will be backed up, then replaced. This can take a while.');">
+            <button class="btn btn-primary" {% if running %}disabled{% endif %}>
+                <i class="bi bi-stars"></i> {% if total_terms %}Regenerate glossary{% else %}Generate glossary{% endif %}
+            </button>
+            {% if running %}<span class="text-muted small ms-2">A job is currently running…</span>{% endif %}
+        </form>
+
+        <div id="genStatus" class="mt-3 {% if not gen_status %}d-none{% endif %}">
+            <div class="d-flex justify-content-between small">
+                <span><strong>Status:</strong> <span id="genState">{{ gen_status.get('state','') }}</span>
+                    <span class="text-muted" id="genPhase">{{ gen_status.get('phase','') }}</span></span>
+                <span class="text-muted" id="genUpdated">{{ gen_status.get('updated_at','') }}</span>
+            </div>
+            <div class="progress my-1" style="height:6px;">
+                <div id="genBar" class="progress-bar" role="progressbar" style="width:0%"></div>
+            </div>
+            <div class="small text-muted" id="genMsg">{{ gen_status.get('message','') }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Backups -->
+{% if backups %}
+<div class="card mb-3">
+    <div class="card-header"><i class="bi bi-clock-history"></i> Backups</div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0 align-middle">
+            <thead class="table-light"><tr><th>When</th><th>Label</th><th>Terms</th><th></th></tr></thead>
+            <tbody>
+            {% for b in backups %}
+            <tr>
+                <td class="small">{{ b.created_at | format_date }}</td>
+                <td class="small text-muted">{{ b.label }}</td>
+                <td>{{ b.term_count }}</td>
+                <td class="text-end">
+                    <form method="POST" action="{{ url_for('admin_glossary_restore', backup_id=b.id) }}" class="d-inline"
+                          onsubmit="return confirm('Restore this backup? The current glossary will be backed up, then replaced.');">
+                        <button class="btn btn-sm btn-outline-primary">Restore</button>
+                    </form>
+                    <form method="POST" action="{{ url_for('admin_glossary_backup_delete', backup_id=b.id) }}" class="d-inline"
+                          onsubmit="return confirm('Delete this backup permanently?');">
+                        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
 <form method="GET" action="{{ url_for('admin_glossary') }}" class="mb-3">
     <div class="input-group" style="max-width:420px;">
         <input type="text" class="form-control" name="q" value="{{ q }}" placeholder="Search terms…">
@@ -77,4 +142,36 @@
 </ul></nav>
 {% endif %}
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var wrap = document.getElementById('genStatus');
+    if (!wrap) return;
+    var elState = document.getElementById('genState'), elPhase = document.getElementById('genPhase'),
+        elMsg = document.getElementById('genMsg'), elBar = document.getElementById('genBar'),
+        elUpd = document.getElementById('genUpdated');
+    var initial = "{{ gen_status.get('state','') }}";
+    function apply(st) {
+        if (!st || !st.state) return;
+        wrap.classList.remove('d-none');
+        elState.textContent = st.state;
+        elPhase.textContent = st.phase || '';
+        elMsg.textContent = st.message || '';
+        elUpd.textContent = st.updated_at || '';
+        var pct = (st.total && st.processed) ? Math.round(st.processed / st.total * 100) : (st.state === 'done' ? 100 : 0);
+        elBar.style.width = pct + '%';
+        elBar.className = 'progress-bar' + (st.state === 'error' ? ' bg-danger' : st.state === 'done' ? ' bg-success' : ' progress-bar-striped progress-bar-animated');
+    }
+    function poll() {
+        fetch('{{ url_for("admin_glossary_gen_status") }}').then(r => r.json()).then(function (st) {
+            apply(st);
+            if (st.state === 'running') { setTimeout(poll, 3000); }
+            else if (st.state === 'done' || st.state === 'error') { setTimeout(function () { location.reload(); }, 2500); }
+        }).catch(function () { setTimeout(poll, 5000); });
+    }
+    if (initial === 'running') poll();
+})();
+</script>
 {% endblock %}

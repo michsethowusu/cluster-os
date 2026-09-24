@@ -196,6 +196,24 @@ with app.app_context():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         '''))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS glossary_term_initiative (
+                id SERIAL PRIMARY KEY,
+                term_id INTEGER NOT NULL REFERENCES glossary_term(id) ON DELETE CASCADE,
+                initiative_id INTEGER NOT NULL REFERENCES initiative(id) ON DELETE CASCADE,
+                CONSTRAINT uq_glossary_term_initiative UNIQUE (term_id, initiative_id)
+            )
+        '''))
+        conn.execute(db.text('CREATE INDEX IF NOT EXISTS ix_glossary_ti_term ON glossary_term_initiative (term_id)'))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS glossary_backup (
+                id SERIAL PRIMARY KEY,
+                label VARCHAR(200),
+                term_count INTEGER DEFAULT 0,
+                data TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        '''))
 
         conn.commit()
     print('DB ready.')

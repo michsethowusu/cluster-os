@@ -8,8 +8,10 @@ thousands of rows, instead of slow ORM per-row deletes.
 Guarded by PURGE_UNVERIFIED=1. Progress/result in the 'purge_status' setting.
 """
 import os
+import json
 
-if os.environ.get('PURGE_UNVERIFIED', '') != '1':
+MODE = os.environ.get('PURGE_UNVERIFIED', '')
+if MODE not in ('1', 'report'):
     raise SystemExit(0)
 
 from sqlalchemy import text
@@ -24,6 +26,42 @@ _SPAM_USERS = (
     'AND NOT EXISTS (SELECT 1 FROM recommendation r WHERE r.user_id = u.id) '
     'AND NOT EXISTS (SELECT 1 FROM document_library d WHERE d.submitted_by = u.id)'
 )
+
+def _scalar(sql):
+    return db.session.execute(text(sql)).scalar() or 0
+
+
+if MODE == 'report':
+    # Dry run: describe what a purge WOULD affect, delete nothing.
+    with app.app_context():
+        try:
+            rep = {
+                'total_initiatives': _scalar('SELECT COUNT(*) FROM initiative'),
+                'published': _scalar('SELECT COUNT(*) FROM initiative WHERE is_published = true'),
+                'null_score_total': _scalar('SELECT COUNT(*) FROM initiative WHERE quality_score IS NULL'),
+                'null_score_published': _scalar('SELECT COUNT(*) FROM initiative WHERE quality_score IS NULL AND is_published = true'),
+                'unpublished_score_1_2': _scalar('SELECT COUNT(*) FROM initiative WHERE is_published = false AND quality_score IN (1,2)'),
+                'unpublished_score_3_5': _scalar('SELECT COUNT(*) FROM initiative WHERE is_published = false AND quality_score >= 3'),
+                'null_score_last_3d': _scalar("SELECT COUNT(*) FROM initiative WHERE quality_score IS NULL AND created_at > now() - interval '3 days'"),
+                'deletable_accounts_est': _scalar(
+                    'SELECT COUNT(*) FROM "user" u WHERE u.is_admin = false AND u.is_approved = false '
+                    'AND NOT EXISTS (SELECT 1 FROM initiative i WHERE i.user_id = u.id AND (i.quality_score IS NOT NULL OR i.is_published = true)) '
+                    'AND NOT EXISTS (SELECT 1 FROM question q WHERE q.user_id = u.id) '
+                    'AND NOT EXISTS (SELECT 1 FROM recommendation r WHERE r.user_id = u.id) '
+                    'AND NOT EXISTS (SELECT 1 FROM document_library d WHERE d.submitted_by = u.id)'),
+                'new_unapproved_users_last_3d': _scalar("SELECT COUNT(*) FROM \"user\" WHERE is_approved = false AND is_admin = false AND created_at > now() - interval '3 days'"),
+            }
+            rows = db.session.execute(text(
+                "SELECT title FROM initiative WHERE quality_score IS NULL ORDER BY created_at DESC LIMIT 8")).fetchall()
+            rep['sample_null_titles'] = [r[0] for r in rows]
+            msg = 'report: ' + json.dumps(rep, ensure_ascii=False)
+        except Exception as e:
+            db.session.rollback()
+            msg = f'report error: {e}'
+        set_setting('purge_status', msg)
+        print(f'[purge_unverified] {msg}')
+    raise SystemExit(0)
+
 
 with app.app_context():
     try:

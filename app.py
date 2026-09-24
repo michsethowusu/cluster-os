@@ -6459,7 +6459,7 @@ def backfill_status():
         done_ids = _json.loads(get_setting('summaries_done_ids', '[]') or '[]')
     except Exception:
         done_ids = []
-    return {
+    payload = {
         'summaries': {
             'status': get_setting('summaries_backfill_status') or 'pending',
             'flag': get_setting('summaries_backfilled', 'false'),
@@ -6473,8 +6473,18 @@ def backfill_status():
         'purge': get_setting('purge_status') or 'not run',
         'rescore': get_setting('rescore_status') or 'not run',
         'teacher_docs_import': get_setting('teacher_docs_import_status') or 'not run',
+        'terminology': get_setting('terminology_status') or 'not run',
         'ai_scoring_healthy': get_setting('ai_scoring_healthy', 'true'),
-    }, 200
+    }
+    # Derived terminology deliverables (unique terms / grounded sentence rows) are
+    # only attached on demand so the default status response stays small. These are
+    # terms and sentence excerpts drawn from already-published initiatives.
+    want = request.args.get('terms')
+    if want == 'list':
+        payload['terminology_list'] = _json.loads(get_setting('terminology_list_json', '[]') or '[]')
+    elif want == 'rows':
+        payload['terminology_rows'] = _json.loads(get_setting('terminology_rows_json', '[]') or '[]')
+    return payload, 200
 
 @app.route('/api/translate', methods=['POST'])
 def api_translate():

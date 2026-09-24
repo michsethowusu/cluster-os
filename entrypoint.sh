@@ -88,5 +88,6 @@ python -u quarantine_unverified.py &
 python -u purge_unverified.py &
 python -u rescore_unverified.py &
 python -u import_teacher_docs.py &
+python -u extract_terminology.py &
 
 exec gunicorn -w 4 -b 0.0.0.0:3000 app:app

@@ -5,7 +5,7 @@
 {% block content %}
 <div class="container py-5">
     <div class="row justify-content-center">
-        <div class="col-lg-8">
+        <div class="col-lg-10">
             <nav aria-label="breadcrumb" class="mb-3">
                 <ol class="breadcrumb">
                     <li class="breadcrumb-item"><a href="{{ url_for('documents') }}">Document Library</a></li>
@@ -68,7 +68,21 @@
                         </div>
                     </div>
 
-                    {% if doc.extracted_text %}
+                    {% if doc.file_type and doc.file_type.lower() == 'pdf' %}
+                    <hr>
+                    <h5 class="mb-3">Preview</h5>
+                    <div class="ratio" style="--bs-aspect-ratio: 130%;">
+                        <iframe src="{{ url_for('view_document_file', id=doc.id) }}#view=FitH"
+                                title="Document preview"
+                                style="border:1px solid #dee2e6; border-radius:8px;"
+                                loading="lazy"></iframe>
+                    </div>
+                    <p class="text-muted small mt-2">
+                        Trouble viewing it here?
+                        <a href="{{ url_for('view_document_file', id=doc.id) }}" target="_blank" rel="noopener">Open in a new tab</a>
+                        or <a href="{{ url_for('download_document', id=doc.id) }}">download the PDF</a>.
+                    </p>
+                    {% elif doc.extracted_text %}
                     <hr>
                     <h5>Document Content Preview</h5>
                     <div class="p-3 bg-light rounded" style="max-height: 500px; overflow-y: auto;">

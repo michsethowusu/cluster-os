@@ -6475,6 +6475,22 @@ def download_document(id):
     )
 
 
+@app.route('/document/<int:id>/inline')
+def view_document_file(id):
+    """Serve a document inline (Content-Disposition inline) so the browser's PDF
+    viewer can render it in an <iframe> on the detail page."""
+    doc = DocumentLibrary.query.get_or_404(id)
+    if not doc.is_published and (not current_user.is_authenticated or not current_user.is_admin):
+        abort(403)
+    folder = os.path.join(app.config['UPLOAD_FOLDER'], 'documents')
+    return send_from_directory(
+        folder, doc.stored_name,
+        as_attachment=False,
+        download_name=doc.filename,
+        mimetype='application/pdf' if (doc.file_type or '').lower() == 'pdf' else None,
+    )
+
+
 @app.route('/document/upload', methods=['GET', 'POST'])
 @login_required
 def upload_document():

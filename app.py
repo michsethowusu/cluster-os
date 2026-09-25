@@ -6849,7 +6849,8 @@ def _glossary_pdf_signature():
         .filter(GlossaryTerm.is_published == True).first()  # noqa: E712
     cnt = row[0] or 0
     mx = row[1]
-    return f"{cnt}:{mx.isoformat() if mx else 'na'}"
+    # 'v2' bumps the cache when the PDF template/branding changes.
+    return f"v2:{cnt}:{mx.isoformat() if mx else 'na'}"
 
 
 def ensure_glossary_pdf():
@@ -6873,7 +6874,7 @@ def ensure_glossary_pdf():
         data.append({'term': t.term, 'definition': t.definition, 'aliases': al})
     from utils.glossary_pdf import build_glossary_pdf
     meta = {'count': len(data), 'date': datetime.utcnow().strftime('%d %B %Y'),
-            'site': 'platform.ecedcluster.africa'}
+            'logo': os.path.join(app.static_folder, 'images', 'au_logo_color.png')}
     tmp = path + '.tmp'
     build_glossary_pdf(tmp, data, meta)
     os.replace(tmp, path)
@@ -6891,7 +6892,7 @@ def glossary_pdf_download():
         app.logger.error(f'Glossary PDF build failed: {e}')
         abort(500)
     return send_from_directory(folder, 'ecedfln-glossary.pdf', as_attachment=True,
-                               download_name='ECED-FLN-Glossary.pdf', mimetype='application/pdf')
+                               download_name='AU-ECED-FLN-Glossary.pdf', mimetype='application/pdf')
 
 
 @app.route('/glossary/<slug>')

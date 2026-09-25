@@ -6849,8 +6849,8 @@ def _glossary_pdf_signature():
         .filter(GlossaryTerm.is_published == True).first()  # noqa: E712
     cnt = row[0] or 0
     mx = row[1]
-    # 'v2' bumps the cache when the PDF template/branding changes.
-    return f"v2:{cnt}:{mx.isoformat() if mx else 'na'}"
+    # bump this token when the PDF template/branding changes.
+    return f"v3:{cnt}:{mx.isoformat() if mx else 'na'}"
 
 
 def ensure_glossary_pdf():

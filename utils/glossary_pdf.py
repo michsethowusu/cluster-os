@@ -50,9 +50,12 @@ def _styles():
 
 def _cover(canvas, doc, meta):
     canvas.saveState()
-    band_h = PAGE_H * 0.20            # white band at the top for the colour logo
+    # A slim white band at the top — just tall enough for the logo.
+    logo_h = 46
+    pad = 11
+    band_h = logo_h + pad * 2
     green_top = PAGE_H - band_h
-    # white top band is just the page background; fill the rest green
+    # white top band is the page background; fill the rest green
     canvas.setFillColor(GREEN)
     canvas.rect(0, 0, PAGE_W, green_top, fill=1, stroke=0)
     # subtle darker angled band for depth
@@ -65,15 +68,14 @@ def _cover(canvas, doc, meta):
     p.close()
     canvas.drawPath(p, fill=1, stroke=0)
 
-    # AU logo (colour) centred in the white band
+    # AU logo (colour), left-aligned in the white band
     logo = meta.get('logo')
     if logo and os.path.exists(logo):
         try:
             iw, ih = ImageReader(logo).getSize()
-            h = min(band_h * 0.68, 95)
-            w = h * (iw / ih)
-            canvas.drawImage(logo, (PAGE_W - w) / 2, green_top + (band_h - h) / 2,
-                             width=w, height=h, mask='auto', preserveAspectRatio=True)
+            w = logo_h * (iw / ih)
+            canvas.drawImage(logo, MARGIN, green_top + pad, width=w, height=logo_h,
+                             mask='auto', preserveAspectRatio=True)
         except Exception:
             pass
 

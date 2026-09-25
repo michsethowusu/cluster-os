@@ -25,8 +25,9 @@ from app import (app, db, Initiative, GlossaryTerm, GlossaryAlias, GlossaryRevis
 from utils.ai_services import call_nvidia_api
 
 GEMINI_KEY = os.environ.get('GEMINI_API_KEY', '').strip()
+GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-3.5-flash-lite')
 GEMINI_URL = ('https://generativelanguage.googleapis.com/v1beta/models/'
-              'gemini-flash-latest:generateContent?key=' + GEMINI_KEY)
+              f'{GEMINI_MODEL}:generateContent?key=' + GEMINI_KEY)
 PROVIDER = 'gemini' if GEMINI_KEY else 'nvidia'
 
 

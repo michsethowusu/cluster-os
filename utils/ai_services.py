@@ -43,28 +43,47 @@ Title:
         print(f"Title cleanup error: {e}")
         return original
 
+GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-3.5-flash-lite')
+
+
 def call_nvidia_api(prompt, max_tokens=300, temperature=0.7):
-    """Call NVIDIA NIM API with the given prompt."""
-    api_key = os.environ.get('NVIDIA_API_KEY')
+    """Call the Gemini API with the given prompt.
+
+    (Name kept for backward compatibility with existing call sites — the platform
+    switched its LLM backend from NVIDIA NIM to Google Gemini.) Retries transient
+    errors (429 / 5xx) with backoff. Returns the model's text.
+    """
+    api_key = os.environ.get('GEMINI_API_KEY')
     if not api_key:
-        raise Exception("NVIDIA_API_KEY not set")
-    
-    url = "https://integrate.api.nvidia.com/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
+        raise Exception("GEMINI_API_KEY not set")
+
+    url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+           f"{GEMINI_MODEL}:generateContent?key={api_key}")
     payload = {
-        "model": "meta/llama-3.1-70b-instruct",
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": max_tokens,
-        "temperature": temperature
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens},
     }
-    
-    response = requests.post(url, headers=headers, json=payload)
-    response.raise_for_status()
-    data = response.json()
-    return data['choices'][0]['message']['content'].strip()
+
+    last = None
+    for attempt in range(4):
+        try:
+            response = requests.post(url, json=payload, timeout=90)
+            if response.status_code in (429, 500, 502, 503, 504):
+                last = f"HTTP {response.status_code}"
+                time.sleep(min(2 ** attempt, 8))
+                continue
+            response.raise_for_status()
+            data = response.json()
+            cands = data.get('candidates') or []
+            if not cands:
+                raise Exception(f"no candidates in response: {json.dumps(data)[:200]}")
+            parts = (cands[0].get('content') or {}).get('parts') or []
+            text = ''.join(p.get('text', '') for p in parts)
+            return text.strip()
+        except Exception as e:
+            last = str(e)
+            time.sleep(min(2 ** attempt, 8))
+    raise Exception(f"Gemini API failed: {last}")
 
 
 def revise_definition(term, current_definition, comments):

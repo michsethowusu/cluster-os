@@ -9,8 +9,13 @@ class Config:
     uri = os.environ.get('POSTGRESQL_URL') or os.environ.get('DATABASE_URL')
     if not uri:
         raise RuntimeError("No database URL set. Define POSTGRESQL_URL in environment variables.")
+    # Force the psycopg2 driver explicitly so we don't depend on SQLAlchemy's
+    # default postgres dialect (newer SQLAlchemy defaults `postgresql://` to
+    # psycopg v3, which we don't ship — that caused a boot failure).
     if uri.startswith("postgres://"):
-        uri = uri.replace("postgres://", "postgresql://", 1)
+        uri = uri.replace("postgres://", "postgresql+psycopg2://", 1)
+    elif uri.startswith("postgresql://"):
+        uri = uri.replace("postgresql://", "postgresql+psycopg2://", 1)
     SQLALCHEMY_DATABASE_URI = uri
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_POOL_RECYCLE = 280        # recycle connections before DB drops them (~5 min)

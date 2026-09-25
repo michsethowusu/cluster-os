@@ -144,7 +144,7 @@ def build_glossary_pdf(path, terms, meta):
 
     # ---- Contents ----
     story.append(Paragraph('Contents', st['h']))
-    story.append(Spacer(1, 4))
+    story.append(Spacer(1, 14))  # blank line where the instruction used to be
     nav = '  '.join(f'<a href="#L_{L}" color="#007451">{L}</a>' for L in letters)
     story.append(Paragraph(nav, st['nav']))
     story.append(Spacer(1, 8))

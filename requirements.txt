@@ -20,3 +20,4 @@ firecrawl-py
 requests
 PyPDF2
 python-docx
+reportlab>=3.6,<5

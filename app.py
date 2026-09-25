@@ -6843,6 +6843,57 @@ def glossary():
                            q=q, letter=letter, total=total, alphabet=alphabet)
 
 
+def _glossary_pdf_signature():
+    row = db.session.query(db.func.count(GlossaryTerm.id),
+                           db.func.max(GlossaryTerm.updated_at)) \
+        .filter(GlossaryTerm.is_published == True).first()  # noqa: E712
+    cnt = row[0] or 0
+    mx = row[1]
+    return f"{cnt}:{mx.isoformat() if mx else 'na'}"
+
+
+def ensure_glossary_pdf():
+    """Return the path to the cached glossary PDF, rebuilding it only when the
+    published glossary has changed (auto-updating download)."""
+    folder = os.path.join(app.config['UPLOAD_FOLDER'], 'glossary')
+    os.makedirs(folder, exist_ok=True)
+    path = os.path.join(folder, 'ecedfln-glossary.pdf')
+    sig = _glossary_pdf_signature()
+    if os.path.exists(path) and get_setting('glossary_pdf_sig', '') == sig:
+        return path, folder
+    terms = GlossaryTerm.query.filter(GlossaryTerm.is_published == True) \
+        .order_by(GlossaryTerm.term.asc()).all()  # noqa: E712
+    alias_map = {}
+    for tid, alias in db.session.query(GlossaryAlias.term_id, GlossaryAlias.alias).all():
+        alias_map.setdefault(tid, []).append(alias)
+    data = []
+    for t in terms:
+        al = sorted({a for a in alias_map.get(t.id, []) if a and a.lower() != t.term.lower()},
+                    key=lambda x: x.lower())
+        data.append({'term': t.term, 'definition': t.definition, 'aliases': al})
+    from utils.glossary_pdf import build_glossary_pdf
+    meta = {'count': len(data), 'date': datetime.utcnow().strftime('%d %B %Y'),
+            'site': 'platform.ecedcluster.africa'}
+    tmp = path + '.tmp'
+    build_glossary_pdf(tmp, data, meta)
+    os.replace(tmp, path)
+    set_setting('glossary_pdf_sig', sig)
+    return path, folder
+
+
+@app.route('/glossary.pdf')
+def glossary_pdf_download():
+    if not glossary_enabled():
+        abort(404)
+    try:
+        _path, folder = ensure_glossary_pdf()
+    except Exception as e:
+        app.logger.error(f'Glossary PDF build failed: {e}')
+        abort(500)
+    return send_from_directory(folder, 'ecedfln-glossary.pdf', as_attachment=True,
+                               download_name='ECED-FLN-Glossary.pdf', mimetype='application/pdf')
+
+
 @app.route('/glossary/<slug>')
 def glossary_term(slug):
     if not glossary_enabled():

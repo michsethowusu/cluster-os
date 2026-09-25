@@ -6,7 +6,7 @@
     
     <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
     
-    <title>{% block title %}{{ site.name }}{% endblock %}{% block title_suffix %} | {{ site.name }} Cluster{% endblock %}</title>
+    <title>{% block title %}{{ site.name }}{% endblock %}{% block title_suffix %} | {{ site.brand_full }}{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
@@ -261,7 +261,7 @@
         <div class="container">
             <div class="row">
                 <div class="col-md-6">
-                    <h5>{{ site.name }} Cluster</h5>
+                    <h5>{{ site.brand_full }}</h5>
                     <p>{{ site.tagline }}</p>
                 </div>
                 <div class="col-md-6 text-md-end">

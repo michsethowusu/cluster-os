@@ -1248,6 +1248,11 @@ def inject_site_config():
             'hero_text': get_setting('hero_text') or DEFAULT_HERO_TEXT,
             'footer_note': (get_setting('footer_note')
                             or f'© 2026 {name}. This platform is open source.'),
+            # Full brand name for the browser title and footer. Defaults to the
+            # site name; a deployment can override it via the BRAND_FULL env var
+            # (e.g. eced-fln sets "AU ECED-FLN Cluster"). Not hardcoded, so sites
+            # without "Cluster" in their name aren't mislabelled.
+            'brand_full': (os.environ.get('BRAND_FULL', '').strip() or name),
         }
         resolved = {}
         for k, v in LABEL_DEFAULTS.items():
@@ -1266,7 +1271,8 @@ def inject_site_config():
             'site': {'name': DEFAULT_SITE_NAME, 'tagline': DEFAULT_SITE_TAGLINE,
                      'certificates_enabled': False, 'hero_image': DEFAULT_HERO_IMAGE,
                      'hero_heading': DEFAULT_HERO_HEADING, 'hero_text': DEFAULT_HERO_TEXT,
-                     'footer_note': f'© 2026 {DEFAULT_SITE_NAME}. This platform is open source.'},
+                     'footer_note': f'© 2026 {DEFAULT_SITE_NAME}. This platform is open source.',
+                     'brand_full': (os.environ.get('BRAND_FULL', '').strip() or DEFAULT_SITE_NAME)},
             'nav': [],
             'labels': dict(LABEL_DEFAULTS),
             'stakeholder_types': DEFAULT_STAKEHOLDER_TYPES,

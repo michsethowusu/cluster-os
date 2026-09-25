@@ -43,10 +43,14 @@ with app.app_context():
     folder = os.path.join(app.config['UPLOAD_FOLDER'], 'documents')
     os.makedirs(folder, exist_ok=True)
 
-    added = skipped = failed = 0
+    added = skipped = restored = failed = 0
     for title, url in DOCS:
         try:
-            if DocumentLibrary.query.filter_by(title=title).first():
+            existing = DocumentLibrary.query.filter_by(title=title).first()
+            # Skip only if the row exists AND its file is actually on disk; otherwise
+            # (re)download — this restores files lost before a persistent volume existed.
+            if existing and existing.stored_name and \
+                    os.path.exists(os.path.join(folder, existing.stored_name)):
                 skipped += 1
                 continue
             resp = requests.get(url, headers=HEADERS, allow_redirects=True, timeout=60)
@@ -64,30 +68,35 @@ with app.app_context():
                 f.write(content)
 
             extracted, _err = _extract_document_text(filepath, 'pdf')
-
             filename = title.replace(' ', '_').replace('(', '').replace(')', '') + '.pdf'
-            doc = DocumentLibrary(
-                title=title,
-                description=DESCRIPTION,
-                year_published=YEAR,
-                filename=filename,
-                stored_name=stored,
-                file_size=len(content),
-                file_type='pdf',
-                extracted_text=extracted or None,
-                submitted_by=admin.id,
-                is_published=True,
-                processing_status='ready',
-            )
-            db.session.add(doc)
-            db.session.commit()
-            added += 1
-            print(f'[import_teacher_docs] added: {title} ({len(content)} bytes)')
+
+            if existing:
+                existing.stored_name = stored
+                existing.filename = filename
+                existing.file_size = len(content)
+                existing.file_type = 'pdf'
+                existing.extracted_text = extracted or None
+                existing.is_published = True
+                existing.processing_status = 'ready'
+                db.session.commit()
+                restored += 1
+                print(f'[import_teacher_docs] restored file: {title} ({len(content)} bytes)')
+            else:
+                doc = DocumentLibrary(
+                    title=title, description=DESCRIPTION, year_published=YEAR,
+                    filename=filename, stored_name=stored, file_size=len(content),
+                    file_type='pdf', extracted_text=extracted or None,
+                    submitted_by=admin.id, is_published=True, processing_status='ready',
+                )
+                db.session.add(doc)
+                db.session.commit()
+                added += 1
+                print(f'[import_teacher_docs] added: {title} ({len(content)} bytes)')
         except Exception as e:
             db.session.rollback()
             failed += 1
             print(f'[import_teacher_docs] error on {title}: {e}')
 
-    msg = f'done: added {added}, skipped(existing) {skipped}, failed {failed} of {len(DOCS)}'
+    msg = f'done: added {added}, restored {restored}, skipped(present) {skipped}, failed {failed} of {len(DOCS)}'
     set_setting('teacher_docs_import_status', msg)
     print(f'[import_teacher_docs] {msg}')

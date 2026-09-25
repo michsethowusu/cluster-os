@@ -6458,7 +6458,9 @@ def view_document(id):
     doc = DocumentLibrary.query.filter_by(id=id, is_published=True).first_or_404()
     doc.view_count = (doc.view_count or 0) + 1
     db.session.commit()
-    return render_template('document_detail.html', doc=doc)
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], 'documents', doc.stored_name or '')
+    file_exists = bool(doc.stored_name) and os.path.exists(file_path)
+    return render_template('document_detail.html', doc=doc, file_exists=file_exists)
 
 
 @app.route('/document/<int:id>/download')

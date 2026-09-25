@@ -6850,7 +6850,7 @@ def _glossary_pdf_signature():
     cnt = row[0] or 0
     mx = row[1]
     # bump this token when the PDF template/branding changes.
-    return f"v3:{cnt}:{mx.isoformat() if mx else 'na'}"
+    return f"v4:{cnt}:{mx.isoformat() if mx else 'na'}"
 
 
 def ensure_glossary_pdf():

@@ -50,10 +50,11 @@ def _styles():
 
 def _cover(canvas, doc, meta):
     canvas.saveState()
-    # A slim white band at the top — just tall enough for the logo.
-    logo_h = 46
-    pad = 11
-    band_h = logo_h + pad * 2
+    # A slim white band at the top with a larger logo inside it (band height
+    # stays fixed; the logo fills most of it).
+    band_h = 72
+    logo_h = 62
+    pad = (band_h - logo_h) / 2
     green_top = PAGE_H - band_h
     # white top band is the page background; fill the rest green
     canvas.setFillColor(GREEN)

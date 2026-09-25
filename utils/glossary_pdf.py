@@ -144,8 +144,7 @@ def build_glossary_pdf(path, terms, meta):
 
     # ---- Contents ----
     story.append(Paragraph('Contents', st['h']))
-    story.append(Paragraph(
-        'Click any letter or term to open its entry.', st['body']))
+    story.append(Spacer(1, 4))
     nav = '  '.join(f'<a href="#L_{L}" color="#007451">{L}</a>' for L in letters)
     story.append(Paragraph(nav, st['nav']))
     story.append(Spacer(1, 8))

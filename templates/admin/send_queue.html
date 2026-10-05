@@ -241,6 +241,12 @@
                 </h5>
                 <small class="text-muted">Sent {{ entry.sent_at | format_date }}</small>
             </div>
+            {% if item.type == 'document' %}
+            <form method="POST" action="{{ url_for('requeue_document_queue_item', queue_id=entry.id) }}" class="ms-2"
+                  onsubmit="return confirm('Move this document back into the queue so you can send it again?');">
+                <button class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-counterclockwise"></i> Re-queue</button>
+            </form>
+            {% endif %}
         </div>
     </div>
     {% endfor %}

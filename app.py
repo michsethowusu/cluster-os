@@ -4246,6 +4246,21 @@ def remove_document_queue_item(queue_id):
     flash('Document removed from send queue.', 'success')
     return redirect(url_for('admin_send_queue'))
 
+
+@app.route('/admin/document-send-queue/requeue/<int:queue_id>', methods=['POST'])
+@login_required
+def requeue_document_queue_item(queue_id):
+    """Move an already-sent document back into the queue so it can be sent again."""
+    if not current_user.is_admin:
+        abort(403)
+    entry = DocumentSendQueue.query.get_or_404(queue_id)
+    entry.sent_at = None
+    entry.queued_at = datetime.utcnow()
+    db.session.commit()
+    flash('Document moved back to the send queue — you can send it again.', 'success')
+    return redirect(url_for('admin_send_queue'))
+
+
 @app.route('/admin/settings', methods=['GET', 'POST'])
 @login_required
 def admin_settings():

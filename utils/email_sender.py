@@ -969,7 +969,7 @@ def send_bulk_policies_digest(policies_data, users):
 
 # ===================== DOCUMENT LIBRARY EMAILS =====================
 
-def send_single_document_notification(doc_data, users):
+def send_single_document_notification(doc_data, users, subject_override=None, intro_text=None):
     if not users or not doc_data:
         return
 
@@ -1017,6 +1017,14 @@ def send_single_document_notification(doc_data, users):
         defaults['subject'], defaults['title'], defaults['body_html'])
     if not subject:
         return
+
+    # Per-send overrides (edit before sending), without changing the saved template.
+    if subject_override and subject_override.strip():
+        subject = subject_override.strip()
+    if intro_text and intro_text.strip():
+        import html as _html
+        safe = _html.escape(intro_text.strip()).replace('\n', '<br>')
+        body = f'<p style="font-size:1em;color:#333;line-height:1.6;">{safe}</p>\n' + body
 
     for user in users:
         html = _base_email(title, body, footer_html=_unsubscribe_footer(user.email))

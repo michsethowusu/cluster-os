@@ -4261,6 +4261,70 @@ def requeue_document_queue_item(queue_id):
     return redirect(url_for('admin_send_queue'))
 
 
+@app.route('/admin/document-send-queue/compose/<int:queue_id>', methods=['GET', 'POST'])
+@login_required
+def compose_document_send(queue_id):
+    """Edit the subject (and add an optional note) for this one document send,
+    without changing the saved template, then send."""
+    if not current_user.is_admin:
+        abort(403)
+    entry = DocumentSendQueue.query.get_or_404(queue_id)
+    doc = entry.document
+    default_subject = doc.title or doc.filename
+    test_mode = get_setting('send_queue_test_mode', 'false') == 'true'
+    test_email = app.config.get('ADMIN_OTP_EMAIL') or current_user.email
+
+    if request.method == 'POST':
+        if entry.sent_at:
+            flash('This document has already been sent.', 'warning')
+            return redirect(url_for('admin_send_queue'))
+        subject = (request.form.get('subject') or '').strip() or default_subject
+        message = (request.form.get('message') or '').strip()
+        doc_url = url_for('view_document', id=doc.id, _external=True)
+        doc_data = {
+            'title': doc.title or doc.filename,
+            'description': doc.description or '',
+            'url': doc_url,
+            'year_published': str(doc.year_published) if doc.year_published else '',
+            'file_type': doc.file_type or '',
+        }
+
+        def _do_send(flask_app, _qid, _doc_data, _is_test, _test_email, _subject, _message):
+            with flask_app.app_context():
+                try:
+                    if _is_test:
+                        class _FakeUser:
+                            def __init__(self, e): self.email = e
+                        send_single_document_notification(
+                            _doc_data, [_FakeUser(_test_email)],
+                            subject_override=_subject, intro_text=_message)
+                    else:
+                        users = User.query.filter_by(is_approved=True, is_subscribed=True).all()
+                        send_single_document_notification(
+                            _doc_data, users, subject_override=_subject, intro_text=_message)
+                        e = DocumentSendQueue.query.get(_qid)
+                        if e:
+                            e.sent_at = datetime.utcnow()
+                            db.session.commit()
+                except Exception as e:
+                    flask_app.logger.error(f"compose_document_send error (id={_qid}): {e}")
+
+        threading.Thread(target=_do_send,
+                         args=(app, queue_id, doc_data, test_mode, test_email, subject, message),
+                         daemon=True).start()
+        if test_mode:
+            flash(f'[TEST] "{subject}" is being sent to {test_email} only. Item stays in queue.', 'warning')
+        else:
+            count = User.query.filter_by(is_approved=True, is_subscribed=True).count()
+            flash(f'"{subject}" is being sent to {count} member(s) in the background.', 'success')
+        return redirect(url_for('admin_send_queue'))
+
+    sub_count = User.query.filter_by(is_approved=True, is_subscribed=True).count()
+    return render_template('admin/compose_send.html', doc=doc, entry=entry,
+                           default_subject=default_subject, test_mode=test_mode,
+                           test_email=test_email, sub_count=sub_count)
+
+
 @app.route('/admin/settings', methods=['GET', 'POST'])
 @login_required
 def admin_settings():

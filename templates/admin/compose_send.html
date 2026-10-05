@@ -1,0 +1,61 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}Edit &amp; Send Document{% endblock %}
+
+{% block admin_actions %}
+<a href="{{ url_for('admin_send_queue') }}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i> Back to queue
+</a>
+{% endblock %}
+
+{% block admin_content %}
+<div class="row">
+    <div class="col-lg-8">
+        {% if test_mode %}
+        <div class="alert alert-warning"><i class="bi bi-flask"></i>
+            <strong>Test mode is ON</strong> — this will send only to <strong>{{ test_email }}</strong>, and the item stays in the queue.</div>
+        {% else %}
+        <div class="alert alert-info"><i class="bi bi-people"></i>
+            This will send to <strong>{{ sub_count }}</strong> subscribed member(s).</div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('compose_document_send', queue_id=entry.id) }}"
+              onsubmit="return confirm('{% if test_mode %}Send this TEST email to {{ test_email }}?{% else %}Send to {{ sub_count }} member(s) now?{% endif %}');">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <label class="form-label fw-semibold">Subject</label>
+                    <input type="text" name="subject" class="form-control mb-1"
+                           value="{{ default_subject }}" maxlength="300" required>
+                    <div class="form-text">Edit the subject for this send only. The saved template is not changed.</div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <label class="form-label fw-semibold">Optional note <span class="text-muted">(added to the top of the email)</span></label>
+                    <textarea name="message" class="form-control" rows="4"
+                              placeholder="e.g. Resending with the corrected link — apologies for the earlier email."></textarea>
+                    <div class="form-text">Leave blank to send the standard template. The document’s title, details, description and button are always included below your note.</div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-header text-muted small">What recipients will see (document block)</div>
+                <div class="card-body">
+                    <h6 class="mb-1">{{ doc.title or doc.filename }}</h6>
+                    <p class="text-muted small mb-1">
+                        {% if doc.file_type %}Type: {{ doc.file_type.upper() }}{% endif %}
+                        {% if doc.year_published %} &middot; Year: {{ doc.year_published }}{% endif %}
+                    </p>
+                    {% if doc.description %}<p class="small mb-0">{{ doc.description }}</p>{% endif %}
+                </div>
+            </div>
+
+            <button type="submit" class="btn {% if test_mode %}btn-warning{% else %}btn-primary{% endif %}">
+                <i class="bi bi-send"></i> {% if test_mode %}Send Test{% else %}Send Now{% endif %}
+            </button>
+            <a href="{{ url_for('admin_send_queue') }}" class="btn btn-outline-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

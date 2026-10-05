@@ -182,9 +182,13 @@
                     </button>
                 </form>
                 {% else %}
+                <a href="{{ url_for('compose_document_send', queue_id=entry.id) }}"
+                   class="btn btn-primary btn-sm">
+                    <i class="bi bi-pencil-square"></i> Edit &amp; Send
+                </a>
                 <form method="POST" action="{{ url_for('send_document_queue_item', queue_id=entry.id) }}"
                       onsubmit="return confirm('{% if test_mode %}[TEST] Send this document to YOUR email only (test mode)?{% else %}Send this document to all subscribed members now?{% endif %}')">
-                    <button type="submit" class="btn {% if test_mode %}btn-warning{% else %}btn-primary{% endif %} btn-sm">
+                    <button type="submit" class="btn {% if test_mode %}btn-warning{% else %}btn-outline-primary{% endif %} btn-sm">
                         <i class="bi bi-send"></i> {% if test_mode %}Send Test{% else %}Send Now{% endif %}
                     </button>
                 </form>

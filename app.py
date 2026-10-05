@@ -6766,6 +6766,7 @@ def backfill_status():
         'teacher_docs_import': get_setting('teacher_docs_import_status') or 'not run',
         'terminology': get_setting('terminology_status') or 'not run',
         'glossary_import': get_setting('glossary_import_status') or 'not run',
+        'sync_single_templates': get_setting('sync_single_templates_status') or 'not run',
         'ai_scoring_healthy': get_setting('ai_scoring_healthy', 'true'),
     }
     # Derived terminology deliverables (unique terms / grounded sentence rows) are

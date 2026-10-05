@@ -890,6 +890,7 @@ def send_single_policy_notification(policy_data, users):
 
     context = {
         'policy_title': title,
+        'policy_url': policy_url,     # the template's button is href="{{ policy_url }}"
         'items_html': items_html,
     }
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'policy_single')
@@ -1008,6 +1009,7 @@ def send_single_document_notification(doc_data, users):
 
     context = {
         'doc_title': title,
+        'doc_url': doc_url,     # the template's button is href="{{ doc_url }}"
         'items_html': items_html,
     }
     defaults = next(t for t in EMAIL_TEMPLATES if t['key'] == 'document_single')

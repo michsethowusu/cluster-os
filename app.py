@@ -7541,6 +7541,133 @@ def standards():
                            active_term=active_term)
 
 
+def _standards_xlsx_signature():
+    row = db.session.query(db.func.count(Standard.id), db.func.max(Standard.updated_at)) \
+        .filter(Standard.is_published == True).first()  # noqa: E712
+    return f"sx1:{row[0] or 0}:{row[1].isoformat() if row[1] else 'na'}"
+
+
+def _build_standards_payload():
+    """Compute the structured data for the Excel export with glossary-derived
+    unique standard IDs (GL-####-S##)."""
+    stds = Standard.query.filter(Standard.is_published == True).all()  # noqa: E712
+    links = {}   # standard_id -> [term_id]
+    for sid, tid in db.session.query(StandardTerm.standard_id, StandardTerm.term_id).all():
+        links.setdefault(sid, []).append(tid)
+    srcs = {}    # standard_id -> [initiative title]
+    for sid, title in (db.session.query(StandardSource.standard_id, Initiative.title)
+                       .join(Initiative, Initiative.id == StandardSource.initiative_id)
+                       .filter(Initiative.is_published == True).all()):  # noqa: E712
+        srcs.setdefault(sid, []).append(title)
+    term_ids = set()
+    for v in links.values():
+        term_ids.update(v)
+    terms = {t.id: t for t in GlossaryTerm.query
+             .filter(GlossaryTerm.is_published == True).all()  # noqa: E712
+             if t.id in term_ids}
+    aliases = {}
+    if term_ids:
+        for tid, al in (db.session.query(GlossaryAlias.term_id, GlossaryAlias.alias)
+                        .filter(GlossaryAlias.term_id.in_(term_ids)).all()):
+            aliases.setdefault(tid, []).append(al)
+    gl_order = sorted(terms.values(), key=lambda t: t.term.lower())
+    glid = {t.id: f"GL-{i + 1:04d}" for i, t in enumerate(gl_order)}
+
+    def primary_of(sid):
+        tids = [t for t in links.get(sid, []) if t in terms]
+        if not tids:
+            return None
+        return sorted(tids, key=lambda t: (-(terms[t].occurrences or 0), terms[t].term.lower()))[0]
+
+    std_primary = {s.id: primary_of(s.id) for s in stds}
+    # assign unique IDs grouped by primary term (ordered by title)
+    groups = {}
+    for s in stds:
+        groups.setdefault(std_primary[s.id], []).append(s)
+    std_id = {}
+    for p, members in groups.items():
+        members.sort(key=lambda s: (s.title or '').lower())
+        prefix = glid.get(p, 'UN') if p is not None else 'UN'
+        for i, s in enumerate(members, start=1):
+            std_id[s.id] = f"{prefix}-S{i:02d}"
+
+    def term_name(tid):
+        return terms[tid].term if tid in terms else ''
+
+    all_rows = []
+    for s in sorted(stds, key=lambda s: std_id[s.id]):
+        related = [term_name(t) for t in links.get(s.id, []) if t in terms and t != std_primary[s.id]]
+        all_rows.append({
+            'sid': std_id[s.id], 'title': s.title, 'statement': s.statement or '',
+            'rationale': s.rationale or '', 'category': s.category or '',
+            'primary_term': term_name(std_primary[s.id]) if std_primary[s.id] else '(unclassified)',
+            'related': '; '.join(sorted(related)), 'sources': '; '.join(sorted(srcs.get(s.id, []))),
+        })
+
+    # per-term sheets (in GL order)
+    std_by_term = {}
+    for s in stds:
+        for t in links.get(s.id, []):
+            if t in terms:
+                std_by_term.setdefault(t, []).append(s)
+    sheets = []
+    index_rows = []
+    for t in gl_order:
+        members = sorted(std_by_term.get(t.id, []), key=lambda s: std_id[s.id])
+        index_rows.append((glid[t.id], t.term, len(members)))
+        rows = [{
+            'sid': std_id[s.id], 'title': s.title, 'statement': s.statement or '',
+            'rationale': s.rationale or '', 'category': s.category or '',
+            'primary': std_primary[s.id] == t.id, 'sources': '; '.join(sorted(srcs.get(s.id, []))),
+        } for s in members]
+        al = sorted({a for a in aliases.get(t.id, []) if a.lower() != t.term.lower()})
+        sheets.append({'glid': glid[t.id], 'term': t.term, 'aliases': al, 'rows': rows})
+
+    # unclassified standards (no linked glossary term)
+    unclassified = sorted([s for s in stds if std_primary[s.id] is None], key=lambda s: std_id[s.id])
+    if unclassified:
+        index_rows.append(('UN', 'Unclassified (no glossary term)', len(unclassified)))
+        sheets.append({'glid': 'UN', 'term': 'Unclassified', 'aliases': [], 'rows': [{
+            'sid': std_id[s.id], 'title': s.title, 'statement': s.statement or '',
+            'rationale': s.rationale or '', 'category': s.category or '', 'primary': True,
+            'sources': '; '.join(sorted(srcs.get(s.id, []))),
+        } for s in unclassified]})
+
+    meta = {'standards': len(stds), 'date': datetime.utcnow().strftime('%d %B %Y')}
+    return index_rows, all_rows, sheets, meta
+
+
+def ensure_standards_xlsx():
+    folder = os.path.join(app.config['UPLOAD_FOLDER'], 'standards')
+    os.makedirs(folder, exist_ok=True)
+    path = os.path.join(folder, 'ecedfln-standards.xlsx')
+    sig = _standards_xlsx_signature()
+    if os.path.exists(path) and get_setting('standards_xlsx_sig', '') == sig:
+        return folder
+    index_rows, all_rows, sheets, meta = _build_standards_payload()
+    from utils.standards_xlsx import build_standards_xlsx
+    tmp = path + '.tmp'
+    build_standards_xlsx(tmp, index_rows, all_rows, sheets, meta)
+    os.replace(tmp, path)
+    set_setting('standards_xlsx_sig', sig)
+    return folder
+
+
+@app.route('/standards.xlsx')
+def standards_xlsx_download():
+    if not standards_enabled():
+        abort(404)
+    try:
+        folder = ensure_standards_xlsx()
+    except Exception as e:
+        app.logger.error(f'Standards XLSX build failed: {e}')
+        abort(500)
+    return send_from_directory(
+        folder, 'ecedfln-standards.xlsx', as_attachment=True,
+        download_name='AU-ECED-FLN-Standards.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
 @app.route('/standards/<slug>')
 def standard_detail(slug):
     if not standards_enabled():

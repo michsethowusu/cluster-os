@@ -54,7 +54,7 @@ from utils.email_sender import (
     send_bulk_documents_digest,
     send_certificate_email,
 )
-from utils.ai_services import generate_title_description, vet_tags_nvidia, rank_members_by_query, clean_tags_for_polls, score_initiative_quality, detect_language, generate_summary, clean_title
+from utils.ai_services import generate_title_description, vet_tags_nvidia, rank_members_by_query, clean_tags_for_polls, score_initiative_quality, detect_language, generate_summary, clean_title, STANDARD_CATEGORIES, extract_standards
 from utils.nlp import extract_noun_phrases, update_noun_phrase_db
 from utils.translation import translate_text
 from utils.zoom_api import (
@@ -581,6 +581,82 @@ class GlossaryBackup(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+# ===================== STANDARDS =====================
+
+class Standard(db.Model):
+    """A normative ECED/FLN standard distilled from published initiatives.
+
+    Linked to the initiatives that evidence it (StandardSource) and to the
+    glossary terms it references (StandardTerm) for filtering. Edits are kept in
+    StandardRevision; eligible contributors suggest changes via StandardComment.
+    """
+    id          = db.Column(db.Integer, primary_key=True)
+    title       = db.Column(db.String(300), nullable=False)
+    slug        = db.Column(db.String(220), unique=True, nullable=False)
+    statement   = db.Column(db.Text, nullable=True)
+    rationale   = db.Column(db.Text, nullable=True)
+    category    = db.Column(db.String(120), nullable=True)
+    is_published = db.Column(db.Boolean, default=True)
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at  = db.Column(db.DateTime, default=datetime.utcnow)
+
+    comments  = db.relationship('StandardComment', backref='standard', lazy='dynamic',
+                                cascade='all, delete-orphan')
+    revisions = db.relationship('StandardRevision', backref='standard', lazy='dynamic',
+                                cascade='all, delete-orphan')
+
+
+class StandardSource(db.Model):
+    """Links a standard to an initiative that evidences it."""
+    id            = db.Column(db.Integer, primary_key=True)
+    standard_id   = db.Column(db.Integer, db.ForeignKey('standard.id'), nullable=False)
+    initiative_id = db.Column(db.Integer, db.ForeignKey('initiative.id'), nullable=False)
+    __table_args__ = (db.UniqueConstraint('standard_id', 'initiative_id', name='uq_standard_source'),)
+
+
+class StandardTerm(db.Model):
+    """Links a standard to a glossary term it references (for filtering)."""
+    id          = db.Column(db.Integer, primary_key=True)
+    standard_id = db.Column(db.Integer, db.ForeignKey('standard.id'), nullable=False)
+    term_id     = db.Column(db.Integer, db.ForeignKey('glossary_term.id'), nullable=False)
+    __table_args__ = (db.UniqueConstraint('standard_id', 'term_id', name='uq_standard_term'),)
+
+
+class StandardComment(db.Model):
+    """A revision suggestion from an eligible contributor."""
+    id          = db.Column(db.Integer, primary_key=True)
+    standard_id = db.Column(db.Integer, db.ForeignKey('standard.id'), nullable=False)
+    user_id     = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    content     = db.Column(db.Text, nullable=False)
+    status      = db.Column(db.String(20), default='pending')
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+
+    author = db.relationship('User', foreign_keys=[user_id])
+
+
+class StandardRevision(db.Model):
+    """A saved version of a standard (history is never deleted)."""
+    id          = db.Column(db.Integer, primary_key=True)
+    standard_id = db.Column(db.Integer, db.ForeignKey('standard.id'), nullable=False)
+    statement   = db.Column(db.Text, nullable=True)
+    rationale   = db.Column(db.Text, nullable=True)
+    source      = db.Column(db.String(30), default='admin')   # generated / auto / ai / admin / restore
+    note        = db.Column(db.String(500), nullable=True)
+    created_by  = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+
+    editor = db.relationship('User', foreign_keys=[created_by])
+
+
+class StandardBackup(db.Model):
+    """A full JSON snapshot of the standards directory, taken before a rebuild."""
+    id              = db.Column(db.Integer, primary_key=True)
+    label           = db.Column(db.String(200), nullable=True)
+    standard_count  = db.Column(db.Integer, default=0)
+    data            = db.Column(db.Text, nullable=False)
+    created_at      = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 # ===================== HELPER FUNCTIONS =====================
 
 def get_setting(key, default=None):
@@ -977,6 +1053,7 @@ NAV_ITEMS = [
     {'key': 'initiatives', 'endpoint': 'search',    'label': 'Initiatives'},
     {'key': 'documents',   'endpoint': 'documents', 'label': 'Policy Documents'},
     {'key': 'glossary',    'endpoint': 'glossary',  'label': 'Glossary'},
+    {'key': 'standards',   'endpoint': 'standards', 'label': 'Standards'},
     {'key': 'events',      'endpoint': 'events',    'label': 'Events'},
     {'key': 'members',     'endpoint': 'members',   'label': 'Stakeholders'},
     {'key': 'stats',       'endpoint': 'stats',     'label': 'Participation'},
@@ -1026,6 +1103,64 @@ def user_can_suggest_glossary(user):
         ).first() is not None
     except Exception:
         return False
+
+
+# High-rated contributors (and admins) may suggest standard revisions too.
+def user_can_edit_standards(user):
+    return user_can_suggest_glossary(user)
+
+
+# ── Standards enablement + glossary-term matching ────────────────────────────
+_STANDARDS_CACHE = {'enabled': None, 'ts': 0.0}
+_STD_TERMMAP = {'ts': 0.0, 'pairs': None}   # list of (alias_lower, term_id), longest-first
+
+
+def standards_enabled():
+    now = time.time()
+    if _STANDARDS_CACHE['enabled'] is None or now - _STANDARDS_CACHE['ts'] > 60:
+        try:
+            _STANDARDS_CACHE['enabled'] = db.session.query(Standard.id).first() is not None
+        except Exception:
+            _STANDARDS_CACHE['enabled'] = False
+        _STANDARDS_CACHE['ts'] = now
+    return _STANDARDS_CACHE['enabled']
+
+
+def invalidate_standards_cache():
+    _STANDARDS_CACHE['enabled'] = None
+    _STANDARDS_CACHE['ts'] = 0.0
+
+
+def _glossary_termmap():
+    """Cached [(alias_lower, term_id)] for published glossary terms, longest alias first."""
+    now = time.time()
+    if _STD_TERMMAP['pairs'] is None or now - _STD_TERMMAP['ts'] > 300:
+        try:
+            rows = db.session.query(GlossaryAlias.alias, GlossaryAlias.term_id).join(
+                GlossaryTerm, GlossaryAlias.term_id == GlossaryTerm.id).filter(
+                GlossaryTerm.is_published == True).all()  # noqa: E712
+        except Exception:
+            rows = []
+        pairs = {}
+        for alias, tid in rows:
+            a = (alias or '').strip().lower()
+            if len(a) >= 3:
+                pairs.setdefault(a, tid)
+        _STD_TERMMAP['pairs'] = sorted(pairs.items(), key=lambda kv: len(kv[0]), reverse=True)
+        _STD_TERMMAP['ts'] = now
+    return _STD_TERMMAP['pairs']
+
+
+def glossary_term_ids_in_text(text):
+    """Return the set of glossary term_ids whose alias appears (whole-word) in text."""
+    if not text:
+        return set()
+    low = text.lower()
+    found = set()
+    for alias, tid in _glossary_termmap():
+        if re.search(r'(?<![\w-])' + re.escape(alias) + r'(?![\w-])', low):
+            found.add(tid)
+    return found
 
 
 # ── Alias auto-linking inside initiative content ─────────────────────────────
@@ -1207,6 +1342,8 @@ def build_nav():
             continue
         if item['key'] == 'glossary' and not glossary_enabled():
             continue
+        if item['key'] == 'standards' and not standards_enabled():
+            continue
         label = (ov.get('label') or '').strip() or item['label']
         try:
             href = item['url'] if item.get('external') else url_for(item['endpoint'])
@@ -1351,6 +1488,76 @@ def _enqueue_initiative(flask_app_or_none, initiative_id):
             flask_app_or_none.logger.error(f"_enqueue_initiative error: {e}")
         else:
             app.logger.error(f"_enqueue_initiative error: {e}")
+    # Keep the Standards directory growing from new qualifying initiatives.
+    _auto_extract_standards_async(initiative_id)
+
+
+def _unique_standard_slug(title):
+    base = re.sub(r'[^\w]+', '-', (title or '').lower()).strip('-')[:200] or 'standard'
+    slug, n = base, 1
+    while Standard.query.filter_by(slug=slug).first():
+        slug = f"{base}-{n}"; n += 1
+    return slug
+
+
+def _auto_extract_standards_async(initiative_id):
+    """Background: derive standards from a newly-published 4-5 initiative and merge
+    them into the directory. No-op until the directory has been seeded (Regenerate),
+    and rate-capped so a bulk import can't flood the AI."""
+    def _work():
+        with app.app_context():
+            try:
+                if not standards_enabled():
+                    return
+                ini = Initiative.query.get(initiative_id)
+                if (not ini or not ini.is_published or not ini.quality_score
+                        or ini.quality_score < 4):
+                    return
+                if not rate_ok('std_autoextract:global', 20, 60):
+                    return  # too many at once (e.g. bulk import) — admin Regenerate will catch up
+                from difflib import SequenceMatcher
+
+                def norm(s):
+                    return re.sub(r'[^a-z0-9 ]', '', (s or '').lower()).strip()
+
+                cands = extract_standards(
+                    ini.title, f"{ini.short_description or ''}\n{ini.content or ''}")
+                if not cands:
+                    return
+                existing = Standard.query.filter_by(is_published=True).all()
+                for c in cands:
+                    ct = norm(c.get('title'))
+                    best, match = 0.0, None
+                    for s in existing:
+                        r = SequenceMatcher(None, ct, norm(s.title)).ratio()
+                        if r > best:
+                            best, match = r, s
+                    if match and best >= 0.82:
+                        std = match
+                    else:
+                        std = Standard(title=(c.get('title') or c['statement'][:80])[:300],
+                                       slug=_unique_standard_slug(c.get('title') or c['statement']),
+                                       statement=c['statement'], rationale=c.get('rationale') or '',
+                                       category=c.get('category') or 'Other', is_published=True)
+                        db.session.add(std); db.session.flush()
+                        db.session.add(StandardRevision(
+                            standard_id=std.id, statement=std.statement, rationale=std.rationale,
+                            source='auto', note=f'From initiative {ini.id}'))
+                        existing.append(std)
+                    if not StandardSource.query.filter_by(standard_id=std.id, initiative_id=ini.id).first():
+                        db.session.add(StandardSource(standard_id=std.id, initiative_id=ini.id))
+                    for tid in glossary_term_ids_in_text(
+                            f"{std.title}. {std.statement}. {std.rationale}"):
+                        if not StandardTerm.query.filter_by(standard_id=std.id, term_id=tid).first():
+                            db.session.add(StandardTerm(standard_id=std.id, term_id=tid))
+                    db.session.commit()
+                invalidate_standards_cache()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"_auto_extract_standards error (init {initiative_id}): {e}")
+
+    threading.Thread(target=_work, daemon=True).start()
+
 
 def _process_policy_async(flask_app, policy_id):
     """Fetch the article URL via Firecrawl, extract ECED content with Claude, populate the record."""
@@ -6831,6 +7038,7 @@ def backfill_status():
         'terminology': get_setting('terminology_status') or 'not run',
         'glossary_import': get_setting('glossary_import_status') or 'not run',
         'sync_single_templates': get_setting('sync_single_templates_status') or 'not run',
+        'standards': get_setting('standards_gen_status') or 'not run',
         'ai_scoring_healthy': get_setting('ai_scoring_healthy', 'true'),
     }
     # Derived terminology deliverables (unique terms / grounded sentence rows) are
@@ -7020,9 +7228,16 @@ def glossary_term(slug):
                            Initiative.is_published == True)  # noqa: E712
                    .order_by(Initiative.view_count.desc(), Initiative.created_at.desc())
                    .all())
+    standards_count = 0
+    if standards_enabled():
+        standards_count = (db.session.query(db.func.count(StandardTerm.id))
+                           .join(Standard, Standard.id == StandardTerm.standard_id)
+                           .filter(StandardTerm.term_id == term.id,
+                                   Standard.is_published == True).scalar()) or 0  # noqa: E712
     return render_template('glossary_term.html', term=term, revisions=revisions,
                            comments=comments, can_suggest=can_suggest, aliases=aliases,
-                           countries=term.country_list(), initiatives=initiatives)
+                           countries=term.country_list(), initiatives=initiatives,
+                           standards_count=standards_count)
 
 
 @app.route('/api/glossary')
@@ -7274,6 +7489,331 @@ def admin_glossary_toggle(id):
     invalidate_glossary_cache()
     flash(f"Term {'published' if term.is_published else 'unpublished'}.", 'success')
     return redirect(url_for('admin_glossary_term', id=id))
+
+
+# ===================== STANDARDS =====================
+
+def _standards_query_base():
+    return Standard.query.filter(Standard.is_published == True)  # noqa: E712
+
+
+@app.route('/standards')
+def standards():
+    if not standards_enabled():
+        abort(404)
+    q = (request.args.get('q') or '').strip()
+    term_slug = (request.args.get('term') or '').strip()
+    category = (request.args.get('category') or '').strip()
+    page = request.args.get('page', 1, type=int)
+
+    query = _standards_query_base()
+    active_term = None
+    if term_slug:
+        active_term = GlossaryTerm.query.filter_by(slug=term_slug).first()
+        if active_term:
+            sids = [r[0] for r in db.session.query(StandardTerm.standard_id)
+                    .filter(StandardTerm.term_id == active_term.id).all()]
+            query = query.filter(Standard.id.in_(sids) if sids else False)
+        else:
+            query = query.filter(db.false())
+    if category:
+        query = query.filter(Standard.category == category)
+    if q:
+        like = f'%{q}%'
+        # resolve a glossary alias typed in the search box to its term's standards
+        term_ids = [r[0] for r in db.session.query(GlossaryAlias.term_id)
+                    .filter(GlossaryAlias.alias.ilike(like)).all()]
+        sids = []
+        if term_ids:
+            sids = [r[0] for r in db.session.query(StandardTerm.standard_id)
+                    .filter(StandardTerm.term_id.in_(term_ids)).all()]
+        query = query.filter(db.or_(Standard.title.ilike(like), Standard.statement.ilike(like),
+                                    Standard.id.in_(sids) if sids else False))
+
+    query = query.order_by(Standard.category.asc(), Standard.title.asc())
+    pagination = query.paginate(page=page, per_page=24, error_out=False)
+    categories = [r[0] for r in db.session.query(Standard.category)
+                  .filter(Standard.is_published == True, Standard.category.isnot(None))  # noqa: E712
+                  .distinct().order_by(Standard.category.asc()).all() if r[0]]
+    total = _standards_query_base().count()
+    return render_template('standards.html', standards=pagination.items, pagination=pagination,
+                           q=q, category=category, categories=categories, total=total,
+                           active_term=active_term)
+
+
+@app.route('/standards/<slug>')
+def standard_detail(slug):
+    if not standards_enabled():
+        abort(404)
+    std = Standard.query.filter_by(slug=slug).first_or_404()
+    if not std.is_published and not current_user.is_admin:
+        abort(404)
+    revisions = std.revisions.order_by(StandardRevision.created_at.desc()).all()
+    can_suggest = user_can_edit_standards(current_user)
+    comments = []
+    if can_suggest:
+        comments = std.comments.filter(StandardComment.status != 'dismissed') \
+            .order_by(StandardComment.created_at.desc()).all()
+    initiatives = (Initiative.query
+                   .join(StandardSource, StandardSource.initiative_id == Initiative.id)
+                   .filter(StandardSource.standard_id == std.id,
+                           Initiative.is_published == True)  # noqa: E712
+                   .order_by(Initiative.view_count.desc(), Initiative.created_at.desc())
+                   .all())
+    terms = (GlossaryTerm.query
+             .join(StandardTerm, StandardTerm.term_id == GlossaryTerm.id)
+             .filter(StandardTerm.standard_id == std.id,
+                     GlossaryTerm.is_published == True)  # noqa: E712
+             .order_by(GlossaryTerm.term.asc()).all())
+    return render_template('standard_detail.html', std=std, revisions=revisions,
+                           comments=comments, can_suggest=can_suggest,
+                           initiatives=initiatives, terms=terms)
+
+
+@app.route('/standards/<slug>/suggest', methods=['POST'])
+@login_required
+def standard_suggest(slug):
+    std = Standard.query.filter_by(slug=slug).first_or_404()
+    if not user_can_edit_standards(current_user):
+        abort(403)
+    content = (request.form.get('content') or '').strip()
+    if not content or len(content) > 2000:
+        flash('Please enter a suggestion (up to 2000 characters).', 'error')
+        return redirect(url_for('standard_detail', slug=slug) + '#suggest')
+    if not rate_ok(f'standard_suggest:{current_user.id}', 10, 3600):
+        flash('You have submitted several suggestions recently — please try again later.', 'error')
+        return redirect(url_for('standard_detail', slug=slug) + '#suggest')
+    db.session.add(StandardComment(standard_id=std.id, user_id=current_user.id,
+                                   content=bleach.clean(content), status='pending'))
+    db.session.commit()
+    flash('Thank you — your suggestion has been sent to the editors.', 'success')
+    return redirect(url_for('standard_detail', slug=slug) + '#suggest')
+
+
+# ---- standards admin ----
+
+def get_standards_gen_status():
+    try:
+        return json.loads(get_setting('standards_gen_status', '') or '{}')
+    except Exception:
+        return {}
+
+
+def _standards_gen_running():
+    st = get_standards_gen_status()
+    if st.get('state') != 'running':
+        return False
+    try:
+        upd = datetime.strptime(st.get('updated_at', ''), '%Y-%m-%d %H:%M:%S UTC')
+        return (datetime.utcnow() - upd).total_seconds() < 1800
+    except Exception:
+        return True
+
+
+def _spawn_standards_job(env_extra):
+    import subprocess
+    import sys as _sys
+    base = os.path.dirname(os.path.abspath(__file__))
+    env = dict(os.environ)
+    env.update(env_extra)
+    log = open(os.path.join(base, 'standards_job.log'), 'a')
+    subprocess.Popen([_sys.executable, '-u', 'generate_standards.py'], cwd=base, env=env,
+                     stdout=log, stderr=log, start_new_session=True)
+
+
+def _save_standard_revision(std, statement, rationale, source, note, user_id):
+    std.statement = statement
+    std.rationale = rationale
+    std.updated_at = datetime.utcnow()
+    db.session.add(StandardRevision(standard_id=std.id, statement=statement, rationale=rationale,
+                                    source=source, note=(note or '')[:500], created_by=user_id))
+
+
+@app.route('/admin/standards')
+@login_required
+def admin_standards():
+    if not current_user.is_admin:
+        abort(403)
+    q = (request.args.get('q') or '').strip()
+    page = request.args.get('page', 1, type=int)
+    query = Standard.query
+    if q:
+        query = query.filter(Standard.title.ilike(f'%{q}%'))
+    query = query.order_by(Standard.category.asc(), Standard.title.asc())
+    pagination = query.paginate(page=page, per_page=30, error_out=False)
+    pending = dict(db.session.query(StandardComment.standard_id, db.func.count(StandardComment.id))
+                   .filter(StandardComment.status == 'pending')
+                   .group_by(StandardComment.standard_id).all())
+    backups = StandardBackup.query.order_by(StandardBackup.created_at.desc()).limit(20).all()
+    return render_template('admin/standards.html', pagination=pagination, items=pagination.items,
+                           pending=pending, q=q, total_pending=sum(pending.values()),
+                           total=Standard.query.count(), backups=backups,
+                           gen_status=get_standards_gen_status())
+
+
+@app.route('/admin/standards/gen-status')
+@login_required
+def admin_standards_gen_status():
+    if not current_user.is_admin:
+        abort(403)
+    return jsonify(get_standards_gen_status())
+
+
+@app.route('/admin/standards/regenerate', methods=['POST'])
+@login_required
+def admin_standards_regenerate():
+    if not current_user.is_admin:
+        abort(403)
+    if _standards_gen_running():
+        flash('A standards build is already running.', 'error')
+        return redirect(url_for('admin_standards'))
+    set_setting('standards_gen_status', json.dumps({
+        'state': 'running', 'phase': 'queued', 'message': 'Queued…',
+        'started_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+        'updated_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+        'processed': 0, 'total': 0,
+    }))
+    _spawn_standards_job({'STANDARDS_GENERATE': '1'})
+    flash('Standards generation started — runs in the background; progress shown below.', 'success')
+    return redirect(url_for('admin_standards'))
+
+
+@app.route('/admin/standards/restore/<int:backup_id>', methods=['POST'])
+@login_required
+def admin_standards_restore(backup_id):
+    if not current_user.is_admin:
+        abort(403)
+    if _standards_gen_running():
+        flash('A standards job is already running — wait for it to finish.', 'error')
+        return redirect(url_for('admin_standards'))
+    if not StandardBackup.query.get(backup_id):
+        abort(404)
+    set_setting('standards_gen_status', json.dumps({
+        'state': 'running', 'phase': 'restore', 'message': 'Restoring…',
+        'started_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+        'updated_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+    }))
+    _spawn_standards_job({'STANDARDS_RESTORE': str(backup_id)})
+    flash(f'Restoring backup #{backup_id} in the background.', 'success')
+    return redirect(url_for('admin_standards'))
+
+
+@app.route('/admin/standards/backup/<int:backup_id>/delete', methods=['POST'])
+@login_required
+def admin_standards_backup_delete(backup_id):
+    if not current_user.is_admin:
+        abort(403)
+    bk = StandardBackup.query.get_or_404(backup_id)
+    db.session.delete(bk); db.session.commit()
+    flash('Backup deleted.', 'success')
+    return redirect(url_for('admin_standards'))
+
+
+@app.route('/admin/standards/<int:id>', methods=['GET'])
+@login_required
+def admin_standard(id):
+    if not current_user.is_admin:
+        abort(403)
+    std = Standard.query.get_or_404(id)
+    comments = std.comments.order_by(StandardComment.created_at.desc()).all()
+    revisions = std.revisions.order_by(StandardRevision.created_at.desc()).all()
+    proposed = session.pop('standard_proposed_' + str(id), None)
+    return render_template('admin/standard.html', std=std, comments=comments,
+                           revisions=revisions, proposed=proposed,
+                           categories=STANDARD_CATEGORIES)
+
+
+@app.route('/admin/standards/<int:id>/edit', methods=['POST'])
+@login_required
+def admin_standard_edit(id):
+    if not current_user.is_admin:
+        abort(403)
+    std = Standard.query.get_or_404(id)
+    statement = (request.form.get('statement') or '').strip()
+    rationale = (request.form.get('rationale') or '').strip()
+    category = (request.form.get('category') or '').strip()
+    title = (request.form.get('title') or '').strip()
+    changed = False
+    if title and title != std.title:
+        std.title = title[:300]; changed = True
+    if category and category != std.category:
+        std.category = category; changed = True
+    if statement != (std.statement or '') or rationale != (std.rationale or ''):
+        _save_standard_revision(std, bleach.clean(statement), bleach.clean(rationale),
+                                'admin', 'Manual edit', current_user.id)
+        changed = True
+    if changed:
+        db.session.commit()
+        invalidate_standards_cache()
+        flash('Standard updated.', 'success')
+    return redirect(url_for('admin_standard', id=id))
+
+
+@app.route('/admin/standards/<int:id>/ai-revise', methods=['POST'])
+@login_required
+def admin_standard_ai_revise(id):
+    if not current_user.is_admin:
+        abort(403)
+    std = Standard.query.get_or_404(id)
+    ids = request.form.getlist('comment_ids')
+    notes = [c.content for c in std.comments.filter(
+        StandardComment.id.in_([int(i) for i in ids if i.isdigit()])).all()] if ids else \
+        [c.content for c in std.comments.filter_by(status='pending').all()]
+    try:
+        from utils.ai_services import revise_standard
+        statement, rationale = revise_standard(std.title, std.statement, std.rationale, notes)
+        session['standard_proposed_' + str(id)] = {'statement': statement, 'rationale': rationale}
+        flash('AI proposed a revised standard below — review and apply it.', 'success')
+    except Exception as e:
+        flash(f'AI revision failed: {e}', 'error')
+    return redirect(url_for('admin_standard', id=id))
+
+
+@app.route('/admin/standards/<int:id>/apply', methods=['POST'])
+@login_required
+def admin_standard_apply(id):
+    if not current_user.is_admin:
+        abort(403)
+    std = Standard.query.get_or_404(id)
+    statement = (request.form.get('statement') or '').strip()
+    rationale = (request.form.get('rationale') or '').strip()
+    source = request.form.get('source', 'ai')
+    if statement:
+        _save_standard_revision(std, bleach.clean(statement), bleach.clean(rationale),
+                                'ai' if source == 'ai' else 'admin', 'Applied from suggestions',
+                                current_user.id)
+        for c in std.comments.filter_by(status='pending').all():
+            c.status = 'applied'
+        db.session.commit()
+        invalidate_standards_cache()
+        flash('New version published; previous kept in history.', 'success')
+    return redirect(url_for('admin_standard', id=id))
+
+
+@app.route('/admin/standards/<int:id>/comment/<int:cid>/<action>', methods=['POST'])
+@login_required
+def admin_standard_comment_action(id, cid, action):
+    if not current_user.is_admin:
+        abort(403)
+    c = StandardComment.query.filter_by(id=cid, standard_id=id).first_or_404()
+    if action in ('dismiss', 'applied', 'pending'):
+        c.status = 'dismissed' if action == 'dismiss' else action
+        db.session.commit()
+        flash('Suggestion updated.', 'success')
+    return redirect(url_for('admin_standard', id=id))
+
+
+@app.route('/admin/standards/<int:id>/toggle', methods=['POST'])
+@login_required
+def admin_standard_toggle(id):
+    if not current_user.is_admin:
+        abort(403)
+    std = Standard.query.get_or_404(id)
+    std.is_published = not std.is_published
+    db.session.commit()
+    invalidate_standards_cache()
+    flash(f"Standard {'published' if std.is_published else 'unpublished'}.", 'success')
+    return redirect(url_for('admin_standard', id=id))
 
 
 # ===================== TEMPLATE FILTER =====================

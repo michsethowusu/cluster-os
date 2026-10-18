@@ -1,0 +1,133 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}Standard · {{ std.title }}{% endblock %}
+
+{% block admin_actions %}
+<a href="{{ url_for('standard_detail', slug=std.slug) }}" class="btn btn-outline-primary" target="_blank">
+    <i class="bi bi-eye"></i> View
+</a>
+<a href="{{ url_for('admin_standards') }}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i> All standards
+</a>
+{% endblock %}
+
+{% block admin_content %}
+<div class="row">
+    <div class="col-lg-7">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-pencil"></i> Standard</span>
+                <form method="POST" action="{{ url_for('admin_standard_toggle', id=std.id) }}">
+                    <button class="btn btn-sm {% if std.is_published %}btn-outline-secondary{% else %}btn-success{% endif %}">
+                        {% if std.is_published %}Unpublish{% else %}Publish{% endif %}
+                    </button>
+                </form>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('admin_standard_edit', id=std.id) }}">
+                    <label class="form-label small fw-semibold">Title</label>
+                    <input type="text" name="title" class="form-control mb-2" value="{{ std.title }}" maxlength="300">
+                    <label class="form-label small fw-semibold">Category</label>
+                    <select name="category" class="form-select mb-2">
+                        {% for c in categories %}<option value="{{ c }}" {% if std.category == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+                        <option value="Other" {% if std.category not in categories %}selected{% endif %}>Other</option>
+                    </select>
+                    <label class="form-label small fw-semibold">Statement</label>
+                    <textarea name="statement" class="form-control mb-2" rows="3">{{ std.statement or '' }}</textarea>
+                    <label class="form-label small fw-semibold">Rationale</label>
+                    <textarea name="rationale" class="form-control mb-2" rows="2">{{ std.rationale or '' }}</textarea>
+                    <button class="btn btn-primary btn-sm">Save</button>
+                    <span class="text-muted small ms-2">Saving keeps the previous version in history.</span>
+                </form>
+            </div>
+        </div>
+
+        {% if proposed %}
+        <div class="card border-primary mb-4">
+            <div class="card-header bg-primary text-white"><i class="bi bi-stars"></i> AI-proposed revision</div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('admin_standard_apply', id=std.id) }}">
+                    <input type="hidden" name="source" value="ai">
+                    <label class="form-label small fw-semibold">Statement</label>
+                    <textarea name="statement" class="form-control mb-2" rows="3">{{ proposed.statement }}</textarea>
+                    <label class="form-label small fw-semibold">Rationale</label>
+                    <textarea name="rationale" class="form-control mb-2" rows="2">{{ proposed.rationale }}</textarea>
+                    <button class="btn btn-success btn-sm">Publish this version</button>
+                    <span class="text-muted small ms-2">Marks pending suggestions as applied; old version kept.</span>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-chat-left-text"></i> Revision suggestions</div>
+            <div class="card-body">
+                {% set pending = comments | selectattr('status','equalto','pending') | list %}
+                {% if pending %}
+                <form method="POST" action="{{ url_for('admin_standard_ai_revise', id=std.id) }}" class="mb-3">
+                    <p class="text-muted small mb-2">Select suggestions to feed the AI (or none = all pending), then generate a revision.</p>
+                    {% for c in pending %}
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="comment_ids" value="{{ c.id }}" id="c{{ c.id }}" checked>
+                        <label class="form-check-label" for="c{{ c.id }}">
+                            <strong>{{ c.author.name }}</strong>
+                            <span class="text-muted small">· {{ c.created_at | format_date }}</span><br>{{ c.content }}
+                        </label>
+                        <a class="small text-danger ms-2" href="#"
+                           onclick="event.preventDefault();document.getElementById('dismiss{{ c.id }}').submit();">dismiss</a>
+                    </div>
+                    <hr class="my-2">
+                    {% endfor %}
+                    <button class="btn btn-primary btn-sm"><i class="bi bi-stars"></i> Generate AI revision from suggestions</button>
+                </form>
+                {% for c in pending %}
+                <form id="dismiss{{ c.id }}" method="POST" action="{{ url_for('admin_standard_comment_action', id=std.id, cid=c.id, action='dismiss') }}" class="d-none"></form>
+                {% endfor %}
+                {% else %}
+                <p class="text-muted mb-0">No pending suggestions.</p>
+                {% endif %}
+
+                {% set others = comments | rejectattr('status','equalto','pending') | list %}
+                {% if others %}
+                <h6 class="text-muted small text-uppercase mt-3">History</h6>
+                {% for c in others %}
+                <div class="small mb-2">
+                    <span class="badge {% if c.status == 'applied' %}bg-success{% else %}bg-secondary{% endif %}">{{ c.status }}</span>
+                    <strong>{{ c.author.name }}</strong> · {{ c.created_at | format_date }}<br>
+                    <span class="text-muted">{{ c.content }}</span>
+                </div>
+                {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-info-circle"></i> Details</div>
+            <div class="card-body small">
+                <p class="mb-1"><strong>Slug:</strong> {{ std.slug }}</p>
+                <p class="mb-1"><strong>Category:</strong> {{ std.category or '—' }}</p>
+                <p class="mb-0"><strong>Last updated:</strong> {{ std.updated_at | format_date }}</p>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><i class="bi bi-clock-history"></i> Version history ({{ revisions|length }})</div>
+            <div class="card-body">
+                {% for r in revisions %}
+                <div class="border-start ps-2 mb-3 {% if loop.first %}border-primary{% else %}border-secondary-subtle{% endif %}">
+                    <div class="small text-muted">
+                        {% if loop.first %}<span class="badge bg-primary">current</span>{% endif %}
+                        {{ r.created_at | format_date }} · {{ r.source }}{% if r.editor %} · {{ r.editor.name }}{% endif %}
+                    </div>
+                    <div class="small">{{ r.statement }}</div>
+                    {% if r.rationale %}<div class="small text-muted">{{ r.rationale }}</div>{% endif %}
+                </div>
+                {% else %}
+                <p class="text-muted small mb-0">No history yet.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

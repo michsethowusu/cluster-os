@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Standards{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <div>
+                    <h3>ECED-FLN Standards</h3>
+                    <p class="text-muted mb-0">Normative best-practice standards distilled from initiatives across Africa.</p>
+                </div>
+                <span class="badge bg-secondary">{{ total }} standards</span>
+            </div>
+
+            {% if active_term %}
+            <div class="alert alert-info d-flex justify-content-between align-items-center">
+                <span>Showing standards related to the glossary term
+                    <strong>{{ active_term.term }}</strong>.</span>
+                <a href="{{ url_for('standards') }}" class="btn btn-sm btn-outline-secondary">Clear</a>
+            </div>
+            {% endif %}
+
+            <form method="GET" action="{{ url_for('standards') }}" class="mb-3">
+                <div class="row g-2">
+                    <div class="col-md-5">
+                        <div class="input-group">
+                            <input type="text" class="form-control" name="q" value="{{ q or '' }}"
+                                   placeholder="Search standards or a glossary term…">
+                            <button class="btn btn-primary" type="submit"><i class="bi bi-search"></i></button>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <select class="form-select" name="category" onchange="this.form.submit()">
+                            <option value="">All categories</option>
+                            {% for c in categories %}
+                            <option value="{{ c }}" {% if category == c %}selected{% endif %}>{{ c }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </form>
+
+            {% if standards %}
+            <div class="row">
+                {% for s in standards %}
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <a href="{{ url_for('standard_detail', slug=s.slug) }}" class="text-decoration-none text-reset">
+                        <div class="initiative-card h-100 d-flex flex-column">
+                            <div class="card-body d-flex flex-column p-3">
+                                {% if s.category %}<span class="badge bg-light text-dark border mb-2 align-self-start">{{ s.category }}</span>{% endif %}
+                                <h5 class="card-title mb-2">{{ s.title }}</h5>
+                                <p class="card-text text-muted small flex-grow-1 mb-2" style="
+                                    overflow:hidden; display:-webkit-box; -webkit-line-clamp:3;
+                                    -webkit-box-orient:vertical; word-break:break-word;">
+                                    {{ s.statement or '' }}
+                                </p>
+                                <span class="text-primary small mt-auto">Open <i class="bi bi-arrow-right-short"></i></span>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if pagination and (pagination.has_prev or pagination.has_next) %}
+            <nav class="mt-2"><ul class="pagination justify-content-center">
+                {% if pagination.has_prev %}<li class="page-item"><a class="page-link" href="{{ url_for('standards', page=pagination.prev_num, q=q, category=category, term=active_term.slug if active_term else None) }}">Previous</a></li>{% endif %}
+                {% for p in pagination.iter_pages() %}
+                    {% if p %}{% if p != pagination.page %}<li class="page-item"><a class="page-link" href="{{ url_for('standards', page=p, q=q, category=category, term=active_term.slug if active_term else None) }}">{{ p }}</a></li>{% else %}<li class="page-item active"><span class="page-link">{{ p }}</span></li>{% endif %}{% else %}<li class="page-item disabled"><span class="page-link">…</span></li>{% endif %}
+                {% endfor %}
+                {% if pagination.has_next %}<li class="page-item"><a class="page-link" href="{{ url_for('standards', page=pagination.next_num, q=q, category=category, term=active_term.slug if active_term else None) }}">Next</a></li>{% endif %}
+            </ul></nav>
+            {% endif %}
+
+            {% else %}
+            <div class="alert alert-info text-center py-5">
+                <i class="bi bi-list-check display-4 text-muted mb-3 d-block"></i>
+                <h5>No standards found</h5>
+                <p>{% if q or category or active_term %}Nothing matches your filters.{% else %}The standards directory is empty.{% endif %}</p>
+                {% if q or category or active_term %}<a href="{{ url_for('standards') }}" class="btn btn-primary">Back to all standards</a>{% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

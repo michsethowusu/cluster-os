@@ -148,6 +148,12 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint.startswith('admin_standard') %}active{% endif %}"
+                           href="{{ url_for('admin_standards') }}">
+                            <i class="bi bi-list-check"></i> Standards
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'admin_unverified' %}active{% endif %}"
                            href="{{ url_for('admin_unverified') }}">
                             <i class="bi bi-shield-exclamation"></i> Unverified Submissions

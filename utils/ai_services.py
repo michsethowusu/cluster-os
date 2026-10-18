@@ -373,3 +373,98 @@ def clean_tags_for_polls(poll_title):
     except Exception as e:
         print(f"Poll tag extraction error: {e}")
         return []
+
+
+# ===================== STANDARDS (ECED/FLN) =====================
+
+STANDARD_CATEGORIES = [
+    "Access & Equity", "Inclusion", "Pedagogy & Play", "Curriculum & Assessment",
+    "Health & Nutrition", "Family & Community Engagement", "Workforce & Training",
+    "Safety & Protection", "Governance & Financing", "Environment & Materials",
+]
+
+
+def _parse_jsonl(text):
+    out = []
+    t = re.sub(r'```(?:json)?|```', '', text or '', flags=re.I)
+    for line in t.splitlines():
+        line = line.strip().rstrip(',')
+        if line.startswith('{'):
+            try:
+                out.append(json.loads(line))
+            except Exception:
+                pass
+    return out
+
+
+def extract_standards(title, content):
+    """Derive 1-6 ECED/FLN standards grounded in a single initiative.
+
+    Returns a list of {title, statement, rationale, category}.
+    """
+    cats = ", ".join(STANDARD_CATEGORIES)
+    prompt = f"""You are deriving STANDARDS for Early Childhood Education & Development (ECED) and \
+Foundational Learning & Numeracy (FLN) in Africa, grounded in the initiative below.
+
+A standard is a concise, NORMATIVE best-practice statement — what good ECED/FLN provision should \
+ensure — generalisable beyond this one initiative (do NOT name the organisation, project or country).
+
+From the initiative, suggest 1-6 standards it demonstrates or implies. For each give:
+- title: a short label (max 12 words)
+- statement: ONE clear normative sentence (should/must ...)
+- rationale: one short sentence on why it matters
+- category: exactly one of [{cats}]
+
+Return JSONL — one JSON object per line, no code fences:
+{{"title": "...", "statement": "...", "rationale": "...", "category": "..."}}
+
+Initiative title: {title}
+Initiative text:
+{(content or '')[:12000]}"""
+    try:
+        raw = call_nvidia_api(prompt, max_tokens=1500, temperature=0.3)
+    except Exception as e:
+        print(f"extract_standards error: {e}")
+        return []
+    out = []
+    valid = set(STANDARD_CATEGORIES)
+    for o in _parse_jsonl(raw):
+        st = (o.get('statement') or '').strip()
+        if not st:
+            continue
+        cat = (o.get('category') or '').strip()
+        out.append({
+            'title': (o.get('title') or st[:80]).strip()[:300],
+            'statement': st,
+            'rationale': (o.get('rationale') or '').strip(),
+            'category': cat if cat in valid else 'Other',
+        })
+    return out
+
+
+def revise_standard(title, current_statement, current_rationale, notes):
+    """Propose a revised standard statement + rationale from reviewer suggestions."""
+    note_block = "\n".join(f"- {c.strip()}" for c in notes if c and c.strip()) or "(no specific notes)"
+    prompt = f"""You are editing an ECED/FLN standard for Africa.
+
+Standard title: {title}
+Current statement: {current_statement or '(none)'}
+Current rationale: {current_rationale or '(none)'}
+
+Reviewer suggestions (from sector contributors):
+{note_block}
+
+Rewrite the standard incorporating valid points. Keep it a single normative sentence plus a short \
+rationale, accurate and general (do not name a specific initiative/organisation/country).
+Return ONLY two lines, exactly:
+STATEMENT: <one sentence>
+RATIONALE: <one short sentence>"""
+    out = call_nvidia_api(prompt, max_tokens=300, temperature=0.2)
+    statement, rationale = current_statement, current_rationale
+    for line in out.splitlines():
+        s = line.strip()
+        if s.upper().startswith('STATEMENT:'):
+            statement = s.split(':', 1)[1].strip()
+        elif s.upper().startswith('RATIONALE:'):
+            rationale = s.split(':', 1)[1].strip()
+    return statement[:1000], rationale[:1000]

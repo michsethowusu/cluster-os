@@ -215,5 +215,70 @@ with app.app_context():
             )
         '''))
 
+        # Standards
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS standard (
+                id SERIAL PRIMARY KEY,
+                title VARCHAR(300) NOT NULL,
+                slug VARCHAR(220) UNIQUE NOT NULL,
+                statement TEXT,
+                rationale TEXT,
+                category VARCHAR(120),
+                is_published BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        '''))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS standard_source (
+                id SERIAL PRIMARY KEY,
+                standard_id INTEGER NOT NULL REFERENCES standard(id) ON DELETE CASCADE,
+                initiative_id INTEGER NOT NULL REFERENCES initiative(id) ON DELETE CASCADE,
+                CONSTRAINT uq_standard_source UNIQUE (standard_id, initiative_id)
+            )
+        '''))
+        conn.execute(db.text('CREATE INDEX IF NOT EXISTS ix_standard_source_standard ON standard_source (standard_id)'))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS standard_term (
+                id SERIAL PRIMARY KEY,
+                standard_id INTEGER NOT NULL REFERENCES standard(id) ON DELETE CASCADE,
+                term_id INTEGER NOT NULL REFERENCES glossary_term(id) ON DELETE CASCADE,
+                CONSTRAINT uq_standard_term UNIQUE (standard_id, term_id)
+            )
+        '''))
+        conn.execute(db.text('CREATE INDEX IF NOT EXISTS ix_standard_term_term ON standard_term (term_id)'))
+        conn.execute(db.text('CREATE INDEX IF NOT EXISTS ix_standard_term_standard ON standard_term (standard_id)'))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS standard_comment (
+                id SERIAL PRIMARY KEY,
+                standard_id INTEGER NOT NULL REFERENCES standard(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+                content TEXT NOT NULL,
+                status VARCHAR(20) DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        '''))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS standard_revision (
+                id SERIAL PRIMARY KEY,
+                standard_id INTEGER NOT NULL REFERENCES standard(id) ON DELETE CASCADE,
+                statement TEXT,
+                rationale TEXT,
+                source VARCHAR(30) DEFAULT 'admin',
+                note VARCHAR(500),
+                created_by INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        '''))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS standard_backup (
+                id SERIAL PRIMARY KEY,
+                label VARCHAR(200),
+                standard_count INTEGER DEFAULT 0,
+                data TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        '''))
+
         conn.commit()
     print('DB ready.')

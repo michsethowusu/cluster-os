@@ -91,5 +91,6 @@ python -u import_teacher_docs.py &
 python -u extract_terminology.py &
 python -u import_glossary.py &
 python -u sync_single_templates.py &
+python -u generate_standards.py &
 
 exec gunicorn -w 4 -b 0.0.0.0:3000 app:app

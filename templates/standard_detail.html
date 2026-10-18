@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}{{ std.title }} — Standards{% endblock %}
+
+{% block extra_css %}
+<style>
+    .standard-detail .initiative-card { height: auto; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-5 mb-5 standard-detail">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb small">
+                    <li class="breadcrumb-item"><a href="{{ url_for('standards') }}">Standards</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">{{ std.title }}</li>
+                </ol>
+            </nav>
+
+            <article class="initiative-card p-4 mb-4">
+                {% if std.category %}<span class="badge bg-light text-dark border mb-2">{{ std.category }}</span>{% endif %}
+                {% if not std.is_published %}<span class="badge bg-warning text-dark mb-2">Unpublished (admin preview)</span>{% endif %}
+                <h1 class="h4 mb-3">{{ std.title }}</h1>
+                <p class="fs-5 lh-base mb-3">{{ std.statement }}</p>
+                {% if std.rationale %}
+                <div class="border-start border-3 ps-3 text-muted">
+                    <span class="fw-semibold">Why it matters:</span> {{ std.rationale }}
+                </div>
+                {% endif %}
+            </article>
+
+            <!-- Referenced glossary terms -->
+            {% if terms %}
+            <div class="initiative-card p-4 mb-4">
+                <h5 class="mb-3"><i class="bi bi-journal-text"></i> Related glossary terms</h5>
+                <div class="d-flex flex-wrap gap-2">
+                    {% for t in terms %}
+                    <a href="{{ url_for('glossary_term', slug=t.slug) }}" class="tag-badge">{{ t.term }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Evidenced by initiatives -->
+            {% if initiatives %}
+            <div class="initiative-card p-4 mb-4">
+                <h5 class="mb-3"><i class="bi bi-file-text"></i> Evidenced by initiatives
+                    <span class="badge bg-secondary ms-1">{{ initiatives|length }}</span></h5>
+                <ul class="list-group list-group-flush">
+                    {% for i in initiatives %}
+                    <li class="list-group-item px-0 d-flex justify-content-between align-items-start gap-2">
+                        <a href="{{ url_for('view_initiative', slug=i.slug) }}" class="text-decoration-none">{{ i.title }}</a>
+                        <span class="text-muted small text-nowrap">{{ i.country or i.author.country }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            <!-- Revision history -->
+            {% if revisions %}
+            <div class="initiative-card p-4 mb-4">
+                <a class="d-flex justify-content-between align-items-center text-reset text-decoration-none"
+                   data-bs-toggle="collapse" href="#revHistory" role="button" aria-expanded="false">
+                    <h5 class="mb-0"><i class="bi bi-clock-history"></i> Revision history
+                        <span class="badge bg-secondary ms-1">{{ revisions|length }}</span></h5>
+                    <i class="bi bi-chevron-down"></i>
+                </a>
+                <div class="collapse mt-3" id="revHistory">
+                    {% for r in revisions %}
+                    <div class="border-start ps-3 mb-3 {% if loop.first %}border-primary{% else %}border-secondary-subtle{% endif %}">
+                        <div class="small text-muted mb-1">
+                            {% if loop.first %}<span class="badge bg-primary">Current</span>{% endif %}
+                            {{ r.created_at | format_date }} ·
+                            {% if r.source == 'ai' %}AI-assisted{% elif r.source == 'generated' %}Generated{% elif r.source == 'auto' %}Auto-added{% elif r.source == 'restore' %}Restored{% else %}Editor{% endif %}
+                        </div>
+                        <div>{{ r.statement }}</div>
+                        {% if r.rationale %}<div class="small text-muted mt-1">{{ r.rationale }}</div>{% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Suggestions (eligible contributors + admins only) -->
+            <div id="suggest" class="initiative-card p-4">
+                <h5 class="mb-3"><i class="bi bi-pencil-square"></i> Suggest a revision</h5>
+                {% if can_suggest %}
+                    <p class="text-muted small">Contributors with a highly-rated initiative can suggest improvements to this standard.</p>
+                    <form method="POST" action="{{ url_for('standard_suggest', slug=std.slug) }}" class="mb-4">
+                        <textarea name="content" class="form-control mb-2" rows="3" maxlength="2000" required
+                                  placeholder="Suggest a correction or improvement to this standard…"></textarea>
+                        <button type="submit" class="btn btn-primary btn-sm">Submit suggestion</button>
+                    </form>
+                    {% if comments %}
+                    <h6 class="text-muted small text-uppercase">Suggestions</h6>
+                    {% for c in comments %}
+                    <div class="d-flex gap-3 mb-3">
+                        <div class="flex-shrink-0">
+                            <div style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#007451,#004a34);
+                                        display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;">
+                                {{ c.author.name[0]|upper }}
+                            </div>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="small">
+                                <span class="fw-semibold">{{ c.author.name }}</span>
+                                <span class="text-muted">· {{ c.created_at | format_date }}</span>
+                                {% if c.status == 'applied' %}<span class="badge bg-success ms-1">applied</span>
+                                {% elif c.status == 'pending' %}<span class="badge bg-secondary ms-1">pending</span>{% endif %}
+                            </div>
+                            <div>{{ c.content }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                {% elif current_user.is_authenticated %}
+                    <p class="text-muted mb-0"><i class="bi bi-lock"></i>
+                        Only contributors whose initiative was rated highly can suggest revisions.</p>
+                {% else %}
+                    <p class="text-muted mb-0"><i class="bi bi-lock"></i>
+                        <a href="{{ url_for('login', next=url_for('standard_detail', slug=std.slug)) }}">Log in</a>
+                        to suggest a revision (open to highly-rated contributors).</p>
+                {% endif %}
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

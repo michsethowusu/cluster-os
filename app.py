@@ -8104,6 +8104,30 @@ def _abs_url(path):
     return f"{base}{path}" if base else path
 
 
+def _review_test_mode():
+    return get_setting('review_test_mode', 'false') == 'true'
+
+
+def _review_test_target():
+    email = app.config.get('ADMIN_OTP_EMAIL')
+    if email:
+        return email
+    admin = User.query.filter_by(is_admin=True).first()
+    return admin.email if admin else None
+
+
+@app.route('/admin/standards/reviews/test-mode', methods=['POST'])
+@login_required
+def admin_standard_reviews_test_mode():
+    if not current_user.is_admin:
+        abort(403)
+    now_on = get_setting('review_test_mode', 'false') == 'true'
+    set_setting('review_test_mode', 'false' if now_on else 'true')
+    flash(f"Review test mode is now {'OFF — invitations will go to real contributors' if now_on else 'ON — emails go only to you'}.",
+          'success' if now_on else 'warning')
+    return redirect(url_for('admin_standard_reviews'))
+
+
 def _term_standards(term_id):
     """All standards linked to a glossary term, ordered stably."""
     return (Standard.query
@@ -8143,7 +8167,8 @@ def admin_standard_reviews():
                       'accepted': part.get(tid, {}).get('accepted', 0),
                       'open': tid in open_reviews})
     eligible = eligible_contributor_query().count()
-    return render_template('admin/standard_reviews.html', items=items, eligible=eligible)
+    return render_template('admin/standard_reviews.html', items=items, eligible=eligible,
+                           test_mode=_review_test_mode(), test_email=_review_test_target())
 
 
 @app.route('/admin/standards/review/initiate/<int:term_id>', methods=['POST'])
@@ -8158,6 +8183,26 @@ def admin_standard_review_initiate(term_id):
         db.session.add(review); db.session.commit()
     pending = (Standard.query.join(StandardTerm, StandardTerm.standard_id == Standard.id)
                .filter(StandardTerm.term_id == term_id, Standard.is_published == False).count())  # noqa: E712
+    from utils.email_sender import send_review_invitation
+
+    # TEST MODE: invite only the admin (to the test address), nobody else.
+    if _review_test_mode():
+        target = _review_test_target()
+        p = StandardReviewParticipant.query.filter_by(user_id=current_user.id, term_id=term_id).first()
+        if not p:
+            p = StandardReviewParticipant(user_id=current_user.id, term_id=term_id,
+                                          token=_secure_token(), status='invited')
+            db.session.add(p); db.session.commit()
+        try:
+            send_review_invitation(current_user, term.term,
+                                   url_for('review_accept', token=p.token, _external=True),
+                                   url_for('review_decline', token=p.token, _external=True),
+                                   pending, to_email=target)
+        except Exception as e:
+            app.logger.error(f"review invite (test) error: {e}")
+        flash(f'[TEST] Review invite for "{term.term}" sent to {target} only — no contributors emailed.', 'warning')
+        return redirect(url_for('admin_standard_reviews'))
+
     invited = 0
     for u in eligible_contributor_query().all():
         p = StandardReviewParticipant.query.filter_by(user_id=u.id, term_id=term_id).first()
@@ -8167,7 +8212,6 @@ def admin_standard_review_initiate(term_id):
             db.session.add(p); db.session.commit()
         if p.status in ('invited', 'declined'):
             try:
-                from utils.email_sender import send_review_invitation
                 send_review_invitation(u, term.term,
                                        url_for('review_accept', token=p.token, _external=True),
                                        url_for('review_decline', token=p.token, _external=True), pending)

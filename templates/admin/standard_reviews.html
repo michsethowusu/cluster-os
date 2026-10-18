@@ -6,6 +6,11 @@
 <a href="{{ url_for('admin_standards') }}" class="btn btn-outline-secondary">
     <i class="bi bi-arrow-left"></i> All standards
 </a>
+<form method="POST" action="{{ url_for('admin_standard_reviews_test_mode') }}" class="d-inline">
+    <button class="btn btn-sm {% if test_mode %}btn-warning{% else %}btn-outline-secondary{% endif %}">
+        <i class="bi bi-flask"></i> Test mode: {{ 'ON' if test_mode else 'OFF' }}
+    </button>
+</form>
 <form method="POST" action="{{ url_for('admin_standard_reviews_send_due') }}" class="d-inline"
       onsubmit="return confirm('Send this week\\'s due review emails now?');">
     <button class="btn btn-outline-primary"><i class="bi bi-send"></i> Send due emails now</button>
@@ -13,6 +18,13 @@
 {% endblock %}
 
 {% block admin_content %}
+{% if test_mode %}
+<div class="alert alert-warning">
+    <i class="bi bi-flask"></i> <strong>Test mode is ON.</strong> Initiating a review (and the weekly sender)
+    will email <strong>only {{ test_email }}</strong> — no contributors are emailed. Turn it off to invite
+    real contributors. (With one tester, auto-publish won't trigger — it needs ratings from ≥2 people.)
+</div>
+{% endif %}
 <p class="text-muted">
     Standards stay <strong>unpublished</strong> until peer-reviewed. Initiate a review for a glossary
     term to invite all {{ eligible }} top contributors (published 4–5 initiative) to rate its pending

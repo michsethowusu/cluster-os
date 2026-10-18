@@ -1097,7 +1097,7 @@ def send_bulk_documents_digest(docs_data, users):
 
 # ===================== STANDARDS PEER REVIEW =====================
 
-def send_review_invitation(user, term_name, accept_url, decline_url, n_standards):
+def send_review_invitation(user, term_name, accept_url, decline_url, n_standards, to_email=None):
     """Invite a top contributor to review the standards under a glossary term."""
     body = f"""
     <p>Dear {user.name},</p>
@@ -1112,10 +1112,10 @@ def send_review_invitation(user, term_name, accept_url, decline_url, n_standards
     <p class="muted">Prefer not to take part? <a href="{decline_url}">Decline this invitation</a>.</p>
     """
     html = _base_email('Invitation to review ECED-FLN standards', body)
-    send_email(user.email, f'Invitation: review standards on {term_name}', html)
+    send_email(to_email or user.email, f'Invitation: review standards on {term_name}', html)
 
 
-def send_review_weekly(user, term_name, review_url, standards):
+def send_review_weekly(user, term_name, review_url, standards, to_email=None):
     """Weekly nudge with the next batch of standards to rate under a term."""
     items = ""
     for s in standards:
@@ -1131,4 +1131,4 @@ def send_review_weekly(user, term_name, review_url, standards):
     {_site_name()} standards.</p>
     """
     html = _base_email(f'{len(standards)} standards to review on {term_name}', body)
-    send_email(user.email, f'This week: review {len(standards)} standards on {term_name}', html)
+    send_email(to_email or user.email, f'This week: review {len(standards)} standards on {term_name}', html)

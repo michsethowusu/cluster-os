@@ -21,9 +21,19 @@ def _abs(path):
     return f"{base}{path}" if base else path
 
 
+def _test_target():
+    email = app.config.get('ADMIN_OTP_EMAIL')
+    if email:
+        return email
+    a = User.query.filter_by(is_admin=True).first()
+    return a.email if a else None
+
+
 def run():
     with app.app_context():
         now = datetime.utcnow()
+        test_mode = get_setting('review_test_mode', 'false') == 'true'
+        test_target = _test_target() if test_mode else None
         uids = [r[0] for r in db.session.query(StandardReviewParticipant.user_id)
                 .filter_by(status='accepted').distinct().all()]
         sent = 0
@@ -49,7 +59,8 @@ def run():
                     continue
                 batch = unrated[:5]
                 try:
-                    send_review_weekly(u, p.term.term, _abs('/review/' + p.token), batch)
+                    send_review_weekly(u, p.term.term, _abs('/review/' + p.token), batch,
+                                       to_email=(test_target if test_mode else None))
                     u.last_review_email_at = now
                     db.session.commit()
                     sent += 1

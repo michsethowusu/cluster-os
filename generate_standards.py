@@ -52,20 +52,23 @@ set_status.cache = ''
 
 def ai(prompt, max_tokens=1500, temperature=0.2):
     last = None
-    for attempt in range(4):
+    for attempt in range(7):
         try:
             if PROVIDER == 'gemini':
                 r = requests.post(GEMINI_URL, json={
                     'contents': [{'parts': [{'text': prompt}]}],
                     'generationConfig': {'temperature': temperature, 'maxOutputTokens': max_tokens},
                 }, timeout=120)
-                if r.status_code in (429, 500, 502, 503, 504):
-                    last = f'HTTP {r.status_code}'; time.sleep(min(2 ** attempt, 8)); continue
+                if r.status_code == 429:
+                    # rate limited — wait for the per-minute window to reset
+                    last = 'HTTP 429'; time.sleep(min(70, 15 * (attempt + 1))); continue
+                if r.status_code in (500, 502, 503, 504):
+                    last = f'HTTP {r.status_code}'; time.sleep(min(2 ** attempt, 10)); continue
                 r.raise_for_status()
                 return r.json()['candidates'][0]['content']['parts'][0]['text']
             return call_nvidia_api(prompt, max_tokens=max_tokens, temperature=temperature)
         except Exception as e:
-            last = str(e); time.sleep(min(2 ** attempt, 8))
+            last = str(e); time.sleep(min(2 ** attempt, 10))
     raise RuntimeError(f'AI call failed: {last}')
 
 
@@ -265,14 +268,21 @@ def do_generate():
         # ---- extract candidates ----
         cands = []   # {title, statement, rationale, category, iid}
         valid_cats = set(STANDARD_CATEGORIES)
+        failed = 0
         for idx, i in enumerate(inits):
             text = strip_markup(f"{i.short_description or ''}. {i.content or ''}")
             try:
                 raw = ai(EXTRACT % (CATS, i.title, text[:12000]), max_tokens=1500, temperature=0.3)
             except Exception as e:
-                set_status(state='error', phase='extract', message=f'AI extraction failed: {e}',
-                           finished_at=now())
-                return
+                # Skip this initiative rather than aborting the whole run; only give
+                # up if a large share fail (likely a hard quota/key problem).
+                failed += 1
+                if failed > 8 and failed > (idx + 1) * 0.5:
+                    set_status(state='error', phase='extract',
+                               message=f'Too many AI failures ({failed}); last: {e}', finished_at=now())
+                    return
+                time.sleep(5)
+                continue
             for o in parse_jsonl(raw):
                 st = (o.get('statement') or '').strip()
                 if not st:
@@ -285,8 +295,9 @@ def do_generate():
                 })
             if (idx + 1) % 3 == 0 or idx + 1 == total:
                 set_status(phase='extract', processed=idx + 1, total=total,
-                           message=f'Extracting standards… {idx+1}/{total} initiatives, {len(cands)} candidates')
-            time.sleep(0.2)
+                           message=f'Extracting standards… {idx+1}/{total} initiatives, '
+                                   f'{len(cands)} candidates ({failed} skipped)')
+            time.sleep(2.0)   # pace to stay under the API's per-minute rate limit
 
         if not cands:
             set_status(state='error', message='No candidate standards produced.', finished_at=now())
@@ -315,7 +326,7 @@ def do_generate():
                 cand_to_canon[b * BATCH + j] = got.get(j, c['title'])
             set_status(phase='cluster', processed=b + 1, total=nb,
                        message=f'Clustering candidates… batch {b+1}/{nb}')
-            time.sleep(0.2)
+            time.sleep(1.5)
 
         # ---- merge canonical titles ----
         distinct = sorted(set(cand_to_canon.values()))
@@ -369,7 +380,7 @@ def do_generate():
                 composed[t] = got.get(j)
             set_status(phase='compose', processed=b + 1, total=nb2,
                        message=f'Composing standards… batch {b+1}/{nb2}')
-            time.sleep(0.2)
+            time.sleep(1.5)
 
         # ---- link glossary terms + build payload ----
         set_status(phase='link', message='Linking glossary terms…')

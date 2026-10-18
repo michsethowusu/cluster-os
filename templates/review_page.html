@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Review standards{% endblock %}
+
+{% block content %}
+<div class="container mt-5 mb-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-muted small">Reviewing: <strong>{{ term.term }}</strong></span>
+                <span class="text-muted small">Standard {{ i + 1 }} of {{ total }}</span>
+            </div>
+            <div class="progress mb-4" style="height:6px;">
+                <div class="progress-bar" style="width: {{ ((i + 1) / total * 100)|round }}%; background:#007451;"></div>
+            </div>
+
+            <div class="initiative-card p-4 mb-3">
+                {% if std.category %}<span class="badge bg-light text-dark border mb-2">{{ std.category }}</span>{% endif %}
+                <h1 class="h4 mb-3">{{ std.title }}</h1>
+                <p class="fs-5 lh-base mb-3">{{ std.statement }}</p>
+                {% if std.rationale %}
+                <div class="border-start border-3 ps-3 text-muted mb-0">
+                    <span class="fw-semibold">Why it matters:</span> {{ std.rationale }}
+                </div>
+                {% endif %}
+            </div>
+
+            <form method="POST" action="{{ url_for('review_rate', token=token) }}" class="initiative-card p-4">
+                <input type="hidden" name="standard_id" value="{{ std.id }}">
+                <input type="hidden" name="i" value="{{ i }}">
+                <input type="hidden" name="stars" id="starsInput" value="{{ current or '' }}">
+                <p class="fw-semibold mb-1">How valid and applicable is this standard to your context?</p>
+                <p class="text-muted small mb-2">1 = not applicable · 5 = highly valid &amp; applicable</p>
+                <div id="stars" class="mb-3" style="font-size:2rem; line-height:1; cursor:pointer; user-select:none;">
+                    {% for v in range(1,6) %}<span data-v="{{ v }}" style="color:#ccc; padding:0 2px;">&#9733;</span>{% endfor %}
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        {% if i > 0 %}<a href="{{ url_for('review_page', token=token, i=i-1) }}" class="btn btn-outline-secondary btn-sm">&larr; Back</a>{% endif %}
+                        <a href="{{ url_for('review_page', token=token, i=i+1) }}" class="btn btn-link btn-sm text-muted">Skip</a>
+                    </div>
+                    <button type="submit" id="saveBtn" class="btn btn-primary" {% if not current %}disabled{% endif %}>
+                        Save &amp; next &rarr;
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  var wrap=document.getElementById('stars'), input=document.getElementById('starsInput'),
+      btn=document.getElementById('saveBtn'), stars=wrap.querySelectorAll('span');
+  function paint(v){ stars.forEach(function(s){ s.style.color = (+s.dataset.v <= v) ? '#f5b301' : '#ccc'; }); }
+  paint(parseInt(input.value||'0',10));
+  stars.forEach(function(s){
+    s.addEventListener('mouseenter',function(){ paint(+s.dataset.v); });
+    s.addEventListener('click',function(){ input.value=s.dataset.v; paint(+s.dataset.v); btn.disabled=false; });
+  });
+  wrap.addEventListener('mouseleave',function(){ paint(parseInt(input.value||'0',10)); });
+})();
+</script>
+{% endblock %}

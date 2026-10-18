@@ -81,6 +81,7 @@ class User(db.Model):
     password_hash = db.Column(db.String(256), nullable=True)
     points = db.Column(db.Integer, default=0, nullable=False)
     is_subscribed = db.Column(db.Boolean, default=True, nullable=False)
+    last_review_email_at = db.Column(db.DateTime, nullable=True)
 
     # Relationships
     initiatives = db.relationship('Initiative', backref='author', lazy=True)
@@ -510,6 +511,7 @@ class GlossaryTerm(db.Model):
     id            = db.Column(db.Integer, primary_key=True)
     term          = db.Column(db.String(200), nullable=False)          # canonical label
     slug          = db.Column(db.String(200), unique=True, nullable=False)
+    code          = db.Column(db.String(20), nullable=True)           # stable public ID, e.g. GL-0007
     definition    = db.Column(db.Text, nullable=True)                  # current definition
     occurrences   = db.Column(db.Integer, default=0)                  # supporting sentence count
     countries     = db.Column(db.Text, nullable=True)                 # JSON list of countries
@@ -593,10 +595,11 @@ class Standard(db.Model):
     id          = db.Column(db.Integer, primary_key=True)
     title       = db.Column(db.String(300), nullable=False)
     slug        = db.Column(db.String(220), unique=True, nullable=False)
+    code        = db.Column(db.String(30), nullable=True)   # stable public ID, assigned on approval
     statement   = db.Column(db.Text, nullable=True)
     rationale   = db.Column(db.Text, nullable=True)
     category    = db.Column(db.String(120), nullable=True)
-    is_published = db.Column(db.Boolean, default=True)
+    is_published = db.Column(db.Boolean, default=False)   # pending peer review until approved
     created_at  = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at  = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -655,6 +658,42 @@ class StandardBackup(db.Model):
     standard_count  = db.Column(db.Integer, default=0)
     data            = db.Column(db.Text, nullable=False)
     created_at      = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class StandardReview(db.Model):
+    """An admin-initiated peer review of the pending standards under one glossary term."""
+    id         = db.Column(db.Integer, primary_key=True)
+    term_id    = db.Column(db.Integer, db.ForeignKey('glossary_term.id'), nullable=False)
+    status     = db.Column(db.String(20), default='open')   # open / closed
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class StandardReviewParticipant(db.Model):
+    """A contributor invited to review the standards under a glossary term.
+    Acceptance opts them into the weekly review queue for that term."""
+    id          = db.Column(db.Integer, primary_key=True)
+    user_id     = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    term_id     = db.Column(db.Integer, db.ForeignKey('glossary_term.id'), nullable=False)
+    token       = db.Column(db.String(48), unique=True, nullable=False)
+    status      = db.Column(db.String(20), default='invited')   # invited / accepted / declined / completed
+    invited_at  = db.Column(db.DateTime, default=datetime.utcnow)
+    accepted_at = db.Column(db.DateTime, nullable=True)
+    __table_args__ = (db.UniqueConstraint('user_id', 'term_id', name='uq_review_participant'),)
+
+    user = db.relationship('User', foreign_keys=[user_id])
+    term = db.relationship('GlossaryTerm', foreign_keys=[term_id])
+
+
+class StandardRating(db.Model):
+    """A reviewer's star rating of a standard's validity/applicability."""
+    id          = db.Column(db.Integer, primary_key=True)
+    standard_id = db.Column(db.Integer, db.ForeignKey('standard.id'), nullable=False)
+    user_id     = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    stars       = db.Column(db.Integer, nullable=False)   # 1-5
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at  = db.Column(db.DateTime, default=datetime.utcnow)
+    __table_args__ = (db.UniqueConstraint('standard_id', 'user_id', name='uq_standard_rating'),)
 
 
 # ===================== HELPER FUNCTIONS =====================
@@ -1163,6 +1202,92 @@ def glossary_term_ids_in_text(text):
     return found
 
 
+# ── Stable public IDs (glossary term codes + approved-standard codes) ─────────
+def ensure_term_codes():
+    """Assign a stable GL-#### code to every glossary term that lacks one."""
+    codeless = (GlossaryTerm.query
+                .filter(db.or_(GlossaryTerm.code.is_(None), GlossaryTerm.code == ''))
+                .order_by(GlossaryTerm.term.asc()).all())
+    if not codeless:
+        return
+    mx = 0
+    for (c,) in db.session.query(GlossaryTerm.code).filter(GlossaryTerm.code.isnot(None)).all():
+        m = re.match(r'GL-(\d+)', c or '')
+        if m:
+            mx = max(mx, int(m.group(1)))
+    for t in codeless:
+        mx += 1
+        t.code = f'GL-{mx:04d}'
+    db.session.commit()
+
+
+def assign_standard_code(std):
+    """Give a standard a stable code GL-####-S## (or UN-S##) from its primary
+    glossary term. Only called when the standard is approved/published."""
+    if std.code:
+        return
+    ensure_term_codes()
+    tids = [r.term_id for r in StandardTerm.query.filter_by(standard_id=std.id).all()]
+    base = 'UN'
+    if tids:
+        terms = GlossaryTerm.query.filter(GlossaryTerm.id.in_(tids)).all()
+        if terms:
+            primary = sorted(terms, key=lambda t: (-(t.occurrences or 0), t.term.lower()))[0]
+            base = primary.code or 'UN'
+    mx = 0
+    for (c,) in db.session.query(Standard.code).filter(Standard.code.like(f'{base}-S%')).all():
+        m = re.match(re.escape(base) + r'-S(\d+)', c or '')
+        if m:
+            mx = max(mx, int(m.group(1)))
+    std.code = f'{base}-S{mx + 1:02d}'
+
+
+def publish_standard(std):
+    """Mark a standard published and assign its stable code if missing."""
+    std.is_published = True
+    std.updated_at = datetime.utcnow()
+    if not std.code:
+        assign_standard_code(std)
+    invalidate_standards_cache()
+
+
+def _secure_token():
+    import secrets
+    return secrets.token_urlsafe(24)[:48]
+
+
+def eligible_contributor_query():
+    """Approved users who have a published initiative scored 4-5."""
+    return (User.query
+            .join(Initiative, Initiative.user_id == User.id)
+            .filter(User.is_approved == True,            # noqa: E712
+                    Initiative.is_published == True,      # noqa: E712
+                    Initiative.quality_score != None,     # noqa: E711
+                    Initiative.quality_score >= 4)
+            .distinct())
+
+
+def record_standard_rating(standard_id, user_id, stars):
+    """Upsert a rating and auto-publish the standard once it has >=3 ratings from
+    >=2 distinct people."""
+    stars = max(1, min(5, int(stars)))
+    r = StandardRating.query.filter_by(standard_id=standard_id, user_id=user_id).first()
+    if r:
+        r.stars = stars
+        r.updated_at = datetime.utcnow()
+    else:
+        db.session.add(StandardRating(standard_id=standard_id, user_id=user_id, stars=stars))
+    db.session.commit()
+    total = StandardRating.query.filter_by(standard_id=standard_id).count()
+    people = db.session.query(StandardRating.user_id).filter_by(standard_id=standard_id).distinct().count()
+    std = Standard.query.get(standard_id)
+    if std and not std.is_published and total >= 3 and people >= 2:
+        publish_standard(std)
+        db.session.commit()
+        return True
+    return False
+
+
 # ── Alias auto-linking inside initiative content ─────────────────────────────
 # Longest-alias-first, whole-word, case-insensitive; first occurrence per term
 # per page; skips text inside existing tags/links. Regex + map cached for 5 min.
@@ -1538,7 +1663,8 @@ def _auto_extract_standards_async(initiative_id):
                         std = Standard(title=(c.get('title') or c['statement'][:80])[:300],
                                        slug=_unique_standard_slug(c.get('title') or c['statement']),
                                        statement=c['statement'], rationale=c.get('rationale') or '',
-                                       category=c.get('category') or 'Other', is_published=True)
+                                       category=c.get('category') or 'Other',
+                                       is_published=False)   # pending peer review
                         db.session.add(std); db.session.flush()
                         db.session.add(StandardRevision(
                             standard_id=std.id, statement=std.statement, rationale=std.rationale,
@@ -7570,8 +7696,12 @@ def _build_standards_payload():
         for tid, al in (db.session.query(GlossaryAlias.term_id, GlossaryAlias.alias)
                         .filter(GlossaryAlias.term_id.in_(term_ids)).all()):
             aliases.setdefault(tid, []).append(al)
-    gl_order = sorted(terms.values(), key=lambda t: t.term.lower())
-    glid = {t.id: f"GL-{i + 1:04d}" for i, t in enumerate(gl_order)}
+    ensure_term_codes()
+    # refresh term objects' codes after assignment
+    for t in terms.values():
+        db.session.refresh(t)
+    gl_order = sorted(terms.values(), key=lambda t: (t.code or 'zz', t.term.lower()))
+    glid = {t.id: (t.code or 'GL-????') for t in gl_order}
 
     def primary_of(sid):
         tids = [t for t in links.get(sid, []) if t in terms]
@@ -7580,16 +7710,16 @@ def _build_standards_payload():
         return sorted(tids, key=lambda t: (-(terms[t].occurrences or 0), terms[t].term.lower()))[0]
 
     std_primary = {s.id: primary_of(s.id) for s in stds}
-    # assign unique IDs grouped by primary term (ordered by title)
-    groups = {}
-    for s in stds:
-        groups.setdefault(std_primary[s.id], []).append(s)
+    # Stable codes are assigned at approval time; ensure any published standard has one.
     std_id = {}
-    for p, members in groups.items():
-        members.sort(key=lambda s: (s.title or '').lower())
-        prefix = glid.get(p, 'UN') if p is not None else 'UN'
-        for i, s in enumerate(members, start=1):
-            std_id[s.id] = f"{prefix}-S{i:02d}"
+    dirty = False
+    for s in stds:
+        if not s.code:
+            assign_standard_code(s)
+            dirty = True
+        std_id[s.id] = s.code
+    if dirty:
+        db.session.commit()
 
     def term_name(tid):
         return terms[tid].term if tid in terms else ''
@@ -7936,11 +8066,166 @@ def admin_standard_toggle(id):
     if not current_user.is_admin:
         abort(403)
     std = Standard.query.get_or_404(id)
-    std.is_published = not std.is_published
+    if std.is_published:
+        std.is_published = False
+    else:
+        publish_standard(std)   # assigns stable code if missing
     db.session.commit()
     invalidate_standards_cache()
     flash(f"Standard {'published' if std.is_published else 'unpublished'}.", 'success')
     return redirect(url_for('admin_standard', id=id))
+
+
+# ---- standards peer review ----
+
+def _abs_url(path):
+    base = (os.environ.get('APP_URL') or '').rstrip('/')
+    if not base:
+        base = (get_setting('site_url', '') or '').rstrip('/')
+    return f"{base}{path}" if base else path
+
+
+def _term_standards(term_id):
+    """All standards linked to a glossary term, ordered stably."""
+    return (Standard.query
+            .join(StandardTerm, StandardTerm.standard_id == Standard.id)
+            .filter(StandardTerm.term_id == term_id)
+            .order_by(Standard.id.asc()).all())
+
+
+@app.route('/admin/standards/reviews')
+@login_required
+def admin_standard_reviews():
+    if not current_user.is_admin:
+        abort(403)
+    # glossary terms that have at least one pending standard
+    rows = (db.session.query(StandardTerm.term_id, db.func.count(Standard.id))
+            .join(Standard, Standard.id == StandardTerm.standard_id)
+            .filter(Standard.is_published == False)  # noqa: E712
+            .group_by(StandardTerm.term_id).all())
+    pending_by_term = {tid: n for tid, n in rows}
+    term_ids = list(pending_by_term.keys())
+    terms = {t.id: t for t in GlossaryTerm.query.filter(GlossaryTerm.id.in_(term_ids)).all()} if term_ids else {}
+    # participant stats per term
+    part = {}
+    for tid, status, n in (db.session.query(StandardReviewParticipant.term_id,
+                                            StandardReviewParticipant.status,
+                                            db.func.count(StandardReviewParticipant.id))
+                           .group_by(StandardReviewParticipant.term_id, StandardReviewParticipant.status).all()):
+        part.setdefault(tid, {})[status] = n
+    open_reviews = {r.term_id for r in StandardReview.query.filter_by(status='open').all()}
+    items = []
+    for tid in sorted(term_ids, key=lambda t: (terms[t].term.lower() if t in terms else '')):
+        t = terms.get(tid)
+        if not t:
+            continue
+        items.append({'term': t, 'pending': pending_by_term[tid],
+                      'invited': part.get(tid, {}).get('invited', 0),
+                      'accepted': part.get(tid, {}).get('accepted', 0),
+                      'open': tid in open_reviews})
+    eligible = eligible_contributor_query().count()
+    return render_template('admin/standard_reviews.html', items=items, eligible=eligible)
+
+
+@app.route('/admin/standards/review/initiate/<int:term_id>', methods=['POST'])
+@login_required
+def admin_standard_review_initiate(term_id):
+    if not current_user.is_admin:
+        abort(403)
+    term = GlossaryTerm.query.get_or_404(term_id)
+    review = StandardReview.query.filter_by(term_id=term_id, status='open').first()
+    if not review:
+        review = StandardReview(term_id=term_id, status='open', created_by=current_user.id)
+        db.session.add(review); db.session.commit()
+    pending = (Standard.query.join(StandardTerm, StandardTerm.standard_id == Standard.id)
+               .filter(StandardTerm.term_id == term_id, Standard.is_published == False).count())  # noqa: E712
+    invited = 0
+    for u in eligible_contributor_query().all():
+        p = StandardReviewParticipant.query.filter_by(user_id=u.id, term_id=term_id).first()
+        if not p:
+            p = StandardReviewParticipant(user_id=u.id, term_id=term_id,
+                                          token=_secure_token(), status='invited')
+            db.session.add(p); db.session.commit()
+        if p.status in ('invited', 'declined'):
+            try:
+                from utils.email_sender import send_review_invitation
+                send_review_invitation(u, term.term,
+                                       url_for('review_accept', token=p.token, _external=True),
+                                       url_for('review_decline', token=p.token, _external=True), pending)
+                invited += 1
+            except Exception as e:
+                app.logger.error(f"review invite error: {e}")
+    flash(f'Review initiated for "{term.term}" — invited {invited} contributor(s) to rate {pending} pending standard(s).', 'success')
+    return redirect(url_for('admin_standard_reviews'))
+
+
+@app.route('/admin/standards/reviews/send-due', methods=['POST'])
+@login_required
+def admin_standard_reviews_send_due():
+    if not current_user.is_admin:
+        abort(403)
+    import subprocess
+    import sys as _sys
+    base = os.path.dirname(os.path.abspath(__file__))
+    log = open(os.path.join(base, 'review_emails.log'), 'a')
+    subprocess.Popen([_sys.executable, '-u', 'send_review_emails.py'], cwd=base,
+                     env=dict(os.environ), stdout=log, stderr=log, start_new_session=True)
+    flash('Sending due weekly review emails in the background.', 'success')
+    return redirect(url_for('admin_standard_reviews'))
+
+
+# ---- reviewer-facing (token-based, no login needed) ----
+
+@app.route('/review/accept/<token>')
+def review_accept(token):
+    p = StandardReviewParticipant.query.filter_by(token=token).first_or_404()
+    if p.status in ('invited', 'declined'):
+        p.status = 'accepted'
+        p.accepted_at = datetime.utcnow()
+        db.session.commit()
+    return render_template('review_accept.html', participant=p, term=p.term, accepted=True)
+
+
+@app.route('/review/decline/<token>')
+def review_decline(token):
+    p = StandardReviewParticipant.query.filter_by(token=token).first_or_404()
+    if p.status == 'invited':
+        p.status = 'declined'
+        db.session.commit()
+    return render_template('review_accept.html', participant=p, term=p.term, declined=True)
+
+
+@app.route('/review/<token>')
+def review_page(token):
+    p = StandardReviewParticipant.query.filter_by(token=token).first_or_404()
+    if p.status not in ('accepted', 'completed'):
+        return render_template('review_accept.html', participant=p, term=p.term, need_accept=True)
+    stds = _term_standards(p.term_id)
+    total = len(stds)
+    rated = {r.standard_id: r.stars for r in
+             StandardRating.query.filter_by(user_id=p.user_id).all()}
+    if 'i' in request.args:
+        i = request.args.get('i', 0, type=int)
+    else:
+        i = next((k for k, s in enumerate(stds) if s.id not in rated), total)
+    if total == 0 or i >= total:
+        return render_template('review_done.html', term=p.term)
+    std = stds[i]
+    return render_template('review_page.html', participant=p, term=p.term, std=std,
+                           i=i, total=total, current=rated.get(std.id, 0), token=token)
+
+
+@app.route('/review/<token>/rate', methods=['POST'])
+def review_rate(token):
+    p = StandardReviewParticipant.query.filter_by(token=token).first_or_404()
+    if p.status not in ('accepted', 'completed'):
+        abort(403)
+    sid = request.form.get('standard_id', type=int)
+    stars = request.form.get('stars', type=int)
+    i = request.form.get('i', 0, type=int)
+    if sid and stars and StandardTerm.query.filter_by(standard_id=sid, term_id=p.term_id).first():
+        record_standard_rating(sid, p.user_id, stars)
+    return redirect(url_for('review_page', token=token, i=i + 1))
 
 
 # ===================== TEMPLATE FILTER =====================

@@ -3,6 +3,9 @@
 {% block admin_title %}Standards{% endblock %}
 
 {% block admin_actions %}
+<a href="{{ url_for('admin_standard_reviews') }}" class="btn btn-primary">
+    <i class="bi bi-people"></i> Review workflow
+</a>
 <a href="{{ url_for('standards') }}" class="btn btn-outline-primary" target="_blank">
     <i class="bi bi-eye"></i> View Public Page
 </a>

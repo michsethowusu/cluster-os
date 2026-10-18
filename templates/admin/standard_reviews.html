@@ -1,0 +1,50 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}Standards Review{% endblock %}
+
+{% block admin_actions %}
+<a href="{{ url_for('admin_standards') }}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i> All standards
+</a>
+<form method="POST" action="{{ url_for('admin_standard_reviews_send_due') }}" class="d-inline"
+      onsubmit="return confirm('Send this week\\'s due review emails now?');">
+    <button class="btn btn-outline-primary"><i class="bi bi-send"></i> Send due emails now</button>
+</form>
+{% endblock %}
+
+{% block admin_content %}
+<p class="text-muted">
+    Standards stay <strong>unpublished</strong> until peer-reviewed. Initiate a review for a glossary
+    term to invite all {{ eligible }} top contributors (published 4–5 initiative) to rate its pending
+    standards. Each accepts, then gets up to 5 standards a week (one email/week). A standard is
+    auto-published once it has <strong>≥3 ratings from ≥2 people</strong>.
+</p>
+
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-light">
+            <tr><th>Glossary term</th><th>Pending standards</th><th>Invited</th><th>Accepted</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for it in items %}
+            <tr>
+                <td><strong>{{ it.term.term }}</strong>{% if it.term.code %} <span class="text-muted small">({{ it.term.code }})</span>{% endif %}</td>
+                <td>{{ it.pending }}</td>
+                <td>{{ it.invited }}</td>
+                <td>{{ it.accepted }}</td>
+                <td class="text-end">
+                    <form method="POST" action="{{ url_for('admin_standard_review_initiate', term_id=it.term.id) }}"
+                          onsubmit="return confirm('Invite {{ eligible }} contributor(s) to review “{{ it.term.term }}”?');">
+                        <button class="btn btn-sm {% if it.open %}btn-outline-primary{% else %}btn-primary{% endif %}">
+                            <i class="bi bi-people"></i> {% if it.open %}Re-invite{% else %}Initiate review{% endif %}
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-center text-muted py-4">No pending standards awaiting review. Generate standards or wait for new initiatives.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

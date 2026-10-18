@@ -279,6 +279,44 @@ with app.app_context():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         '''))
+        # Stable public IDs + peer-review workflow
+        conn.execute(db.text('ALTER TABLE glossary_term ADD COLUMN IF NOT EXISTS code VARCHAR(20)'))
+        conn.execute(db.text('ALTER TABLE standard ADD COLUMN IF NOT EXISTS code VARCHAR(30)'))
+        conn.execute(db.text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS last_review_email_at TIMESTAMP'))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS standard_review (
+                id SERIAL PRIMARY KEY,
+                term_id INTEGER NOT NULL REFERENCES glossary_term(id) ON DELETE CASCADE,
+                status VARCHAR(20) DEFAULT 'open',
+                created_by INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        '''))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS standard_review_participant (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+                term_id INTEGER NOT NULL REFERENCES glossary_term(id) ON DELETE CASCADE,
+                token VARCHAR(48) UNIQUE NOT NULL,
+                status VARCHAR(20) DEFAULT 'invited',
+                invited_at TIMESTAMP DEFAULT NOW(),
+                accepted_at TIMESTAMP,
+                CONSTRAINT uq_review_participant UNIQUE (user_id, term_id)
+            )
+        '''))
+        conn.execute(db.text('CREATE INDEX IF NOT EXISTS ix_review_participant_user ON standard_review_participant (user_id)'))
+        conn.execute(db.text('''
+            CREATE TABLE IF NOT EXISTS standard_rating (
+                id SERIAL PRIMARY KEY,
+                standard_id INTEGER NOT NULL REFERENCES standard(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+                stars INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW(),
+                CONSTRAINT uq_standard_rating UNIQUE (standard_id, user_id)
+            )
+        '''))
+        conn.execute(db.text('CREATE INDEX IF NOT EXISTS ix_standard_rating_standard ON standard_rating (standard_id)'))
 
         conn.commit()
     print('DB ready.')

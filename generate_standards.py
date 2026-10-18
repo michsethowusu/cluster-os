@@ -398,7 +398,8 @@ def do_generate():
             tids = _terms_in(f"{t}. {statement}. {rationale}", termpairs)
             payload.append({
                 'title': t, 'slug': slugify(t, taken), 'statement': statement,
-                'rationale': rationale, 'category': category, 'is_published': True,
+                'rationale': rationale, 'category': category,
+                'is_published': False,   # pending peer review until approved
                 'initiative_ids': sorted(f['iids']), 'term_ids': sorted(tids),
             })
 

@@ -1093,3 +1093,42 @@ def send_bulk_documents_digest(docs_data, users):
         html = _base_email(title, body, footer_html=_unsubscribe_footer(user.email))
         send_email(user.email, subject, html)
 
+
+
+# ===================== STANDARDS PEER REVIEW =====================
+
+def send_review_invitation(user, term_name, accept_url, decline_url, n_standards):
+    """Invite a top contributor to review the standards under a glossary term."""
+    body = f"""
+    <p>Dear {user.name},</p>
+    <p>As one of our top contributors, you're invited to help review proposed
+    <strong>{_site_name()}</strong> standards under the glossary term
+    <strong>{term_name}</strong> ({n_standards} standard{'s' if n_standards != 1 else ''}).</p>
+    <p>If you accept, you'll receive <strong>up to 5 standards to rate each week</strong>
+    (never more than one review email per week), judging how valid and applicable each
+    standard is to your context. Standards that gather enough peer ratings are published
+    to the public standards database.</p>
+    <p class="cta"><a class="button" href="{accept_url}">Accept &amp; start reviewing</a></p>
+    <p class="muted">Prefer not to take part? <a href="{decline_url}">Decline this invitation</a>.</p>
+    """
+    html = _base_email('Invitation to review ECED-FLN standards', body)
+    send_email(user.email, f'Invitation: review standards on {term_name}', html)
+
+
+def send_review_weekly(user, term_name, review_url, standards):
+    """Weekly nudge with the next batch of standards to rate under a term."""
+    items = ""
+    for s in standards:
+        items += (f'<li style="margin-bottom:6px;"><strong>{s.title}</strong>'
+                  f'<br><span style="color:#555;font-size:0.92em;">{s.statement or ""}</span></li>')
+    body = f"""
+    <p>Dear {user.name},</p>
+    <p>Here are this week's standards to review under <strong>{term_name}</strong>.
+    Please rate how valid and applicable each is to your context.</p>
+    <ul>{items}</ul>
+    <p class="cta"><a class="button" href="{review_url}">Review these standards</a></p>
+    <p class="muted">You'll receive the next set next week. Thank you for shaping the
+    {_site_name()} standards.</p>
+    """
+    html = _base_email(f'{len(standards)} standards to review on {term_name}', body)
+    send_email(user.email, f'This week: review {len(standards)} standards on {term_name}', html)

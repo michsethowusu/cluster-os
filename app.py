@@ -1151,10 +1151,13 @@ def user_can_edit_standards(user):
 
 # ── Standards enablement + glossary-term matching ────────────────────────────
 _STANDARDS_CACHE = {'enabled': None, 'ts': 0.0}
+_STANDARDS_PUB_CACHE = {'enabled': None, 'ts': 0.0}
 _STD_TERMMAP = {'ts': 0.0, 'pairs': None}   # list of (alias_lower, term_id), longest-first
 
 
 def standards_enabled():
+    """True if any standards exist at all (published or pending) — gates the
+    extraction/auto-add machinery and admin tooling."""
     now = time.time()
     if _STANDARDS_CACHE['enabled'] is None or now - _STANDARDS_CACHE['ts'] > 60:
         try:
@@ -1165,9 +1168,25 @@ def standards_enabled():
     return _STANDARDS_CACHE['enabled']
 
 
+def standards_public():
+    """True if at least one standard is published — gates the public page + nav so
+    nothing is shown until standards pass peer review."""
+    now = time.time()
+    if _STANDARDS_PUB_CACHE['enabled'] is None or now - _STANDARDS_PUB_CACHE['ts'] > 60:
+        try:
+            _STANDARDS_PUB_CACHE['enabled'] = db.session.query(Standard.id).filter(
+                Standard.is_published == True).first() is not None  # noqa: E712
+        except Exception:
+            _STANDARDS_PUB_CACHE['enabled'] = False
+        _STANDARDS_PUB_CACHE['ts'] = now
+    return _STANDARDS_PUB_CACHE['enabled']
+
+
 def invalidate_standards_cache():
     _STANDARDS_CACHE['enabled'] = None
     _STANDARDS_CACHE['ts'] = 0.0
+    _STANDARDS_PUB_CACHE['enabled'] = None
+    _STANDARDS_PUB_CACHE['ts'] = 0.0
 
 
 def _glossary_termmap():
@@ -1467,7 +1486,7 @@ def build_nav():
             continue
         if item['key'] == 'glossary' and not glossary_enabled():
             continue
-        if item['key'] == 'standards' and not standards_enabled():
+        if item['key'] == 'standards' and not standards_public():
             continue
         label = (ov.get('label') or '').strip() or item['label']
         try:
@@ -7625,7 +7644,7 @@ def _standards_query_base():
 
 @app.route('/standards')
 def standards():
-    if not standards_enabled():
+    if not standards_public():
         abort(404)
     q = (request.args.get('q') or '').strip()
     term_slug = (request.args.get('term') or '').strip()
@@ -7785,7 +7804,7 @@ def ensure_standards_xlsx():
 
 @app.route('/standards.xlsx')
 def standards_xlsx_download():
-    if not standards_enabled():
+    if not standards_public():
         abort(404)
     try:
         folder = ensure_standards_xlsx()
@@ -7800,7 +7819,7 @@ def standards_xlsx_download():
 
 @app.route('/standards/<slug>')
 def standard_detail(slug):
-    if not standards_enabled():
+    if not standards_public():
         abort(404)
     std = Standard.query.filter_by(slug=slug).first_or_404()
     if not std.is_published and not current_user.is_admin:

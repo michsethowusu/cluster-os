@@ -46,9 +46,9 @@
                 <td>{{ it.accepted }}</td>
                 <td class="text-end">
                     <form method="POST" action="{{ url_for('admin_standard_review_initiate', term_id=it.term.id) }}"
-                          onsubmit="return confirm('Invite {{ eligible }} contributor(s) to review “{{ it.term.term }}”?');">
-                        <button class="btn btn-sm {% if it.open %}btn-outline-primary{% else %}btn-primary{% endif %}">
-                            <i class="bi bi-people"></i> {% if it.open %}Re-invite{% else %}Initiate review{% endif %}
+                          onsubmit="return confirm({% if test_mode %}'TEST MODE: send a review invite for “{{ it.term.term }}” only to {{ test_email }} — no contributors will be emailed. Continue?'{% else %}'LIVE: email {{ eligible }} contributor(s) to review “{{ it.term.term }}” now?'{% endif %});">
+                        <button class="btn btn-sm {% if test_mode %}btn-warning{% elif it.open %}btn-outline-primary{% else %}btn-primary{% endif %}">
+                            {% if test_mode %}<i class="bi bi-flask"></i> Test invite to me{% else %}<i class="bi bi-people"></i> {% if it.open %}Re-invite{% else %}Initiate review{% endif %}{% endif %}
                         </button>
                     </form>
                 </td>

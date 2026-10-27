@@ -22,7 +22,7 @@ def _abs(path):
 
 
 def _test_target():
-    email = app.config.get('ADMIN_OTP_EMAIL')
+    email = (os.environ.get('REVIEW_TEST_EMAIL') or '').strip() or app.config.get('ADMIN_OTP_EMAIL')
     if email:
         return email
     a = User.query.filter_by(is_admin=True).first()

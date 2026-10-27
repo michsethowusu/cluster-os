@@ -8112,7 +8112,7 @@ def _review_test_mode():
 
 
 def _review_test_target():
-    email = app.config.get('ADMIN_OTP_EMAIL')
+    email = (os.environ.get('REVIEW_TEST_EMAIL') or '').strip() or app.config.get('ADMIN_OTP_EMAIL')
     if email:
         return email
     admin = User.query.filter_by(is_admin=True).first()

@@ -30,8 +30,8 @@
                     <h6><i class="bi bi-building"></i> Invite Organisations — sends invitation email on behalf of their organisation:</h6>
                     <ul class="mb-0">
                         <li>No accounts are created</li>
-                        <li>Each person receives an email inviting them to register on behalf of their organisation</li>
-                        <li>Required columns: <strong>email</strong>, <strong>name</strong>, <strong>organization</strong></li>
+                        <li>The organisation receives an email inviting it to register experts on its behalf</li>
+                        <li>Required columns: <strong>email</strong>, <strong>organization</strong> (a contact <strong>name</strong> is optional — the email greets the organisation when omitted)</li>
                     </ul>
                 </div>
                 <div class="alert alert-warning d-none" id="info-invite-individuals">
@@ -77,8 +77,8 @@
                             </label>
                         </div>
                         <div class="form-text ms-4">
-                            Recipients receive an email mentioning their organisation.
-                            Requires <strong>email</strong>, <strong>name</strong>, and <strong>organization</strong> columns.
+                            The organisation receives an email mentioning its name.
+                            Requires <strong>email</strong> and <strong>organization</strong> columns (a contact <strong>name</strong> is optional).
                         </div>
                     </div>
 
@@ -172,7 +172,7 @@
                     </thead>
                     <tbody>
                         <tr><td>email</td><td>Yes</td><td>Member email address</td></tr>
-                        <tr><td>name</td><td>Yes</td><td>Full name</td></tr>
+                        <tr><td>name</td><td class="text-muted" id="name-required">Yes</td><td>Full name of the contact person (optional when inviting organisations)</td></tr>
                         <tr><td>organization</td><td class="text-muted" id="org-required">Yes</td><td>Organization name</td></tr>
                         <tr><td>stakeholder_type</td><td class="text-muted" id="stype-required">Yes</td><td>Must match a configured stakeholder type — manage them in <a href="{{ url_for('admin_stakeholder_types') }}">Stakeholder Types</a></td></tr>
                         <tr><td>country</td><td class="text-muted" id="country-required">Yes</td><td>Country name</td></tr>
@@ -213,6 +213,7 @@ john@unicef.org,John Doe,UNICEF Ghana,UN Agency,Ghana</pre>
     const eventInviteFields     = document.getElementById('event-invite-fields');
     const submitBtn             = document.getElementById('submit-btn');
     const inviteNote            = document.getElementById('invite-note');
+    const nameRequired          = document.getElementById('name-required');
     const orgRequired           = document.getElementById('org-required');
     const stypeRequired         = document.getElementById('stype-required');
     const countryRequired       = document.getElementById('country-required');
@@ -239,6 +240,7 @@ john@unicef.org,John Doe,UNICEF Ghana,UN Agency,Ghana</pre>
         eventInviteFields.classList.toggle('d-none', !finalEventInvite);
 
         const optLabel = anySpecial ? 'Optional' : 'Yes';
+        nameRequired.textContent    = finalInviteOrgs ? 'Optional' : 'Yes';
         orgRequired.textContent     = finalInviteOrgs ? 'Yes' : optLabel;
         stypeRequired.textContent   = optLabel;
         countryRequired.textContent = optLabel;

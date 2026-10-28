@@ -5489,7 +5489,10 @@ def admin_import_members():
                 valid_rows  = []   # list of dicts: {email, name, ...row}
                 for row_num, row in enumerate(csv_reader, start=2):
                     if invite_orgs:
-                        required = ['email', 'name', 'organization']
+                        # Org invitations go to an organisation, not a named person,
+                        # so a contact person's name is optional (the email greets the
+                        # organisation when no name is given).
+                        required = ['email', 'organization']
                     elif invite_individuals or custom_message_mode or event_invite_mode:
                         required = ['email', 'name']
                     else:

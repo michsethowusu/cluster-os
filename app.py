@@ -7180,6 +7180,7 @@ def backfill_status():
         'purge': get_setting('purge_status') or 'not run',
         'rescore': get_setting('rescore_status') or 'not run',
         'teacher_docs_import': get_setting('teacher_docs_import_status') or 'not run',
+        'core_docs_import': get_setting('core_docs_import_status') or 'not run',
         'terminology': get_setting('terminology_status') or 'not run',
         'glossary_import': get_setting('glossary_import_status') or 'not run',
         'sync_single_templates': get_setting('sync_single_templates_status') or 'not run',

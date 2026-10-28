@@ -88,6 +88,7 @@ python -u quarantine_unverified.py &
 python -u purge_unverified.py &
 python -u rescore_unverified.py &
 python -u import_teacher_docs.py &
+python -u import_core_docs.py &
 python -u extract_terminology.py &
 python -u import_glossary.py &
 python -u sync_single_templates.py &

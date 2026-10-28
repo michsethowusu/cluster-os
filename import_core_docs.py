@@ -56,11 +56,11 @@ Return ONLY a JSON object (no markdown fences, no preamble):
 
 If relevant is false you may leave the other fields minimal.
 
-DOCUMENT TITLE (as scraped): {scraped_title}
-GLOSSARY TERM IT WAS FOUND UNDER: {term}
+DOCUMENT TITLE (as scraped): __SCRAPED_TITLE__
+GLOSSARY TERM IT WAS FOUND UNDER: __TERM__
 
 DOCUMENT TEXT:
-{text}"""
+__TEXT__"""
 
 
 def _status(**kw):
@@ -137,10 +137,10 @@ def run():
                                 os.remove(filepath); filepath = None
                                 screened_out += 1
                             else:
-                                prompt = SCREEN_PROMPT.format(
-                                    scraped_title=(e.get('title') or '')[:200],
-                                    term=(e.get('term') or '')[:120],
-                                    text=text[:8000])
+                                prompt = (SCREEN_PROMPT
+                                          .replace('__SCRAPED_TITLE__', (e.get('title') or '')[:200])
+                                          .replace('__TERM__', (e.get('term') or '')[:120])
+                                          .replace('__TEXT__', text[:8000]))
                                 data = _parse_json(call_nvidia_api(prompt, max_tokens=700,
                                                                    temperature=0.1))
                                 time.sleep(PACE_SECONDS)

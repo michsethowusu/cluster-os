@@ -99,6 +99,10 @@ def _parse_json(raw):
 
 
 def run():
+    # Let the web app finish booting and pass its healthcheck before we add the
+    # download/extract load — a failing healthcheck is what triggered redeploys
+    # that stacked multiple importers and OOM'd the box.
+    time.sleep(int(os.environ.get('IMPORT_CORE_DOCS_DELAY', '75')))
     with app.app_context():
         try:
             entries = json.load(open(MANIFEST, encoding='utf-8'))

@@ -17,11 +17,13 @@ import os
 import time
 import uuid
 import json
+import gc
 
 if os.environ.get('IMPORT_CORE_DOCS', '') != '1':
     raise SystemExit(0)
 
 import requests
+import PyPDF2
 from datetime import datetime
 
 from app import (app, db, DocumentLibrary, User, Tag,
@@ -31,9 +33,25 @@ from utils.ai_services import call_nvidia_api
 HERE = os.path.dirname(os.path.abspath(__file__))
 MANIFEST = os.path.join(HERE, 'core_docs_manifest.json')
 HEADERS = {'User-Agent': 'Mozilla/5.0 (compatible; ClusterOS-DocImporter/1.0)'}
-MAX_BYTES = 60 * 1024 * 1024       # skip anything larger than 60 MB
+MAX_BYTES = 25 * 1024 * 1024       # skip anything larger than 25 MB (memory safety)
+MAX_PAGES = 25                     # extract at most this many pages (bounds memory/CPU)
 MIN_TEXT = 400                     # too little text to screen reliably
 PACE_SECONDS = 1.2                 # gap between AI calls (rate-limit friendly)
+
+
+def _extract_pdf_text(path, max_pages=MAX_PAGES):
+    """Bounded PDF text extraction: read at most max_pages so a single huge PDF
+    cannot blow up memory/CPU (the whole import runs beside the web workers)."""
+    try:
+        rd = PyPDF2.PdfReader(path)
+        out = []
+        for i, page in enumerate(rd.pages):
+            if i >= max_pages:
+                break
+            out.append(page.extract_text() or '')
+        return "\n".join(out), None
+    except Exception as e:
+        return "", str(e)[:200]
 
 SCREEN_PROMPT = """You are a document librarian for the African Union ECED-FLN platform. \
 ECED = Early Childhood Education and Development; FLN = Foundational Learning and Numeracy.
@@ -132,7 +150,8 @@ def run():
                             with open(filepath, 'wb') as f:
                                 f.write(content)
 
-                            text, _err = _extract_document_text(filepath, 'pdf')
+                            text, _err = _extract_pdf_text(filepath)
+                            text = (text or '').replace('\x00', '')  # Postgres rejects NUL
                             if not text or len(text.strip()) < MIN_TEXT:
                                 os.remove(filepath); filepath = None
                                 screened_out += 1
@@ -187,6 +206,16 @@ def run():
                         except OSError: pass
                     failed += 1
                     print(f'[import_core_docs] error on {fname}: {str(ex)[:200]}')
+                finally:
+                    # Release the downloaded bytes/text each iteration so memory
+                    # stays flat across the full run (it shares the box with gunicorn).
+                    try: del content
+                    except NameError: pass
+                    try: del text
+                    except NameError: pass
+                    try: del data
+                    except NameError: pass
+                    gc.collect()
 
             if idx % 10 == 0 or idx == total:
                 _status(state='running', total=total, processed=idx, added=added,

@@ -448,12 +448,13 @@ def send_email(to_email, subject, html_content, text_content=None):
         print("ERROR: MAIL_DEFAULT_SENDER is not set")
         return False
 
+    # Display name shown as the sender is always the full brand name; the sender
+    # EMAIL stays whatever MAIL_DEFAULT_SENDER configures (a verified Brevo sender).
     if '<' in sender_raw:
-        sender_name = sender_raw.split('<')[0].strip()
         sender_email = sender_raw.split('<')[1].replace('>', '').strip()
     else:
-        sender_name = _site_name()
         sender_email = sender_raw
+    sender_name = _brand_full()
 
     payload = {
         "sender": {"name": sender_name, "email": sender_email},

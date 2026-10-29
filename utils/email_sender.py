@@ -327,6 +327,19 @@ def _site_tagline():
 
 
 def _site_contact_email():
+    # Displayed "contact us" address, decoupled from the actual email sender
+    # (MAIL_DEFAULT_SENDER must stay a Brevo-verified address). Override via the
+    # CONTACT_EMAIL env var or a 'contact_email' setting.
+    override = os.environ.get('CONTACT_EMAIL', '').strip()
+    if override:
+        return override
+    try:
+        from app import get_setting
+        s = (get_setting('contact_email', None) or '').strip()
+        if s:
+            return s
+    except Exception:
+        pass
     sender = os.environ.get('MAIL_DEFAULT_SENDER', '')
     if '<' in sender:
         return sender.split('<')[1].replace('>', '').strip()

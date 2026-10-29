@@ -241,7 +241,7 @@ EMAIL_TEMPLATES = [
         'variables': ['initiative_title', 'initiative_url', 'site_name'],
         'subject': '{{ initiative_title }}',
         'title': 'New Initiative Published',
-        'body_html': '<p>A new initiative has just been published on the platform:</p>\n<div class="panel">\n  <p><strong>{{ initiative_title }}</strong></p>\n  <p class="muted">Learn more about this initiative and how you can contribute to its success.</p>\n</div>\n<p class="cta"><a class="button" href="{{ initiative_url }}">Read Initiative \u2192</a></p>',
+        'body_html': '<p>A new initiative has just been shared with the {{ brand_full }}:</p>\n<div class="panel">\n  <p><strong>{{ initiative_title }}</strong></p>\n  <p class="muted">Learn more about this initiative and how you can contribute to its success.</p>\n</div>\n<p class="cta"><a class="button" href="{{ initiative_url }}">Read Initiative \u2192</a></p>',
     },
     {
         'key': 'initiative_digest',
@@ -277,7 +277,7 @@ EMAIL_TEMPLATES = [
         'variables': ['doc_title', 'doc_url', 'items_html', 'site_name'],
         'subject': '{{ doc_title }}',
         'title': 'New Document Published',
-        'body_html': '<p>A new document has just been published on {{ site_name }}:</p>\n{{ items_html }}\n<p class="cta"><a class="button" href="{{ doc_url }}">View Document \u2192</a></p>',
+        'body_html': '<p>A new document has just been shared with the {{ brand_full }}:</p>\n{{ items_html }}\n<p class="cta"><a class="button" href="{{ doc_url }}">View Document \u2192</a></p>',
     },
     {
         'key': 'document_digest',

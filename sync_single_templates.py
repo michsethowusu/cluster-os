@@ -12,7 +12,7 @@ if os.environ.get('SYNC_SINGLE_TEMPLATES', '') != '1':
 from app import app, db, EmailTemplate, set_setting
 from utils.email_sender import EMAIL_TEMPLATES
 
-KEYS = ['document_single', 'policy_single']
+KEYS = ['document_single', 'policy_single', 'initiative_single']
 
 with app.app_context():
     updated = []

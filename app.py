@@ -7189,6 +7189,7 @@ def backfill_status():
         'sync_single_templates': get_setting('sync_single_templates_status') or 'not run',
         'sync_invite_org': get_setting('sync_invite_org_status') or 'not run',
         'send_test_invite': get_setting('send_test_invite_status') or 'not run',
+        'backfill_doc_queue': get_setting('backfill_doc_queue_status') or 'not run',
         'standards': get_setting('standards_gen_status') or 'not run',
         'review_test_mode': get_setting('review_test_mode', 'false'),
         'review_participants': (db.session.query(StandardReviewParticipant.id).count()

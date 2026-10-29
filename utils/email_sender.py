@@ -140,9 +140,9 @@ EMAIL_TEMPLATES = [
         'label': 'Invitation (Organisation)',
         'description': 'Sent to invite organisation representatives.',
         'variables': ['user_name', 'organization', 'site_name', 'register_url', 'contact_email'],
-        'subject': 'Invitation to Join {{ site_name }}',
-        'title': 'Invitation to Join {{ site_name }}',
-        'body_html': '<p>Dear {{ user_name }},</p>\n<p><strong>{{ site_name }}</strong> is pleased to invite experts on behalf of <strong>{{ organization }}</strong> to join its digital collaboration platform.</p>\n<p>A platform connecting experts and organisations. As a member your organisation will be able to:</p>\n<ul>\n    <li>Share and explore initiatives from across the continent</li>\n    <li>Participate in the Q&amp;A forum and contribute recommendations</li>\n    <li>Register for events and engage in polls</li>\n    <li>Connect with other experts and organisations in the network</li>\n</ul>\n<p>We look forward to your participation.</p>\n<p class="cta"><a class="button" href="{{ register_url }}">Register Now</a></p>\n<p class="muted">Should you have any questions, please do not hesitate to contact us at <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>.</p>',
+        'subject': 'Invitation to Join {{ brand_full }}',
+        'title': 'Invitation to Join {{ brand_full }}',
+        'body_html': '<p>Dear {{ user_name }},</p>\n<p><strong>{{ brand_full }}</strong> is pleased to invite experts from <strong>{{ organization }}</strong> to join its digital collaboration platform.</p>\n<p>A platform connecting experts and organisations. As a member your organisation will be able to:</p>\n<ul>\n    <li>Share and explore initiatives from across the continent</li>\n    <li>Participate in the Q&amp;A forum and contribute recommendations</li>\n    <li>Register for events and engage in polls</li>\n    <li>Connect with other experts and organisations in the network</li>\n</ul>\n<p>We look forward to your participation.</p>\n<p class="cta"><a class="button" href="{{ register_url }}">Register Now</a></p>\n<p>To learn more about the cluster, visit <a href="https://www.ecedcluster.africa/">https://www.ecedcluster.africa/</a>.</p>\n<p class="muted">Should you have any questions, please do not hesitate to contact us at <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>.</p>',
     },
     {
         'key': 'invitation_individual',
@@ -309,6 +309,12 @@ def _site_name():
     return os.environ.get('SITE_NAME') or 'Cluster Platform'
 
 
+def _brand_full():
+    """Full brand name for emails (matches the site title/footer): BRAND_FULL env,
+    else the plain site name."""
+    return os.environ.get('BRAND_FULL', '').strip() or _site_name()
+
+
 def _site_tagline():
     try:
         from app import get_setting
@@ -399,6 +405,7 @@ def _render_template(template_key, context, subject_default='', title_default=''
 
     full_context = {
         'site_name': _site_name(),
+        'brand_full': _brand_full(),
         'contact_email': _site_contact_email(),
         'login_url': _url('/login'),
         'register_url': _url('/register'),
@@ -568,7 +575,7 @@ def send_invitation_email(email, name, organization=None):
         defaults['subject'], defaults['title'], defaults['body_html'])
     if not title:
         return False
-    subject = f"Invitation for Experts from {organization} to Join {_site_name()}" if organization else f"Invitation to Join {_site_name()}"
+    subject = f"Invitation for Experts from {organization} to Join {_brand_full()}" if organization else f"Invitation to Join {_brand_full()}"
     html = _base_email(title, body, footer_html=_unsubscribe_footer(email))
     send_email(email, subject, html)
 

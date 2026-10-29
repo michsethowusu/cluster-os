@@ -92,6 +92,7 @@ python -u import_core_docs.py &
 python -u extract_terminology.py &
 python -u import_glossary.py &
 python -u sync_single_templates.py &
+python -u sync_invitation_org_template.py &
 python -u generate_standards.py &
 python -u unpublish_standards.py &
 
